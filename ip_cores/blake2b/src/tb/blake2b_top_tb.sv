@@ -1,6 +1,6 @@
-module blake2_top_tb();
+module blake2b_top_tb();
 
-import blake2_pkg::*;
+import blake2b_pkg::*;
 import common_pkg::*;
 
 logic clk, rst;
@@ -23,7 +23,7 @@ initial begin
 end
 
 
-blake2_top DUT (
+blake2b_top DUT (
   .i_clk ( clk ),
   .i_rst ( rst ),
   .i_parameters ( parameters ),

@@ -1,10 +1,10 @@
-module blake2_g_tb();
+module blake2b_g_tb();
 
 logic clk;
 logic [63:0] o_a, o_b, o_c, o_d, i_a, i_b, i_c, i_d, i_m0, i_m1;
 localparam PIPELINES = 1;
 
-blake2_g #(.PIPELINES(PIPELINES)) DUT (.i_clk(clk), .o_a(o_a), .o_b(o_b), .o_c(o_c), .o_d(o_d), .i_a(i_a), .i_b(i_b), .i_c(i_c), .i_d(i_d), .i_m0(i_m0), .i_m1(i_m1));
+blake2b_g #(.PIPELINES(PIPELINES)) DUT (.i_clk(clk), .o_a(o_a), .o_b(o_b), .o_c(o_c), .o_d(o_d), .i_a(i_a), .i_b(i_b), .i_c(i_c), .i_d(i_d), .i_m0(i_m0), .i_m1(i_m1));
 
 initial begin
   clk = 0;

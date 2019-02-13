@@ -1,4 +1,4 @@
-package blake2_pkg;
+package blake2b_pkg;
 
   // Initial values
   parameter [7:0][63:0] IV  = {

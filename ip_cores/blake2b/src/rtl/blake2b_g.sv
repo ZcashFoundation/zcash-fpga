@@ -1,4 +1,4 @@
-module blake2_g
+module blake2b_g
 #(
   parameter PIPELINES = 1 // Do we want to optionally add pipeline stages
 )

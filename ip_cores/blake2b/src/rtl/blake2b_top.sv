@@ -3,8 +3,8 @@
  * Only only hash is computed at a time, and takes 26 clocks * number of 128 Byte message blocks.
  */ 
 
-module blake2_top
-  import blake2_pkg::*;
+module blake2b_top
+  import blake2b_pkg::*;
 (
   input i_clk, i_rst,
 
@@ -46,11 +46,11 @@ always_ff @(posedge i_clk) begin
   
   for (int i = 0; i < 16; i++)
     if (g_col == 0)
-      v_tmp[i] <= g_out[blake2_pkg::G_MAPPING[i]];
+      v_tmp[i] <= g_out[blake2b_pkg::G_MAPPING[i]];
       
   for (int i = 0; i < 8; i++)
     if (blake2_state == STATE_ROUNDS)
-      h_tmp[i] <= g_out[16 + blake2_pkg::G_MAPPING_DIAG[i]] ^ g_out[16 + blake2_pkg::G_MAPPING_DIAG[i+8]];
+      h_tmp[i] <= g_out[16 + blake2b_pkg::G_MAPPING_DIAG[i]] ^ g_out[16 + blake2b_pkg::G_MAPPING_DIAG[i+8]];
   
 end
 
@@ -80,7 +80,7 @@ always_ff @(posedge i_clk) begin
     
     case (blake2_state)
       STATE_IDLE: begin
-        h <= i_parameters ^ blake2_pkg::IV;
+        h <= i_parameters ^ blake2b_pkg::IV;
         t <= 2;
         i_block.rdy <= 1;
         v <= 0;
@@ -104,7 +104,7 @@ always_ff @(posedge i_clk) begin
         
         // Update local work vector with output of G function blocks depending on column or diagonal operation
         for (int i = 0; i < 16; i++) begin
-          v[i] <= g_out[16 + blake2_pkg::G_MAPPING_DIAG[i]];
+          v[i] <= g_out[16 + blake2b_pkg::G_MAPPING_DIAG[i]];
         end
 
         if (g_col) begin
@@ -172,22 +172,22 @@ generate begin
     logic [63:0] m0, m1;
     always_ff @ (posedge i_clk) begin
       if(blake2_state == STATE_IDLE || blake2_state == STATE_NEXT_BLOCK) begin
-        m0 <= block[blake2_pkg::SIGMA[gv_g*2]];
-        m1 <= block[blake2_pkg::SIGMA[gv_g*2 + 1]];
+        m0 <= block[blake2b_pkg::SIGMA[gv_g*2]];
+        m1 <= block[blake2b_pkg::SIGMA[gv_g*2 + 1]];
       end else begin
-        m0 <= block_r[blake2_pkg::SIGMA[16*round_cntr_msg + gv_g*2]];
-        m1 <= block_r[blake2_pkg::SIGMA[16*round_cntr_msg + gv_g*2 + 1]];
+        m0 <= block_r[blake2b_pkg::SIGMA[16*round_cntr_msg + gv_g*2]];
+        m1 <= block_r[blake2b_pkg::SIGMA[16*round_cntr_msg + gv_g*2 + 1]];
       end
     end 
     
-    blake2_g
+    blake2b_g
       #(.PIPELINES(0))
-    blake2_g (
+    blake2b_g (
       .i_clk(i_clk),
-      .i_a(gv_g < 4 ? v[blake2_pkg::G_MAPPING[(gv_g*4 + 0)]] : v_tmp[blake2_pkg::G_MAPPING[(gv_g*4 + 0)]]),
-      .i_b(gv_g < 4 ? v[blake2_pkg::G_MAPPING[(gv_g*4 + 1)]] : v_tmp[blake2_pkg::G_MAPPING[(gv_g*4 + 1)]]),
-      .i_c(gv_g < 4 ? v[blake2_pkg::G_MAPPING[(gv_g*4 + 2)]] : v_tmp[blake2_pkg::G_MAPPING[(gv_g*4 + 2)]]),
-      .i_d(gv_g < 4 ? v[blake2_pkg::G_MAPPING[(gv_g*4 + 3)]] : v_tmp[blake2_pkg::G_MAPPING[(gv_g*4 + 3)]]),
+      .i_a(gv_g < 4 ? v[blake2b_pkg::G_MAPPING[(gv_g*4 + 0)]] : v_tmp[blake2b_pkg::G_MAPPING[(gv_g*4 + 0)]]),
+      .i_b(gv_g < 4 ? v[blake2b_pkg::G_MAPPING[(gv_g*4 + 1)]] : v_tmp[blake2b_pkg::G_MAPPING[(gv_g*4 + 1)]]),
+      .i_c(gv_g < 4 ? v[blake2b_pkg::G_MAPPING[(gv_g*4 + 2)]] : v_tmp[blake2b_pkg::G_MAPPING[(gv_g*4 + 2)]]),
+      .i_d(gv_g < 4 ? v[blake2b_pkg::G_MAPPING[(gv_g*4 + 3)]] : v_tmp[blake2b_pkg::G_MAPPING[(gv_g*4 + 3)]]),
       .i_m0(m0),
       .i_m1(m1),
       .o_a(g_out[gv_g*4 + 0]),
@@ -205,11 +205,11 @@ begin
   for (int i = 0; i < 16; i++)
     case (i) inside
       0,1,2,3,4,5,6,7: v[i] <= h[i];
-      8,9,10,11: v[i] <= blake2_pkg::IV[i%8];
-      12: v[i] <= blake2_pkg::IV[i%8] ^ cntr[63:0];
-      13: v[i] <= blake2_pkg::IV[i%8] ^ cntr[64 +: 64];
-      14: v[i] <= blake2_pkg::IV[i%8] ^ {64{last_block}};
-      15: v[i] <= blake2_pkg::IV[i%8];
+      8,9,10,11: v[i] <= blake2b_pkg::IV[i%8];
+      12: v[i] <= blake2b_pkg::IV[i%8] ^ cntr[63:0];
+      13: v[i] <= blake2b_pkg::IV[i%8] ^ cntr[64 +: 64];
+      14: v[i] <= blake2b_pkg::IV[i%8] ^ {64{last_block}};
+      15: v[i] <= blake2b_pkg::IV[i%8];
     endcase
 end
 endtask
