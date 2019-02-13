@@ -1,4 +1,4 @@
-/* Implemented from RFC-7693, The BLAKE2 Cryptographic Hash and Message Authentication Code (MAC)
+/* Implemented from RFC-7693, The BLAKE2b Cryptographic Hash and Message Authentication Code (MAC)
  * Parameters are passed in as an input. Inputs and outputs are AXI stream and respect flow control.
  * Only only hash is computed at a time, and takes 26 clocks * number of 128 Byte message blocks.
  */ 
@@ -36,17 +36,15 @@ logic [7:0] byte_len_l;
 // Pipelining logic that has no reset
 always_ff @(posedge i_clk) begin
 
-  if (blake2_state == STATE_IDLE && ~i_block.rdy)
+  if (blake2_state == STATE_IDLE)
     block_r <= 0;
   
-  if (i_block.val && i_block.rdy) begin
+  if (i_block.val && i_block.rdy)
     block_r <= i_block.dat;
-  end
- 
   
-  for (int i = 0; i < 16; i++)
-    if (g_col == 0)
-      v_tmp[i] <= g_out[blake2b_pkg::G_MAPPING[i]];
+    for (int i = 0; i < 16; i++) begin
+      v_tmp[blake2b_pkg::G_MAPPING[i]] <= g_out[i];
+    end
       
   for (int i = 0; i < 8; i++)
     if (blake2_state == STATE_ROUNDS)
@@ -99,28 +97,25 @@ always_ff @(posedge i_clk) begin
         end
       end
       // Here we do the compression over 12 rounds, each round can be done in two clock cycles
-      // After we do 12 rounds we increment counter t
       STATE_ROUNDS: begin
         
         // Update local work vector with output of G function blocks depending on column or diagonal operation
-        for (int i = 0; i < 16; i++) begin
+        for (int i = 0; i < 16; i++)
           v[i] <= g_out[16 + blake2b_pkg::G_MAPPING_DIAG[i]];
-        end
 
-        if (g_col) begin
+        if (g_col)
           round_cntr <= round_cntr + 1;
-        end else begin
+        else
           round_cntr_msg <= (round_cntr_msg + 1) % 10;
-        end
+        
         if (round_cntr == ROUNDS-1)
           round_cntr_fin <= 1;
           
         if (round_cntr_fin) begin
           if (block_eop_l)
             blake2_state <= STATE_FINAL_BLOCK;
-          else begin
+          else
             blake2_state <= STATE_NEXT_BLOCK;
-          end
         end
       end
       STATE_NEXT_BLOCK: begin

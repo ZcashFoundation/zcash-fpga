@@ -10,7 +10,7 @@ package blake2b_pkg;
     64'h3c6ef372fe94f82b,
     64'hbb67ae8584caa73b,
     64'h6a09e667f3bcc908
-    };
+  };
 
   // Sigma permutations used for G function blocks and input messages
   parameter [16*10-1:0][31:0] SIGMA  = {
