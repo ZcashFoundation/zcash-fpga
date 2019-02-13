@@ -1,15 +1,17 @@
 /* Implemented from RFC-7693, The BLAKE2 Cryptographic Hash and Message Authentication Code (MAC)
- * Personalization string in the input parameter should be "ZcashPoW" followed by n and k in
- * little endian order.
- */ 
+ * This is a unrolled pipelined version of the hash function required for Equihash.
+ * A single has takes 25 clock cycles but 
+ */  
 
-module blake2_top
+module blake2_pipe_top
   import blake2_pkg::*;
+#(
+)
 (
   input i_clk, i_rst,
 
   input [7:0]      i_byte_len,   // Length of the input message
-  input [64*8-1:0] i_parameters, // Input parameters used in the inital state.
+  input [64*8-1:0] i_parameters, // Input parameters used in the inital state
   
   if_axi_stream.sink   i_block, // Input block with valid and ready signals for flow control
   if_axi_stream.source o_hash   // Output digest with valid and ready signals for flow control
@@ -24,7 +26,7 @@ localparam ROUNDS = 12;
 
 logic [7:0][63:0] h, h_tmp;  // The state vector
 logic [15:0][63:0] v, v_tmp; // The local work vector and its intermediate value
-logic [31:0][63:0] g_out;//, g_out_r; // Outputs of the G mixing function - use 8 here to save on timing
+logic [31:0][63:0] g_out, g_out_r; // Outputs of the G mixing function - use 8 here to save on timing
 logic [127:0] t;      // Counter - TODO make this smaller - related to param
 logic [$clog2(ROUNDS)-1:0] round_cntr, round_cntr_msg, round_cntr_fin;
 logic g_col;
@@ -34,17 +36,14 @@ logic block_eop_l; // Use to latch if this is the final block
 // Pipelining logic that has no reset
 always_ff @(posedge i_clk) begin
 
-  //g_out_r <= g_out;
+  g_out_r <= g_out;
   
-  if (blake2_state == STATE_IDLE) begin
-      block_r <= 0;
-    if (i_block.val && i_block.rdy) begin
-      block_r <= i_block.dat;
-    end
+  if (i_block.val && i_block.rdy) begin
+    block_r <= i_block.dat;
   end
   
   for (int i = 0; i < 16; i++)
-    if (g_col == 0/* && blake2_state == STATE_ROUNDS*/) // TODO why do I need this qualifier
+    if (g_col == 0) // TODO why do I need this qualifier
       v_tmp[i] <= g_out[blake2_pkg::G_MAPPING[i]];
       
   for (int i = 0; i < 8; i++)
@@ -73,7 +72,7 @@ always_ff @(posedge i_clk) begin
     block_eop_l <= 0;
   end else begin
   
-    if (blake2_state != STATE_NEXT_BLOCK) g_col <= ~g_col;
+    g_col <= ~g_col;
     
     case (blake2_state)
       STATE_IDLE: begin
@@ -112,7 +111,7 @@ always_ff @(posedge i_clk) begin
           round_cntr_fin <= 1;
           
         if (round_cntr_fin) begin
-          if (block_eop_l)
+          if (block_eop_l || EQUIHASH)
             blake2_state <= STATE_FINAL_BLOCK;
           else begin
             blake2_state <= STATE_NEXT_BLOCK;

@@ -1,7 +1,4 @@
 package blake2_pkg;
-  // User configurable values
-  parameter [7:0] NN = 64; // Output hash byte length
-
 
   // Initial values
   parameter [7:0][63:0] IV  = {
@@ -15,6 +12,7 @@ package blake2_pkg;
     64'h6a09e667f3bcc908
     };
 
+  // Sigma permutations used for G function blocks and input messages
   parameter [16*10-1:0][31:0] SIGMA  = {
     0, 13, 12, 3, 14, 9, 11, 15, 5, 1, 6, 7, 4, 8, 2, 10, 
     5, 10, 4, 1, 7, 13, 2, 12, 8, 0, 3, 11, 9, 14, 15, 6, 
@@ -28,7 +26,7 @@ package blake2_pkg;
   	15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
   };
     
-
+  // Mapping for each G function block to the state vector v
   parameter [4*8-1:0][31:0] G_MAPPING = {
     14, 9, 4, 3,
     13, 8, 7, 2,

@@ -1,1 +1,1 @@
-create_clock -period 2.000 -name i_clk -waveform {0.000 1.000} [get_ports -filter { NAME =~  "*clk*" && DIRECTION == "IN" }]
+create_clock -period 5.000 -name i_clk -waveform {0.000 2.500} [get_ports -filter { NAME =~  "i_clk" && DIRECTION == "IN" }]
