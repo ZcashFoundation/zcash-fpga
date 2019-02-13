@@ -37,9 +37,9 @@ task rfc_test();
 begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
-  expected = 'h560c602c9cda1e198190f58e6341131f127367051c64f7df7d343e1b4c32a8bbc0eac1bcae463807dca442ae77d5150df700f6a640949a52cd4341dfc1e1044b;
+  expected = 'h239900d4ed8623b95a92f1dba88ad31895cc3345ded552c22d79ab2a39c5877dd1a2ffdb6fbb124bb7c45a68142f214ce9f6129fb697276a0d4d1c983fa580ba;
   i_byte_len = 3;
-  i_block.put_stream("hSV", i_byte_len);
+  i_block.put_stream("cba", i_byte_len);
   out_hash.get_stream(get_dat, get_len);
   common_pkg::compare_and_print(get_dat, expected);
   $display("rfc_test PASSED");
@@ -65,9 +65,9 @@ task test_140_bytes();
 begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
-  expected = 'h429b65332e3b6701a29664f98c247204858479f55a8c18cc9b0ffa321cda4288fd420a5d47d134949f3b858bff7a696a00d91a07c92055cdd597971cf573281c;
+  expected = 'h2012a869a3b89a69ffc954f6855c7f61a61190553dc487171ec3fe944d04c83cd4c842fff5a8258d5e14b05b7b6f30e8ddcb754d719137ec42fb5cdb562f8c89;
   i_byte_len = 140;
-  i_block.put_stream("6RehRZqUdYD2SB3N35QlQhreiU2XEaSgIGUsreLqV49l8Z5r93FbP567Juqc1IUaVyJKv8qFmtQwXYvZdnrMacAs5H9hBhs5JxAfyDibIM3TjKyiVzXC8lfCqiN1j6fW8FSJY131mVpw", i_byte_len);
+  i_block.put_stream("YbEAEzgJ1tgC3t6vDaJFqlWp1PaL482f7iZZzRj3xXpY2PPupwdTKAaBzB6KuN6j0alaoaFQfNboDbkNv5KDs5d7zN9JssrtOjGJdrVLfvb7uAdnVYoIgIv2zbXUQIPpwWdzEzj1CzX5", i_byte_len);
   out_hash.get_stream(get_dat, get_len);
   common_pkg::compare_and_print(get_dat, expected);
   $display("test_140_bytes PASSED");
@@ -83,8 +83,8 @@ initial begin
   #200ns;
   
   rfc_test();
-  //test_128_bytes();
-  //test_140_bytes();
+  test_128_bytes();
+  test_140_bytes();
 
  #10us $finish();
 

@@ -1,6 +1,6 @@
 /* Implemented from RFC-7693, The BLAKE2 Cryptographic Hash and Message Authentication Code (MAC)
- * Personalization string in the input parameter should be "ZcashPoW" followed by n and k in
- * little endian order.
+ * Parameters are passed in as an input. Inputs and outputs are AXI stream and respect flow control.
+ * Only only hash is computed at a time, and takes 26 clocks * number of 128 Byte message blocks.
  */ 
 
 module blake2_top
@@ -24,32 +24,33 @@ localparam ROUNDS = 12;
 
 logic [7:0][63:0] h, h_tmp;  // The state vector
 logic [15:0][63:0] v, v_tmp; // The local work vector and its intermediate value
-logic [31:0][63:0] g_out;//, g_out_r; // Outputs of the G mixing function - use 8 here to save on timing
-logic [127:0] t;      // Counter - TODO make this smaller - related to param
+logic [31:0][63:0] g_out; // Outputs of the G mixing function - use 8 here to save on timing
+logic [127:0] t;      // Counter
 logic [$clog2(ROUNDS)-1:0] round_cntr, round_cntr_msg, round_cntr_fin;
 logic g_col;
 logic [15:0][63:0] block, block_r; // The message block registered and converted to a 2d array
 logic block_eop_l; // Use to latch if this is the final block
+logic h_xor_done;
+logic [7:0] byte_len_l;
 
 // Pipelining logic that has no reset
 always_ff @(posedge i_clk) begin
 
-  //g_out_r <= g_out;
+  if (blake2_state == STATE_IDLE && ~i_block.rdy)
+    block_r <= 0;
   
-  if (blake2_state == STATE_IDLE) begin
-      block_r <= 0;
-    if (i_block.val && i_block.rdy) begin
-      block_r <= i_block.dat;
-    end
+  if (i_block.val && i_block.rdy) begin
+    block_r <= i_block.dat;
   end
+ 
   
   for (int i = 0; i < 16; i++)
-    if (g_col == 0/* && blake2_state == STATE_ROUNDS*/) // TODO why do I need this qualifier
+    if (g_col == 0)
       v_tmp[i] <= g_out[blake2_pkg::G_MAPPING[i]];
       
   for (int i = 0; i < 8; i++)
     if (blake2_state == STATE_ROUNDS)
-      h_tmp[i] <= g_out[16 + blake2_pkg::G_MAPPING_DIAG[i]] ^ g_out[16 + blake2_pkg::G_MAPPING_DIAG[i+8]]; //TODO fix
+      h_tmp[i] <= g_out[16 + blake2_pkg::G_MAPPING_DIAG[i]] ^ g_out[16 + blake2_pkg::G_MAPPING_DIAG[i+8]];
   
 end
 
@@ -71,14 +72,16 @@ always_ff @(posedge i_clk) begin
     o_hash.reset_source();
     round_cntr_fin <= 0;
     block_eop_l <= 0;
+    h_xor_done <= 0;
+    byte_len_l <= 0;
   end else begin
   
-    if (blake2_state != STATE_NEXT_BLOCK) g_col <= ~g_col;
+    g_col <= ~g_col;
     
     case (blake2_state)
       STATE_IDLE: begin
         h <= i_parameters ^ blake2_pkg::IV;
-        t <= 128;
+        t <= 2;
         i_block.rdy <= 1;
         v <= 0;
         o_hash.val <= 0;
@@ -87,11 +90,12 @@ always_ff @(posedge i_clk) begin
         round_cntr_msg <= 0;
         round_cntr_fin <= 0;
         if (i_block.rdy && i_block.val && i_block.sop) begin
-          init_local_work_vector(i_byte_len, i_block.eop);
+          init_local_work_vector(i_block.eop ? i_byte_len : 128, i_block.eop);
           blake2_state <= STATE_ROUNDS;
           g_col <= 0;
           i_block.rdy <= 0;
           block_eop_l <= i_block.eop;
+          byte_len_l <= i_byte_len;
         end
       end
       // Here we do the compression over 12 rounds, each round can be done in two clock cycles
@@ -116,7 +120,6 @@ always_ff @(posedge i_clk) begin
             blake2_state <= STATE_FINAL_BLOCK;
           else begin
             blake2_state <= STATE_NEXT_BLOCK;
-            i_block.rdy <= 1;
           end
         end
       end
@@ -124,16 +127,22 @@ always_ff @(posedge i_clk) begin
         round_cntr <= 0;
         round_cntr_msg <= 0;
         round_cntr_fin <= 0;
+        h_xor_done <= 1;
+        i_block.rdy <= 1;
+        if (~h_xor_done)
+          for (int i = 0; i < 8; i++)
+            h[i] <= h[i] ^ h_tmp[i];
         if (i_block.rdy && i_block.val) begin
-          init_local_work_vector(t, i_block.eop);  //TODO this wont work with h_tmp
+          init_local_work_vector(i_block.eop ? byte_len_l : t*128, i_block.eop);
           block_eop_l <= i_block.eop;
-          t <= t + 128;
-          h <= h ^ h_tmp;  
+          t <= t + 1;
           blake2_state <= STATE_ROUNDS;
+          h_xor_done <= 0;
+          i_block.rdy <= 0;
+          g_col <= 0;
         end
       end
       STATE_FINAL_BLOCK: begin
-        t <= 128;
         round_cntr <= 0;
         round_cntr_fin <= 0;
         round_cntr_msg <= 0;
@@ -162,7 +171,7 @@ generate begin
     // For each G function we want to pipeline the input message to help timing
     logic [63:0] m0, m1;
     always_ff @ (posedge i_clk) begin
-      if(blake2_state == STATE_IDLE) begin
+      if(blake2_state == STATE_IDLE || blake2_state == STATE_NEXT_BLOCK) begin
         m0 <= block[blake2_pkg::SIGMA[gv_g*2]];
         m1 <= block[blake2_pkg::SIGMA[gv_g*2 + 1]];
       end else begin
