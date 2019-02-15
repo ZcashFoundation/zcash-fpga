@@ -1,4 +1,25 @@
+/*
+  The BLAKE2b testbench.
+  
+  Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 module blake2b_top_tb();
+
+parameter USE_BLAKE2B_PIPE = 1; // This instantiates the pipelined version instead
 
 import blake2b_pkg::*;
 import common_pkg::*;
@@ -22,15 +43,30 @@ initial begin
   forever #10ns clk = ~clk;
 end
 
-
-blake2b_top DUT (
-  .i_clk ( clk ),
-  .i_rst ( rst ),
-  .i_parameters ( parameters ),
-  .i_byte_len   ( i_byte_len ),
-  .i_block ( i_block ),
-  .o_hash  ( out_hash )
-);
+generate if ( USE_BLAKE2B_PIPE == 0 ) begin: DUT_GEN
+  blake2b_top DUT (
+    .i_clk ( clk ),
+    .i_rst ( rst ),
+    .i_parameters ( parameters ),
+    .i_byte_len   ( i_byte_len ),
+    .i_block ( i_block ),
+    .o_hash  ( out_hash )
+  );
+end else begin
+  blake2b_pipe_top #(
+    .ROUNDS  ( 12 ),
+    .MSG_LEN ( 3  )
+  )
+  DUT (
+    .i_clk ( clk ),
+    .i_rst ( rst ),
+    .i_parameters ( parameters ),
+    .i_byte_len   ( i_byte_len ),
+    .i_block ( i_block  ),
+    .o_hash  ( out_hash )
+  );
+end
+endgenerate
 
 // This test runs the hash which is shown in the RFC, for "abc"
 task rfc_test();
@@ -86,8 +122,8 @@ initial begin
   #200ns;
   
   rfc_test();
-  test_128_bytes();
-  test_140_bytes();
+ // test_128_bytes();
+ // test_140_bytes();
 
  #10us $finish();
 

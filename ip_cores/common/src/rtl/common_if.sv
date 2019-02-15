@@ -1,5 +1,22 @@
+/*
+  Interface for a AXI stream
+ 
+  Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
-// Interface for a AXI stream
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 interface if_axi_stream # (
   parameter DAT_BYTS = 8,
   parameter CTL_BYTS = 8
@@ -19,8 +36,8 @@ interface if_axi_stream # (
   logic [DAT_BITS-1:0] dat;
   logic [$clog2(DAT_BYTS)-1:0] mod;
   
-  modport sink (input val, err, sop, eop, ctl, dat, output rdy);
-  modport source (output val, err, sop, eop, ctl, dat, input rdy, import task reset_source());
+  modport sink (input val, err, sop, eop, ctl, dat, mod, output rdy);
+  modport source (output val, err, sop, eop, ctl, dat, mod, input rdy, import task reset_source());
  
   // Task to reset a source interface signals to all 0
   task reset_source();
