@@ -20,6 +20,7 @@
 module blake2b_top_tb();
 
 parameter USE_BLAKE2B_PIPE = 1; // This instantiates the pipelined version instead
+parameter USE_BLAKE2B_PIPE_MSG_LEN = 3;
 
 import blake2b_pkg::*;
 import common_pkg::*;
@@ -29,7 +30,7 @@ logic [7:0] i_byte_len;
 logic [64*8-1:0] parameters;
 
 logic [64*8-1:0] expected;
-if_axi_stream #(.DAT_BYTS(128)) i_block(clk);
+if_axi_stream #(.DAT_BYTS(USE_BLAKE2B_PIPE == 0 ? 128 : USE_BLAKE2B_PIPE_MSG_LEN)) i_block(clk);
 if_axi_stream #(.DAT_BYTS(64)) out_hash(clk);
 
 initial begin
@@ -54,8 +55,8 @@ generate if ( USE_BLAKE2B_PIPE == 0 ) begin: DUT_GEN
   );
 end else begin
   blake2b_pipe_top #(
-    .ROUNDS  ( 12 ),
-    .MSG_LEN ( 3  )
+    .MSG_LEN  ( 3 ),
+    .CTL_BITS ( 8 )
   )
   DUT (
     .i_clk ( clk ),
