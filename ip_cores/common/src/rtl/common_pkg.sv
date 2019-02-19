@@ -39,4 +39,13 @@ package common_pkg;
       $fatal(1, "%m %t ERROR: data did not match", $time);
     end
   endtask
+  
+  // Parse a string which is a file path and remove the file name (so return the directory)
+  function string get_file_dir(input string str);
+    int npos = 0;
+    for (int i = 0; i < str.len(); i++)
+      if (str[i] == "/")
+        npos = i;
+    return str.substr(0,npos-1);
+  endfunction
 endpackage

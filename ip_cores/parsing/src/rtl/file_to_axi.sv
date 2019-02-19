@@ -21,32 +21,39 @@
 */
 
 module file_to_axi #(
-    parameter        HDR_BYTS,
+    parameter        BINARY,        // 0 for ASCII, 1 for binary
     parameter        DAT_BYTS,
-    parameter        BINARY,      // 0 for ASCII, 1 for binary
-    parameter string FILE = "",   // Path to file
-    parameter        FP = 0       // Forward pressure, if this is non-zero then this is the % of cycles o_axi.val will be low
+    parameter        FP = 0        // Forward pressure, if this is non-zero then this is the % of cycles o_axi.val will be low
 ) (
   input i_clk, i_rst,
+  input string i_file,            // Path to file to read from
+  input        i_start,
+  output logic o_done,
   if_axi_stream.source   o_axi
 );
   
-  
-logic [DAT_BYTS*8-1:0] data_temp;
 integer                fp, r;
 logic                  sop_l;
+logic [DAT_BYTS*8-1:0] dat;
+
+always_comb begin
+  o_axi.dat = flip_bytes(dat);
+end
 
 initial begin
+  o_done = 0;
   o_axi.reset_source();
   sop_l = 0;
-  fp = $fopen(FILE, BINARY ? "rb" : "r");
-  if (fp==0) $fatal(1, "%m %t ERROR: file_to_axi could not open file %s", $time, FILE);
+  while (!i_start) @(posedge o_axi.clk);
+  
+  fp = $fopen(i_file, BINARY ? "rb" : "r");
+  if (fp==0) $fatal(1, "%m %t ERROR: file_to_axi could not open file %s", $time, i_file);
   
   if (BINARY == 0) begin
     $fatal(1, "%m %t ERROR: file_to_axi BINARY == 0 not supported", $time);
   end else begin
     while(!$feof(fp)) begin            
-      r = $fread(o_axi.dat, fp);
+      r = $fread(dat, fp);
       o_axi.val = 1; // TODO
       o_axi.sop = ~sop_l;
       sop_l = 1;
@@ -60,8 +67,15 @@ initial begin
   
 
   o_axi.reset_source();
-  $display("%m %t INFO: file_to_axi finished reading file %s", $time, FILE);
+  o_done = 1;
+  $display("%m %t INFO: file_to_axi finished reading file %s", $time, i_file);
   $fclose(fp);
 end
+
+// Function to flip bytes that are read in binary mode
+function [DAT_BYTS*8-1:0] flip_bytes(input [DAT_BYTS*8-1:0] in);
+  for(int i = 0; i < DAT_BYTS; i = i + 1)
+    flip_bytes[i*8 +: 8] = in[(DAT_BYTS-1-i)*8 +: 8];
+endfunction
 
 endmodule

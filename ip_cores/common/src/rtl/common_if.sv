@@ -36,8 +36,8 @@ interface if_axi_stream # (
   logic [DAT_BITS-1:0] dat;
   logic [$clog2(DAT_BYTS)-1:0] mod;
   
-  modport sink (input val, err, sop, eop, ctl, dat, mod, output rdy);
-  modport source (output val, err, sop, eop, ctl, dat, mod, input rdy, import task reset_source());
+  modport sink (input val, err, sop, eop, ctl, dat, mod, clk, output rdy);
+  modport source (output val, err, sop, eop, ctl, dat, mod, input rdy, clk, import task reset_source());
  
   // Task to reset a source interface signals to all 0
   task reset_source();
