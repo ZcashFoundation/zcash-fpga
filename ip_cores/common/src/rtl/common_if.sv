@@ -18,7 +18,7 @@
 */
 
 interface if_axi_stream # (
-  parameter DAT_BYTS = 8,
+  parameter DAT_BYTS = 128,
   parameter CTL_BYTS = 8
 )(
   input clk

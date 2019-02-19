@@ -3,7 +3,14 @@
   In order to get maximum throughput, the entire message block is required on the first clock cycle,
   so all hashes are single clock with .sop and .eop high.
   
+  You can optionally unroll the entire pipeline but this will use a large number of resources.
+  If you only unroll one pass, you need to interleave the hashes to get the best performance.
+  So the first part of input message comes on first clock cycle, and the next part comes 26 clocks later.
+  
   Does not support using keys.
+  
+  Futher optimization to save area is fixing part of input message constant for
+  all hashes (just have nonce as input that changes and place this in i_block.ctl).
  
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -24,7 +31,9 @@
 module blake2b_pipe_top
   import blake2b_pkg::*;
 #(
-  // Since we fully unfold the pipeline, the message byte length is hard-coded
+  // Do we fully unroll the pipeline (lot of resources) or just un-roll one pass
+  parameter FULLY_UNROLL = 0,
+  // If we fully unfold the pipeline, the message byte length is hard-coded
   parameter MSG_LEN = 3,
   parameter CTL_BITS = 8
 )
@@ -137,6 +146,8 @@ generate
         h[PIPE_G0+1] <= h[PIPE_G0];      
         init_local_work_vector_pipe(PIPE_G0+2, LAST_BLOCK);
         // Need to pull msg and ctl from the shift register if we have more than one pass
+        // and we fully unrolled. Otherwise next input will be on input. Assert the control
+        // matches.
         msg_out.rdy <= 1;
         if (g0 > 0) begin
           msg[PIPE_G0+1] <= msg_out.dat;
@@ -149,7 +160,7 @@ generate
 
     end
       
-    if (g0 > 0) begin: GEN_MSG_FIFO
+    if (g0 > 0 && FULLY_UNROLL != 0) begin: GEN_MSG_FIFO
           
       always_ff @ (posedge i_clk) begin
         if (msg_in.val && msg_in.rdy) begin
