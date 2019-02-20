@@ -20,7 +20,8 @@
 module blake2b_top_tb();
 
 parameter USE_BLAKE2B_PIPE = 1; // This instantiates the pipelined version instead
-parameter USE_BLAKE2B_PIPE_MSG_LEN = 3;
+parameter USE_BLAKE2B_PIPE_MSG_LEN = 140;
+parameter MSG_VAR_BYTS = USE_BLAKE2B_PIPE_MSG_LEN;
 
 import blake2b_pkg::*;
 import common_pkg::*;
@@ -55,7 +56,9 @@ generate if ( USE_BLAKE2B_PIPE == 0 ) begin: DUT_GEN
   );
 end else begin
   blake2b_pipe_top #(
-    .MSG_LEN  ( 3 ),
+    .MSG_LEN      ( USE_BLAKE2B_PIPE_MSG_LEN ),
+    .MSG_VAR_BYTS ( MSG_VAR_BYTS             ),
+    .FULLY_UNROLL ( 1                        ),
     .CTL_BITS ( 8 )
   )
   DUT (
@@ -114,6 +117,21 @@ begin
 end
 endtask
 
+// This is a test for hashing random string of 127 bytes
+task test_127_bytes();
+begin
+  integer signed get_len;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
+  $display("Running test_127_bytes...");
+  expected = 'h14aee933634b9fa905fcf52aa64de25a8d9216e3bbb740f09d7b6d4dac498661c50e0cd1eb7e968bfe57f7107cd038e47777c2404229a6413067a008b36cc8da;
+  i_byte_len = 127;
+  i_block.put_stream("34h1im4zJ7w4rLLGGARc4FM3UT5JKPNkiLS4ojxRroYjvdzIApWsdVtEP2kzHMc7CKqbWRxOdkLxAb8XnWGHgwU5kmyDQqMvYOFrXf7rVaEXCU3IlZITlJ03sjjI0Jc", i_byte_len);
+  out_hash.get_stream(get_dat, get_len);
+  common_pkg::compare_and_print(get_dat, expected);
+  $display("test_127_bytes PASSED");
+end
+endtask
+
 // Main testbench calls
 initial begin
   i_block.reset_source();
@@ -122,9 +140,10 @@ initial begin
   parameters = {32'd0, 8'd1, 8'd1, 8'd0, 8'd64};
   #200ns;
   
-  rfc_test();
- // test_128_bytes();
- // test_140_bytes();
+  //rfc_test();
+  //test_127_bytes();
+  //test_128_bytes();
+  test_140_bytes();
 
  #10us $finish();
 
