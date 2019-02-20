@@ -72,6 +72,7 @@ generate
     o_hash.ctl = ctl[NUM_PIPE-1];
     o_hash.sop = 1;
     o_hash.eop = 1;
+    o_hash.err = 0;
     o_hash.dat = h[NUM_PIPE-1];
   end
 
@@ -150,16 +151,18 @@ generate
       end
       // Second stage
       if (o_hash.rdy) begin
-        h[PIPE_G0+1] <= h[PIPE_G0];      
-        init_local_work_vector_pipe(PIPE_G0+1, LAST_BLOCK ? byte_len : 128 , LAST_BLOCK);
         
         // Shift message down either from previous pipeline or from fixed portion
-        msg[PIPE_G0+1] <= 0;
-        for (int i = 0; i < 128; i++) begin
-          if ((g0+1)*128 + i < MSG_VAR_BYTS)
-            msg[PIPE_G0+1][i*8 +: 8] <= msg[PIPE_G0][((g0+1)*128 + i)*8 +: 8];
+        if (g0 < (NUM_PASSES - 1)) begin
+          h[PIPE_G0+1] <= h[PIPE_G0];      
+          init_local_work_vector_pipe(PIPE_G0+1, LAST_BLOCK ? byte_len : 128 , LAST_BLOCK);
+          msg[PIPE_G0+1] <= 0;
+          for (int i = 0; i < 128; i++) begin
+            if ((g0+1)*128 + i < MSG_VAR_BYTS)
+              msg[PIPE_G0+1][i*8 +: 8] <= msg[PIPE_G0][((g0+1)*128 + i)*8 +: 8];
+          end
+          ctl[PIPE_G0+1] <= ctl[PIPE_G0];
         end
-        ctl[PIPE_G0+1] <= ctl[PIPE_G0];
       end
 
     end

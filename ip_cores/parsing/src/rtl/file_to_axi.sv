@@ -44,7 +44,7 @@ initial begin
   o_done = 0;
   o_axi.reset_source();
   sop_l = 0;
-  while (!i_start) @(posedge o_axi.clk);
+  while (!i_start) @(posedge o_axi.i_clk);
   
   fp = $fopen(i_file, BINARY ? "rb" : "r");
   if (fp==0) $fatal(1, "%m %t ERROR: file_to_axi could not open file %s", $time, i_file);
@@ -60,8 +60,8 @@ initial begin
       o_axi.eop = $feof(fp);
       o_axi.mod = $feof(fp) ? r : 0;
       
-      @(posedge o_axi.clk);
-      while (!(o_axi.val && o_axi.rdy)) @(posedge o_axi.clk);
+      @(posedge o_axi.i_clk);
+      while (!(o_axi.val && o_axi.rdy)) @(posedge o_axi.i_clk);
     end
   end
   

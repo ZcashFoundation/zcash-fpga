@@ -1,5 +1,7 @@
 /*
-  Interface for a AXI stream
+  Commonly used interfaces:
+    - AXI stream
+    - RAM
  
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -21,9 +23,8 @@ interface if_axi_stream # (
   parameter DAT_BYTS = 8,
   parameter CTL_BYTS = 1
 )(
-  input clk
+  input i_clk
 );
-  import common_pkg::*;
   localparam DAT_BITS = DAT_BYTS*8;
   localparam CTL_BITS = CTL_BYTS*8;
   
@@ -36,8 +37,8 @@ interface if_axi_stream # (
   logic [DAT_BITS-1:0] dat;
   logic [$clog2(DAT_BYTS)-1:0] mod;
   
-  modport sink (input val, err, sop, eop, ctl, dat, mod, clk, output rdy);
-  modport source (output val, err, sop, eop, ctl, dat, mod, input rdy, clk, import task reset_source());
+  modport sink (input val, err, sop, eop, ctl, dat, mod, i_clk, output rdy);
+  modport source (output val, err, sop, eop, ctl, dat, mod, input rdy, i_clk, import task reset_source());
  
   // Task to reset a source interface signals to all 0
   task reset_source();
@@ -55,7 +56,7 @@ interface if_axi_stream # (
     logic sop_l=0;
     
     reset_source();
-    @(posedge clk);
+    @(posedge i_clk);
     
     while (len > 0) begin
       sop = ~sop_l;
@@ -66,8 +67,8 @@ interface if_axi_stream # (
       data = data >> DAT_BITS;
       sop_l = 1;
       len = len - DAT_BYTS;
-      @(posedge clk); // Go to next clock edge
-      while (!rdy) @(posedge clk); // If not rdy then wait here
+      @(posedge i_clk); // Go to next clock edge
+      while (!rdy) @(posedge i_clk); // If not rdy then wait here
     end
     reset_source();
   endtask
@@ -78,7 +79,7 @@ interface if_axi_stream # (
     rdy = 1;
     len = 0;
     data = 0;
-    @(posedge clk);
+    @(posedge i_clk);
     
     while (1) begin
       if (val && rdy) begin
@@ -88,11 +89,37 @@ interface if_axi_stream # (
         len = len + (eop ? (mod == 0 ? DAT_BYTS : mod) : DAT_BYTS);
         if (eop) break;
       end
-      @(posedge clk);
+      @(posedge i_clk);
     end
     
   
   endtask
   
+endinterface
+
+interface if_ram # (
+  parameter RAM_WIDTH = 32,
+  parameter RAM_DEPTH = 128
+)(
+  input i_clk, i_rst
+);
+  
+  logic [$clog2(RAM_DEPTH)-1:0] a;
+  logic en;
+  logic we;
+  logic re;
+  logic [RAM_WIDTH-1:0 ] d, q;
+  
+  modport sink (input a, en, re, we, d, i_clk, i_rst, output q);
+  modport source (output a, en, re, we, d, input q, i_clk, i_rst, import task reset_source());
+  
+  // Task to reset a source interface signals to all 0
+  task reset_source();
+    a <= 0;
+    en <= 0;
+    we <= 0;
+    re <= 0;
+    d <= 0;
+  endtask
   
 endinterface
