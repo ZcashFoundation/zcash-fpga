@@ -54,7 +54,7 @@ logic            all_checks_done;
 
 
 if_axi_stream #(.DAT_BYTS(BLAKE2B_DIGEST_BYTS), .CTL_BYTS(1)) blake2b_out_hash(i_clk);
-if_axi_stream #(.DAT_BYTS(EQUIHASH_BLAKE2B_PIPE == 0 ? 128 : EQUIHASH_GEN_BYTS )) blake2b_in_hash(i_clk);
+if_axi_stream #(.DAT_BYTS(EQUIHASH_GEN_BYTS)) blake2b_in_hash(i_clk);
 
 // We write the block into a port as it comes in and then read from the b port
 if_ram #(.RAM_WIDTH(DAT_BITS), .RAM_DEPTH(SOL_LIST_BYTS/DAT_BYTS)) equihash_sol_bram_if_a (i_clk, i_rst);
@@ -81,8 +81,8 @@ always_ff @ (posedge i_clk) begin
     equihash_sol_bram_if_a.d <= i_axi.dat;
     
     if (i_axi.val && i_axi.rdy && ~cblockheader_val) begin
-      cblockheader <= {cblockheader, i_axi.dat};
-      cblockheader_val <= (cblockheader_byts + DAT_BYTS) >= $bits(cblockheader_t)/8;
+      cblockheader[cblockheader_byts*8 +: DAT_BITS] <= i_axi.dat;
+      cblockheader_val <= (cblockheader_byts + DAT_BYTS) > $bits(cblockheader_t)/8;
       cblockheader_byts <= cblockheader_byts + DAT_BYTS;
     end
 
@@ -215,32 +215,22 @@ function hash_solution(input [N-1:0] curr, input [N*INDICIES_PER_HASH-1:0] in);
   return curr;
 endfunction
 
-// Instantiate the Blake2b block
-generate if ( EQUIHASH_BLAKE2B_PIPE == 0 ) begin: BLAKE2B_GEN
-  blake2b_top DUT (
-    .i_clk ( i_clk ),
-    .i_rst ( i_rst ),
-    .i_parameters ( parameters ),
-    .i_byte_len   ( EQUIHASH_GEN_BYTS ),
-    .i_block ( blake2b_in_hash ),
-    .o_hash  ( blake2b_out_hash )
-  );
-end else begin
-  blake2b_pipe_top #(
-    .MSG_LEN      ( EQUIHASH_GEN_BYTS ),
-    .MSG_VAR_BYTS ( 4                 ),   // Only lower 4 bytes of input to hash change
-    .CTL_BITS     ( 8                 )
-  )
-  DUT (
-    .i_clk ( i_clk ),
-    .i_rst ( i_rst ),
-    .i_parameters ( parameters        ),
-    .i_byte_len   ( EQUIHASH_GEN_BYTS ),
-    .i_block ( blake2b_in_hash  ),
-    .o_hash  ( blake2b_out_hash )
-  );
-end
-endgenerate
+// Instantiate the Blake2b block - use high performance pipelined version
+localparam [EQUIHASH_GEN_BYTS*8-1:0] EQUIHASH_GEN_BYTS_BM = {{(EQUIHASH_GEN_BYTS*8-21){1'b0}}, {21{1'b1}}}; // Only lower 21 bits of input to hash change
+blake2b_pipe_top #(
+  .MSG_LEN    ( EQUIHASH_GEN_BYTS    ),
+  .MSG_VAR_BM ( EQUIHASH_GEN_BYTS_BM ),   
+  .CTL_BITS   ( 8                    )
+)
+blake2b_pipe_top_i (
+  .i_clk ( i_clk ),
+  .i_rst ( i_rst ),
+  .i_parameters ( parameters        ),
+  .i_byte_len   ( EQUIHASH_GEN_BYTS ),
+  .i_block ( blake2b_in_hash  ),
+  .o_hash  ( blake2b_out_hash )
+);
+
 
 // Memory to store the equihash solution as it comes in. We use dual port,
 // one port for writing and one port for reading

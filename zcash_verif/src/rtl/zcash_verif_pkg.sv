@@ -22,7 +22,6 @@ package zcash_verif_pkg;
   // Variables used in the equihash PoW
   parameter [31:0] N = 200;
   parameter [31:0] K = 9;
-  parameter EQUIHASH_BLAKE2B_PIPE = 1;            // Do we use the pipelined (high performance but large area) Blake2b core
   parameter INDICIES_PER_HASH = (512/N);
   parameter COLLISION_BIT_LEN = N/(K+1);
   parameter BLAKE2B_DIGEST_BYTS = (N*INDICIES_PER_HASH)/8;

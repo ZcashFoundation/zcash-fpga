@@ -20,9 +20,9 @@
 
 module blake2b_top_tb();
 
-parameter USE_BLAKE2B_PIPE = 0; // This instantiates the pipelined version instead
-parameter USE_BLAKE2B_PIPE_MSG_LEN = 140; // Has to be the maximum of whatever test case
-parameter MSG_VAR_BYTS = USE_BLAKE2B_PIPE_MSG_LEN;
+parameter USE_BLAKE2B_PIPE = 1; // This instantiates the pipelined version instead
+parameter USE_BLAKE2B_PIPE_MSG_LEN = 144; // Has to be the maximum of whatever test case
+parameter MSG_VAR_BM = {USE_BLAKE2B_PIPE_MSG_LEN*8{1'b1}};
 
 import blake2b_pkg::*;
 import common_pkg::*;
@@ -58,7 +58,7 @@ generate if ( USE_BLAKE2B_PIPE == 0 ) begin: DUT_GEN
 end else begin
   blake2b_pipe_top #(
     .MSG_LEN      ( USE_BLAKE2B_PIPE_MSG_LEN ),
-    .MSG_VAR_BYTS ( MSG_VAR_BYTS             ),
+    .MSG_VAR_BM   ( MSG_VAR_BM               ),
     .CTL_BITS ( 8 )
   )
   DUT (
@@ -150,7 +150,6 @@ endtask
 // Main testbench calls
 initial begin
   i_block.reset_source();
-  i_byte_len = 3;
   out_hash.rdy = 1;
   parameters = {32'd0, 8'd1, 8'd1, 8'd0, 8'd64};
   #200ns;

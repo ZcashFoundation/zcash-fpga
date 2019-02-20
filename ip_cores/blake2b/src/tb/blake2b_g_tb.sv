@@ -43,10 +43,10 @@ begin
   repeat (PIPELINES) @(posedge clk);
 
   #1;
-  assert (o_a == 64'hf0c9aa0de38b1b89) else $fatal(0, "%m %t:ERROR, o_a did not match", $time);
-  assert (o_b == 64'hbbdf863401fde49b) else $fatal(0, "%m %t:ERROR, o_b did not match", $time);
-  assert (o_c == 64'he85eb23c42183d3d) else $fatal(0, "%m %t:ERROR, o_c did not match", $time);
-  assert (o_d == 64'h7111fd8b6445099d) else $fatal(0, "%m %t:ERROR, o_d did not match", $time);
+  assert (o_a == 64'hf0c9aa0de38b1b89) else $fatal(1, "%m %t:ERROR, o_a did not match", $time);
+  assert (o_b == 64'hbbdf863401fde49b) else $fatal(1, "%m %t:ERROR, o_b did not match", $time);
+  assert (o_c == 64'he85eb23c42183d3d) else $fatal(1, "%m %t:ERROR, o_c did not match", $time);
+  assert (o_d == 64'h7111fd8b6445099d) else $fatal(1, "%m %t:ERROR, o_d did not match", $time);
 
   $display("test1 PASSED");
 end

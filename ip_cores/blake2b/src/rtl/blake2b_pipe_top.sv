@@ -32,9 +32,9 @@ module blake2b_pipe_top
   import blake2b_pkg::*;
 #(
   // If we fully unfold the pipeline, the message byte length is hard-coded
-  parameter MSG_LEN,
-  parameter MSG_VAR_BYTS = MSG_LEN, // Setting this != MSG_LEN will assume only those bytes are changing when fully unrolled
-  parameter CTL_BITS = 8
+  parameter                   MSG_LEN,
+  parameter [(8*MSG_LEN)-1:0] MSG_VAR_BM = {MSG_LEN*8{1'b1}}, // A bit mask of what bitds in the message will change, can be used to reduce logic
+  parameter                   CTL_BITS = 8
 )
 (
   input i_clk, i_rst,
@@ -53,7 +53,7 @@ localparam NUM_PIPE = 2 + NUM_PASSES*(NUM_ROUNDS*2) + 2*NUM_PASSES - 1;
 
 logic [NUM_PIPE-1:0][15:0][63:0] v;
 logic [NUM_PIPE-1:0][7:0][63:0] h;
-logic [NUM_PIPE-1:0][MSG_VAR_BYTS*8-1:0] msg;
+logic [NUM_PIPE-1:0][MSG_LEN*8-1:0] msg;
 logic [MSG_LEN*8-1:0] msg_fixed;
 logic [7:0]           byte_len;
 logic [NUM_PIPE-1:0][CTL_BITS-1:0] ctl;
@@ -94,7 +94,8 @@ generate
         // First stage - depends if we are fully unrolling or not as where input comes from
         h[0] <= i_parameters ^ blake2b_pkg::IV;
         v[0] <= 0;
-        msg[0] <= i_block.dat;
+        for (int i = 0; i < MSG_LEN*8; i++)
+          msg[0][i] <= MSG_VAR_BM[i] ? i_block.dat[i] : 1'b0;
         if (i_block.val) begin
           msg_fixed <= i_block.dat;
           byte_len <= i_byte_len;
@@ -151,18 +152,14 @@ generate
       end
       // Second stage
       if (o_hash.rdy) begin
-        
         // Shift message down either from previous pipeline or from fixed portion
         if (g0 < (NUM_PASSES - 1)) begin
           h[PIPE_G0+1] <= h[PIPE_G0];      
           init_local_work_vector_pipe(PIPE_G0+1, LAST_BLOCK ? byte_len : 128 , LAST_BLOCK);
-          msg[PIPE_G0+1] <= 0;
-          for (int i = 0; i < 128; i++) begin
-            if ((g0+1)*128 + i < MSG_VAR_BYTS)
-              msg[PIPE_G0+1][i*8 +: 8] <= msg[PIPE_G0][((g0+1)*128 + i)*8 +: 8];
-          end
+          
           ctl[PIPE_G0+1] <= ctl[PIPE_G0];
         end
+        msg[PIPE_G0+1] <= msg[PIPE_G0];
       end
 
     end
@@ -194,11 +191,12 @@ generate
           logic [63:0] msg0, msg1;
           logic [16*64-1:0] msg_;
           always_comb begin
-            msg_ = msg[PIPE_G2-1];
-            //for (int i = MSG_VAR_BYTS; i < 16*64; i++)
-            for (int i = 0; i < 128; i++)
-              if (i + (g0*128) >= MSG_VAR_BYTS)
-                msg_[i*8 +: 8] = msg_fixed_int[i*8 +: 8];
+            msg_ = 0;
+            for (int i = 0; i < 1024; i++)
+              if (((i + g0*1024) < MSG_LEN*8) && MSG_VAR_BM[i + (g0*1024)])
+                msg_[i] = msg[PIPE_G2-1][i + g0*1024];
+              else
+                msg_[i] = msg_fixed_int[i];
             for (int i = 0; i < 8; i ++) begin
               msg0 = msg_[64*blake2b_pkg::SIGMA[16*(g1%10) + g2*8 + g3*2] +: 64];
               msg1 = msg_[64*blake2b_pkg::SIGMA[16*(g1%10) + g2*8 + g3*2 + 1] +: 64];

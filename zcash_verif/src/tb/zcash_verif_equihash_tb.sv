@@ -65,7 +65,7 @@ file_to_axi #(
   .FP       ( 0        )
 )
 file_to_axi_block241 (
-  .i_file  ({my_file_path_s, "/../data/block_241.bin"}),
+  .i_file  ({my_file_path_s, "/../data/block_346.bin"}),
   .i_clk   ( clk        ),
   .i_rst   ( rst        ),
   .i_start ( start_241  ),
@@ -82,15 +82,18 @@ DUT (
   .o_mask_val ( mask_val )
 );
 
-// This is a tests the sample block 241
-task test_block_241();
+// This is a tests the sample block 346 in the block chain
+task test_block_346();
 begin
-  $display("Running test_block_241...");
+  $display("Running test_block_346...");
   start_241 = 1;
   
   
-  while(!done_241) @(posedge clk);
-  $display("test_block_241 PASSED");
+  while(!done_241 && !mask_val) @(posedge clk);
+  
+  assert (~(|mask)) else $fatal(1, "%m %t ERROR: test_block_346 mask was non-zero", $time);
+  assert (~mask.XOR_FAIL) else $fatal(1, "%m %t ERROR: test_block_346 failed XOR mask check", $time);
+  $display("test_block_346 PASSED");
   
 end
 endtask
@@ -99,7 +102,7 @@ endtask
 initial begin
   #200ns;
   
- test_block_241();
+ test_block_346();
 
  #10us $finish();
 
