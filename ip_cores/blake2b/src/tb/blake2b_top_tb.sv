@@ -1,5 +1,6 @@
 /*
-  The BLAKE2b testbench.
+  The BLAKE2b testbench. Uses parameters so can test either the basic Blake2b
+  or the Blake2b_pipe version.
   
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -20,7 +21,7 @@
 module blake2b_top_tb();
 
 parameter USE_BLAKE2B_PIPE = 0; // This instantiates the pipelined version instead
-parameter USE_BLAKE2B_PIPE_MSG_LEN = 140;
+parameter USE_BLAKE2B_PIPE_MSG_LEN = 140; // Has to be the maximum of whatever test case
 parameter MSG_VAR_BYTS = USE_BLAKE2B_PIPE_MSG_LEN;
 
 import blake2b_pkg::*;

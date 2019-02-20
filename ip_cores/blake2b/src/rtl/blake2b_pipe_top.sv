@@ -154,8 +154,8 @@ generate
         init_local_work_vector_pipe(PIPE_G0+1, LAST_BLOCK ? byte_len : 128 , LAST_BLOCK);
         
         // Shift message down either from previous pipeline or from fixed portion
+        msg[PIPE_G0+1] <= 0;
         for (int i = 0; i < 128; i++) begin
-          msg[PIPE_G0+1][i*8 +: 8] <= 0;
           if ((g0+1)*128 + i < MSG_VAR_BYTS)
             msg[PIPE_G0+1][i*8 +: 8] <= msg[PIPE_G0][((g0+1)*128 + i)*8 +: 8];
         end
@@ -193,7 +193,7 @@ generate
           always_comb begin
             msg_ = msg[PIPE_G2-1];
             //for (int i = MSG_VAR_BYTS; i < 16*64; i++)
-            for (int i = 0; i < 16*64; i++)
+            for (int i = 0; i < 128; i++)
               if (i + (g0*128) >= MSG_VAR_BYTS)
                 msg_[i*8 +: 8] = msg_fixed_int[i*8 +: 8];
             for (int i = 0; i < 8; i ++) begin
