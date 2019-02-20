@@ -31,8 +31,6 @@
 module blake2b_pipe_top
   import blake2b_pkg::*;
 #(
-  // Do we fully unroll the pipeline (lot of resources) or just un-roll one pass
-  parameter FULLY_UNROLL,
   // If we fully unfold the pipeline, the message byte length is hard-coded
   parameter MSG_LEN,
   parameter MSG_VAR_BYTS = MSG_LEN, // Setting this != MSG_LEN will assume only those bytes are changing when fully unrolled
@@ -55,7 +53,7 @@ localparam NUM_PIPE = 2 + NUM_PASSES*(NUM_ROUNDS*2) + 2*NUM_PASSES - 1;
 
 logic [NUM_PIPE-1:0][15:0][63:0] v;
 logic [NUM_PIPE-1:0][7:0][63:0] h;
-logic [NUM_PIPE-1:0][15:0][63:0] msg;
+logic [NUM_PIPE-1:0][MSG_VAR_BYTS*8-1:0] msg;
 logic [MSG_LEN*8-1:0] msg_fixed;
 logic [7:0]           byte_len;
 logic [NUM_PIPE-1:0][CTL_BITS-1:0] ctl;
@@ -82,8 +80,8 @@ generate
     if (i_rst) begin
       h[0] <= 0;
       v[0] <= 0;
-      msg[0] <= i_block.dat;
-      ctl[0] <= i_block.ctl;
+      msg[0] <= 0;
+      ctl[0] <= 0;
       v[0] <= 0;
       h[0] <= 0;
       valid[0] <= 0;
@@ -106,7 +104,7 @@ generate
       if (o_hash.rdy) begin
         // Second stage
         h[1] <= h[0];
-        init_local_work_vector_pipe(1, NUM_PASSES == 1); // initializes v[1]
+        init_local_work_vector_pipe(1, NUM_PASSES == 1 ? byte_len : 128, NUM_PASSES == 1); // initializes v[1]
         msg[1] <= msg[0];
         ctl[1] <= ctl[0];
         valid[1] <= valid[0];
@@ -117,13 +115,14 @@ generate
   
   for (g0 = 0; g0 < NUM_PASSES; g0++) begin: GEN_PASS
   
-    localparam LAST_BLOCK = (g0 == NUM_PASSES -1);
-    localparam SR_MSG_BYTS = (LAST_BLOCK && NUM_PASSES > 1) ? (MSG_LEN % 128) : 128;
-    localparam PIPE_G0 = 2 + NUM_ROUNDS*2 + g0*(NUM_ROUNDS*2 + 2);   
+    localparam LAST_BLOCK = (g0 + 1 == NUM_PASSES - 1);
+    localparam PIPE_G0 = 2 + NUM_ROUNDS*2 + g0*(NUM_ROUNDS*2 + 2);
     
-    // Each pass after 0 has a shift register for storing that part of the message
-    if_axi_stream #(.DAT_BYTS(SR_MSG_BYTS)) msg_in(clk);
-    if_axi_stream #(.DAT_BYTS(SR_MSG_BYTS)) msg_out(clk);
+    logic [128*8-1:0] msg_fixed_int;
+
+    always_comb begin
+      msg_fixed_int = msg_fixed >> (1024*g0);
+    end
     
     // At the end of each round are two pipeline stages for updating
     // the local state
@@ -140,12 +139,11 @@ generate
     end
     
     always_ff @ (posedge i_clk) begin
-      msg_out.rdy <= 0;
       // First stage
       // Some pipelines not used in this stage
-      msg[PIPE_G0] <= 0; 
-      ctl[PIPE_G0] <= 0;
-      v[PIPE_G0] <= 1;  
+      msg[PIPE_G0] <= msg[PIPE_G0-1]; 
+      ctl[PIPE_G0] <= ctl[PIPE_G0-1];
+      v[PIPE_G0] <= 0;  
       if (o_hash.rdy) begin
         for (int i = 0; i < 8; i++)
           h[PIPE_G0][i] <= h[PIPE_G0-1][i] ^ v[PIPE_G0-1][i] ^ v[PIPE_G0-1][i+8];
@@ -153,49 +151,19 @@ generate
       // Second stage
       if (o_hash.rdy) begin
         h[PIPE_G0+1] <= h[PIPE_G0];      
-        init_local_work_vector_pipe(PIPE_G0+2, LAST_BLOCK);
-        // Need to pull msg and ctl from the shift register if we have more than one pass
-        // and we fully unrolled. Otherwise next input will be on input. Assert the control
-        // matches.
-        msg_out.rdy <= valid[PIPE_G0-1];
-        if (g0 > 0) begin
-          msg[PIPE_G0+1] <= msg_out.dat;
-          ctl[PIPE_G0+1] <= msg_out.ctl;
-        end else begin
-          msg[PIPE_G0+1] <= 0;
-          ctl[PIPE_G0+1] <= 0;
+        init_local_work_vector_pipe(PIPE_G0+1, LAST_BLOCK ? byte_len : 128 , LAST_BLOCK);
+        
+        // Shift message down either from previous pipeline or from fixed portion
+        for (int i = 0; i < 128; i++) begin
+          msg[PIPE_G0+1][i*8 +: 8] <= 0;
+          if ((g0+1)*128 + i < MSG_VAR_BYTS)
+            msg[PIPE_G0+1][i*8 +: 8] <= msg[PIPE_G0][((g0+1)*128 + i)*8 +: 8];
         end
+        ctl[PIPE_G0+1] <= ctl[PIPE_G0];
       end
 
     end
       
-    if (g0 > 0 && FULLY_UNROLL != 0) begin: GEN_MSG_FIFO
-          
-      always_comb begin
-        if (g0 == 0) i_block.rdy = msg_in.rdy;
-        msg_in.val = i_block.val;
-        msg_in.dat = i_block.dat[128*8*g0 :+ 128*8];
-        msg_in.sop = 0;
-        msg_in.eop = 0;
-        msg_in.err = 0;
-        msg_in.ctl = i_block.ctl;
-        msg_in.mod = LAST_BLOCK ? i_block.mod : 0;
-      end
-      
-      axi_stream_fifo #(
-        .DEPTH    ( NUM_ROUNDS + 2 ),
-        .DAT_BITS ( 128*8          ),
-        .CTL_BITS ( CTL_BITS       )
-      )
-      message_fifo (
-        .i_clk ( i_clk   ),
-        .i_rst ( i_rst   ),
-        .i_axi ( msg_in  ),
-        .o_axi ( msg_out )
-      );
-    
-    end
-
     for (g1 = 0; g1 < NUM_ROUNDS; g1++) begin: GEN_ROUND
       for (g2 = 0; g2 < 2; g2++) begin: GEN_G_FUNC
         
@@ -224,9 +192,10 @@ generate
           logic [16*64-1:0] msg_;
           always_comb begin
             msg_ = msg[PIPE_G2-1];
-            if (FULLY_UNROLL == 1)
-              for (int i = MSG_VAR_BYTS; i < 16*64; i++)
-                msg_[i*8 +: 8] = msg_fixed[i*8 +: 8];
+            //for (int i = MSG_VAR_BYTS; i < 16*64; i++)
+            for (int i = 0; i < 16*64; i++)
+              if (i + (g0*128) >= MSG_VAR_BYTS)
+                msg_[i*8 +: 8] = msg_fixed_int[i*8 +: 8];
             for (int i = 0; i < 8; i ++) begin
               msg0 = msg_[64*blake2b_pkg::SIGMA[16*(g1%10) + g2*8 + g3*2] +: 64];
               msg1 = msg_[64*blake2b_pkg::SIGMA[16*(g1%10) + g2*8 + g3*2 + 1] +: 64];
@@ -256,14 +225,14 @@ endgenerate
 
 // Task to initialize local work vector for the compression function
 // Modified to work with pipeline version
-task init_local_work_vector_pipe(input integer j, input last_block);
+task automatic init_local_work_vector_pipe(input integer j, input integer cnt, input last_block);
 begin
   for (int i = 0; i < 16; i++)
     case (i) inside
       0,1,2,3,4,5,6,7: v[j][i] <= h[j-1][i];
       8,9,10,11: v[j][i] <= blake2b_pkg::IV[i%8];
-      12: v[j][i] <= blake2b_pkg::IV[i%8] ^ (last_block ? byte_len : j*128);
-      13: v[j][i] <= blake2b_pkg::IV[i%8] ^ j*128 >> 64;
+      12: v[j][i] <= blake2b_pkg::IV[i%8] ^ cnt;//(last_block ? byte_len : j*128);
+      13: v[j][i] <= blake2b_pkg::IV[i%8];// ^ j*128 >> 64; 
       14: v[j][i] <= blake2b_pkg::IV[i%8] ^ {64{last_block}};
       15: v[j][i] <= blake2b_pkg::IV[i%8];
     endcase
