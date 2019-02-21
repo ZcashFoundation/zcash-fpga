@@ -74,6 +74,7 @@ generate
     o_hash.eop = 1;
     o_hash.err = 0;
     o_hash.dat = h[NUM_PIPE-1];
+    o_hash.mod = 0;
   end
 
   // First stage has special logic 

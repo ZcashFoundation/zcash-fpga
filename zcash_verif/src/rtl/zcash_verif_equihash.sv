@@ -47,20 +47,20 @@ logic [$clog2($bits(cblockheader_t)/8)-1:0] cblockheader_byts;
 equihash_gen_in_t                equihash_gen_in;
 logic [N-1:0]                    sol_hash_xor;
 logic [$clog2(SOL_LIST_LEN)-1:0] sol_cnt_out, sol_cnt_in; // This tracks how many solutions we have XORed
-logic [$clog2(DAT_BITS)-1:0]     sol_pos;                 // This tracks the pos in our DAT_BITS RAM output
-logic [64*8-1:0] parameters;
-logic [7:0]      byte_len;
-logic [DAT_BITS-1:0] sol_ram_byte_bit_flip;
+logic [$clog2(2*DAT_BITS)-1:0]   sol_pos;                 // This tracks the pos in our DAT_BITS RAM output
+logic [64*8-1:0]                 parameters;
+logic                            sol_index_dup_fnd;
+logic [SOL_LIST_LEN-1:0]         sol_index_bm;
 
-
-
-if_axi_stream #(.DAT_BYTS(BLAKE2B_DIGEST_BYTS), .CTL_BYTS(1)) blake2b_out_hash(i_clk);
-if_axi_stream #(.DAT_BYTS(EQUIHASH_GEN_BYTS)) blake2b_in_hash(i_clk);
+if_axi_stream #(.DAT_BYTS(BLAKE2B_DIGEST_BYTS), .CTL_BYTS($clog2(INDICIES_PER_HASH))) blake2b_out_hash(i_clk);
+if_axi_stream #(.DAT_BYTS(EQUIHASH_GEN_BYTS), .CTL_BYTS($clog2(INDICIES_PER_HASH))) blake2b_in_hash(i_clk);
 
 // We write the block into a port as it comes in and then read from the b port
 if_ram #(.RAM_WIDTH(DAT_BITS), .RAM_DEPTH(SOL_LIST_BYTS/DAT_BYTS)) equihash_sol_bram_if_a (i_clk, i_rst);
 if_ram #(.RAM_WIDTH(DAT_BITS), .RAM_DEPTH(SOL_LIST_BYTS/DAT_BYTS)) equihash_sol_bram_if_b (i_clk, i_rst);
-logic [DAT_BITS-1:0] equihash_sol_bram_if_b_l;
+logic [DAT_BITS-1:0]   equihash_sol_bram_if_b_l;
+logic [2*DAT_BITS-1:0] equihash_sol_bram_if_b_l_comb, equihash_sol_bram_if_b_l_comb_flip;
+logic [SOL_BITS-1:0]   equihash_sol_index;
 logic [1:0] equihash_sol_bram_read;
 
 enum {STATE_WR_IDLE = 0,
@@ -89,7 +89,7 @@ always_ff @ (posedge i_clk) begin
     equihash_sol_bram_if_a.we <= 1;
     equihash_sol_bram_if_a.en <= 1;
     equihash_sol_bram_if_a.d <= i_axi.dat;
-    
+
     if (i_axi.val && i_axi.rdy && ~cblockheader_val) begin
       cblockheader[cblockheader_byts*8 +: DAT_BITS] <= i_axi.dat;
       cblockheader_val <= (cblockheader_byts + DAT_BYTS) > $bits(cblockheader_t)/8;
@@ -141,6 +141,8 @@ always_ff @ (posedge i_clk) begin
     equihash_gen_in <= 0;
     equihash_sol_bram_read <= 0;
     ram_rd_state <= STATE_RD_IDLE;
+    sol_index_bm <= 0;
+    sol_index_dup_fnd <= 0;
   end else begin
     // Defaults
     equihash_sol_bram_if_b.re <= 1;
@@ -149,9 +151,13 @@ always_ff @ (posedge i_clk) begin
     blake2b_in_hash.eop <= 1;
     blake2b_in_hash.val <= 0;
     equihash_sol_bram_read <= equihash_sol_bram_read << 1;
+    if (equihash_sol_bram_read[0])
+      equihash_sol_bram_if_b_l <= equihash_sol_bram_if_b.q;
     
     case(ram_rd_state)
       STATE_RD_IDLE: begin
+        sol_index_bm <= 0;
+        sol_index_dup_fnd <= 0;
         if (~|equihash_sol_bram_read)
           equihash_sol_bram_if_b.a <= $bits(cblockheader_t)/DAT_BITS;
         sol_pos <= 3*8 + ($bits(cblockheader_t) % DAT_BITS); // Add on 3*8 as this encodes the size of solution
@@ -159,9 +165,8 @@ always_ff @ (posedge i_clk) begin
         blake2b_in_hash.val <= 0;
         
         //First case has special state       
-        if (equihash_sol_bram_if_a.a >= ($bits(cblockheader_t)/8) + (DAT_BYTS*2)) begin
+        if (equihash_sol_bram_if_a.a*DAT_BYTS >= ($bits(cblockheader_t)/8) + (DAT_BYTS*2)) begin
           if (~|equihash_sol_bram_read) begin
-            equihash_sol_bram_if_b_l <= sol_ram_byte_bit_flip;// equihash_sol_bram_if_b.q;
             equihash_sol_bram_if_b.a <= equihash_sol_bram_if_b.a + 1;
             equihash_sol_bram_read[0] <= 1;
           end
@@ -177,19 +182,18 @@ always_ff @ (posedge i_clk) begin
         equihash_gen_in.hash_prev_block <= cblockheader.hash_prev_block;
         equihash_gen_in.version <= cblockheader.version;
         equihash_gen_in.nonce <= cblockheader.nonce;
-        // Load the solution, need to flip it
-        for (int i = 0; i < SOL_BITS; i++)
-          if ((sol_pos + SOL_BITS) >= DAT_BITS && (i + sol_pos < DAT_BITS))
-            equihash_gen_in.index[SOL_BITS-1-i] <= equihash_sol_bram_if_b_l[i + sol_pos];
-          else
-            equihash_gen_in.index[SOL_BITS-1-i] <= /*equihash_sol_bram_if_b.q*/sol_ram_byte_bit_flip[(i+sol_pos) % DAT_BITS];
-      
+        equihash_gen_in.index <= equihash_sol_index/INDICIES_PER_HASH;
+        blake2b_in_hash.ctl <= equihash_sol_index % INDICIES_PER_HASH;
+        
+        // Check for duplicates here
+        sol_index_bm[equihash_sol_index] <= 1;
+        sol_index_dup_fnd <= sol_index_bm[equihash_sol_index] | sol_index_dup_fnd;
+        
         // Stay 2 clocks behind the RAM write
         if ((equihash_sol_bram_if_a.a*DAT_BYTS + DAT_BYTS) >= (equihash_sol_bram_if_b.a + $bits(cblockheader_t)/DAT_BITS) ||
              ram_wr_state == STATE_WR_WAIT) begin
           // Check if we need to load next memory address
-          if (sol_pos + 2*SOL_BITS >= DAT_BITS && ~|equihash_sol_bram_read) begin
-            equihash_sol_bram_if_b_l <= sol_ram_byte_bit_flip;
+          if ((sol_pos + 3*SOL_BITS >= 2*DAT_BITS) && ~|equihash_sol_bram_read) begin
             equihash_sol_bram_if_b.a <= equihash_sol_bram_if_b.a + 1;  
             equihash_sol_bram_read[0] <= 1; 
           end
@@ -197,7 +201,8 @@ always_ff @ (posedge i_clk) begin
           // Load input into Blake2b block
           blake2b_in_hash.val <= 1;
           sol_cnt_in <= sol_cnt_in + 1;
-          sol_pos <= sol_pos + SOL_BITS;
+          // If our input is about to shift we need to adjust pointer by DAT_BITS
+          sol_pos <= sol_pos + SOL_BITS - (equihash_sol_bram_read[0] ? DAT_BITS : 0);
           if (sol_cnt_in == SOL_LIST_LEN - 2)
             ram_rd_state <= STATE_RD_WAIT;
         end
@@ -226,9 +231,11 @@ always_ff @ (posedge i_clk) begin
     // Defaults
     blake2b_out_hash.rdy <= 1;
     
+    
     case(chk_state)
       STATE_CHK_IDLE: begin
         sol_cnt_out <= 0;
+        sol_index_bm <= 0;
         o_mask_val <= 0;
         o_mask <= 0;
         sol_hash_xor <= 0;
@@ -239,13 +246,14 @@ always_ff @ (posedge i_clk) begin
 
         // When we start getting the hash results, start XORing them
         if (blake2b_out_hash.val) begin
-          sol_hash_xor <= hash_solution(sol_hash_xor, blake2b_out_hash.dat);
+          sol_hash_xor <= sol_hash_xor ^ blake2b_out_hash.dat[N*blake2b_out_hash.ctl +: N];
           sol_cnt_out <= sol_cnt_out + 1;
-          //TODO here we also need to check the ordering, and duplicates?
+          //TODO here we also need to check the ordering, and duplicate indixe?
         end
         
         if (sol_cnt_out == SOL_LIST_LEN - 1) begin
-          o_mask.XOR_FAIL <= |sol_hash_xor;
+          o_mask.XOR_NON_ZERO <= |sol_hash_xor;
+          o_mask.DUPLICATE_FND <= sol_index_dup_fnd;
           o_mask_val <= 1;
           chk_state <= STATE_CHK_WAIT;
         end
@@ -263,29 +271,22 @@ always_comb begin
   parameters = {'0, 8'd1, 8'd1, 8'd0, BLAKE2B_DIGEST_BYTS};
   parameters[48*8-1 +: 16*8] = POW_TAG; 
   blake2b_in_hash.dat = equihash_gen_in;
-  for (int i = 0; i < DAT_BYTS; i++)
-    sol_ram_byte_bit_flip[i*8 +: 8] = flip_bit_byte(equihash_sol_bram_if_b.q[i*8 +: 8]);
+  equihash_sol_bram_if_b_l_comb = {equihash_sol_bram_if_b.q, equihash_sol_bram_if_b_l};
+  // Flip the bits in each byte
+  for (int i = 0; i < DAT_BYTS*2; i++)
+    for (int j = 0; j < 8; j++)
+      equihash_sol_bram_if_b_l_comb_flip[i*8+j] = equihash_sol_bram_if_b_l_comb[(i*8)+7-j];
+  // The SOL_BITS is also bit reversed    
+  for (int i = 0; i < SOL_BITS; i++)
+    equihash_sol_index[i] = equihash_sol_bram_if_b_l_comb_flip[sol_pos + SOL_BITS-1-i]; 
 end
-
-// Function to OR the hash output depending on equihash parameters
-function [N-1:0] hash_solution(input [N-1:0] curr, input [N*INDICIES_PER_HASH-1:0] in);
-  hash_solution = curr;
-  for (int i = 0; i < INDICIES_PER_HASH; i++)
-    hash_solution = hash_solution ^ in[i*N +: N];
-endfunction
-
-// Function to convert bit order in each byte of the solution list
-function [7:0] flip_bit_byte(input [7:0] in);
-  for (int i = 0; i < 8; i++)
-    flip_bit_byte[8-1-i] = in[i];
-endfunction
 
 // Instantiate the Blake2b block - use high performance pipelined version
 localparam [EQUIHASH_GEN_BYTS*8-1:0] EQUIHASH_GEN_BYTS_BM = {{(EQUIHASH_GEN_BYTS*8-21){1'b0}}, {21{1'b1}}}; // Only lower 21 bits of input to hash change
 blake2b_pipe_top #(
-  .MSG_LEN    ( EQUIHASH_GEN_BYTS    ),
-  .MSG_VAR_BM ( EQUIHASH_GEN_BYTS_BM ),   
-  .CTL_BITS   ( 8                    )
+  .MSG_LEN    ( EQUIHASH_GEN_BYTS         ),
+  .MSG_VAR_BM ( EQUIHASH_GEN_BYTS_BM      ),   
+  .CTL_BITS   ( $clog2(INDICIES_PER_HASH) )
 )
 blake2b_pipe_top_i (
   .i_clk ( i_clk ),

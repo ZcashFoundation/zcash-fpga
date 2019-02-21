@@ -92,7 +92,6 @@ begin
   while(!done_241 || !mask_val) @(posedge clk);
   
   assert (~(|mask)) else $fatal(1, "%m %t ERROR: test_block_346 mask was non-zero", $time);
-  assert (~mask.XOR_FAIL) else $fatal(1, "%m %t ERROR: test_block_346 failed XOR mask check", $time);
   $display("test_block_346 PASSED");
   
 end

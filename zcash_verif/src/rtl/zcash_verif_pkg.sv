@@ -33,7 +33,8 @@ package zcash_verif_pkg;
   
   // Values used for resulting error masks
   typedef struct packed {
-    logic XOR_FAIL;
+    logic DUPLICATE_FND;
+    logic XOR_NON_ZERO;
   } equihash_bm_t;
   
   // Format for equihash input - should be 144 bytes
