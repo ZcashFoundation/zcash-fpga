@@ -15,27 +15,6 @@
 #   run results please launch the synthesis/implementation runs as needed.
 #
 #*****************************************************************************************
-# NOTE: In order to use this script for source control purposes, please make sure that the
-#       following files are added to the source control system:-
-#
-# 1. This project restoration tcl script (create_project.tcl) that was generated.
-#
-# 2. The following source(s) files that were local or imported into the original project.
-#    (Please see the '$orig_proj_dir' and '$origin_dir' variable setting below at the start of the script)
-#
-#    <none>
-#
-# 3. The following remote source files that were added to the original project:-
-#
-#    "C:/Users/bsdevlin/git/zcash-fpga/ip_cores/blake2b/src/rtl/blake2b_g.sv"
-#    "C:/Users/bsdevlin/git/zcash-fpga/ip_cores/blake2b/src/rtl/blake2b_pkg.sv"
-#    "C:/Users/bsdevlin/git/zcash-fpga/ip_cores/common/src/rtl/common_pkg.sv"
-#    "C:/Users/bsdevlin/git/zcash-fpga/ip_cores/common/src/rtl/common_if.sv"
-#    "C:/Users/bsdevlin/git/zcash-fpga/ip_cores/blake2b/src/rtl/blake2b_top.sv"
-#    "C:/Users/bsdevlin/git/zcash-fpga/ip_cores/blake2b/synth/blake2b_top.xdc"
-#    "C:/Users/bsdevlin/git/zcash-fpga/ip_cores/blake2b/src/tb/blake2b_top_tb.sv"
-#
-#*****************************************************************************************
 
 # Set the reference directory for source file relative paths (by default the value is script directory path)
 set script_path [ file dirname [ file normalize [ info script ] ] ]
@@ -148,8 +127,6 @@ set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
 
 
-# Set 'sources_1' fileset file properties for local files
-# None
 
 # Set 'sources_1' fileset properties
 set obj [get_filesets sources_1]
