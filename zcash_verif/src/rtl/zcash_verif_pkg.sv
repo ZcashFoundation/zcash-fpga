@@ -20,20 +20,22 @@
 package zcash_verif_pkg;
   
   // Variables used in the equihash PoW
-  parameter [31:0] N = 200;
-  parameter [31:0] K = 9;
-  parameter INDICIES_PER_HASH = (512/N);
-  parameter COLLISION_BIT_LEN = N/(K+1);
-  parameter BLAKE2B_DIGEST_BYTS = (N*INDICIES_PER_HASH)/8;
-  parameter SOL_BITS =  COLLISION_BIT_LEN+1;
-  parameter SOL_LIST_LEN = 1 << K;
-  parameter SOL_LIST_BYTS = SOL_LIST_LEN*SOL_BITS/8;
+  parameter [31:0] N = 32'd200;
+  parameter [31:0] K = 32'd9;
+  parameter       INDICIES_PER_HASH = (512/N);
+  parameter       COLLISION_BIT_LEN = N/(K+1);
+  parameter [7:0] BLAKE2B_DIGEST_BYTS = (N*INDICIES_PER_HASH)/8;
+  parameter       SOL_BITS =  COLLISION_BIT_LEN+1;
+  parameter       SOL_LIST_LEN = 1 << K;
+  parameter       SOL_LIST_BYTS = 3 + SOL_LIST_LEN*SOL_BITS/8;
   
-  parameter [127:0] POW_TAG = {"ZcashPoW", N, K};
+  parameter [127:0] POW_TAG = {K, N, "WoPhsacZ"}; // ZcashPoW is reversed here
   
   // Values used for resulting error masks
   typedef struct packed {
     logic DUPLICATE_FND;
+    logic BAD_ZERO_ORDER;
+    logic BAD_IDX_ORDER;
     logic XOR_NON_ZERO;
   } equihash_bm_t;
   
