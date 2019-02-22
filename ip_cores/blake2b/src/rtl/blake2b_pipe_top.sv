@@ -57,7 +57,7 @@ logic [NUM_PIPE-1:0][MSG_LEN*8-1:0] msg;
 logic [MSG_LEN*8-1:0] msg_fixed;
 logic [7:0]           byte_len;
 logic [NUM_PIPE-1:0][CTL_BITS-1:0] ctl;
-logic [NUM_PIPE-1:0] eop_l, sop_l, valid;
+logic [NUM_PIPE-1:0] valid;
 
 generate
   genvar g0, g1, g2, g3;
