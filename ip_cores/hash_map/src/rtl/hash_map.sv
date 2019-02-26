@@ -37,7 +37,8 @@ module hash_map #(
   output logic                o_val,
   output logic                o_fnd,    // Will be high if adding a key and it already exists (old data overwritten)
                                         // or for a lookup if key was found.
-  
+                                        
+  // Configuration (overrides other signals)
   // To clear memory
   input                       i_cfg_clr,
   // When linked list memory is full this will be high
@@ -162,9 +163,6 @@ always_ff @ (posedge i_clk) begin
           o_rdy <= 0;
           hash_state <= STATE_LOOPUP_COL;
           coll_ram_wait[0] <= 1;
-        end else if (i_cfg_clr) begin
-          o_rdy <= 0;
-          hash_state <= STATE_RESET;
         end
       end
       STATE_LOOPUP_COL: begin
@@ -400,6 +398,12 @@ always_ff @ (posedge i_clk) begin
         end
       end
     endcase
+    
+    // Clear signal overrides others
+    if (i_cfg_clr) begin
+      o_rdy <= 0;
+      hash_state <= STATE_RESET;
+    end
 
   end
 end
@@ -432,7 +436,8 @@ axi_stream_fifo #(
   .SIZE     ( LL_MEM_SIZE         ),
   .DAT_BITS ( $clog2(LL_MEM_SIZE) ),
   .MOD_BITS ( 1                   ),
-  .CTL_BITS ( 1                   )
+  .CTL_BITS ( 1                   ),
+  .USE_BRAM ( 1                   )
 )
 free_mem_fifo (
   .i_clk  ( i_clk ),

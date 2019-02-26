@@ -99,7 +99,7 @@ endtask
 
 // Main testbench calls
 initial begin
-  #200ns;
+ #20us; // Let internal memories reset
   
  test_block_346();
 

@@ -28,7 +28,8 @@
 module zcash_verif_equihash
   import zcash_verif_pkg::*;
 #(
-  parameter DAT_BYTS = 8 
+  parameter DAT_BYTS = 8,
+  parameter CHECK_UNIQUE_INDEX = 1
 )(
   input i_clk, i_rst,
 
@@ -61,13 +62,18 @@ if_ram #(.RAM_WIDTH(EQUIHASH_SOL_BRAM_WIDTH), .RAM_DEPTH(EQUIHASH_SOL_BRAM_DEPTH
 
 logic [DAT_BITS-1:0]   equihash_sol_bram_if_b_l;
 logic [2*DAT_BITS-1:0] equihash_sol_bram_if_b_l_comb, equihash_sol_bram_if_b_l_comb_flip;
-logic [SOL_BITS-1:0]   equihash_sol_index, hash_map_in_dat;
+logic [SOL_BITS-1:0]   equihash_sol_index;
 logic [1:0]            equihash_sol_bram_read;
 
-logic hash_map_in_val, hash_map_out_rdy, hash_map_out_val, hash_map_out_fnd, hash_map_clr, hash_map_full;
-logic sol_index_fifo_if_emp;
-if_axi_stream #(.DAT_BITS(SOL_BITS), .CTL_BITS(1), .MOD_BITS(1)) sol_index_fifo_if_in(i_clk);
-if_axi_stream #(.DAT_BITS(SOL_BITS), .CTL_BITS(1), .MOD_BITS(1)) sol_index_fifo_if_out(i_clk);
+logic dup_chk_done, order_chk_done;
+
+if_axi_stream #(.DAT_BITS(SOL_BITS), .CTL_BITS(1), .MOD_BITS(1)) dup_check_if_in(i_clk);
+if_axi_stream #(.DAT_BITS(1), .CTL_BITS(1), .MOD_BITS(1)) dup_check_if_out(i_clk);
+
+if_axi_stream #(.DAT_BITS(SOL_BITS), .MOD_BITS(1),  .CTL_BITS(1)) equihash_order_if(i_clk);
+logic equihash_order_val, equihash_order_wrong;
+
+   
 
 enum {STATE_WR_IDLE = 0,
       STATE_WR_DATA = 1,
@@ -106,7 +112,7 @@ always_ff @ (posedge i_clk) begin
     case (ram_wr_state)
       // This state we are waiting for an input block
       STATE_WR_IDLE: begin
-        i_axi.rdy <= hash_map_out_rdy;
+        i_axi.rdy <= (dup_check_if_in.rdy && equihash_order_if.rdy);
         if (i_axi.val && i_axi.rdy) begin
           ram_wr_state <= STATE_WR_DATA;
           equihash_sol_bram_if_a.a <= 0;
@@ -149,6 +155,9 @@ always_ff @ (posedge i_clk) begin
     equihash_sol_bram_if_b_l <= 0;
     equihash_gen_in <= 0;
     equihash_sol_bram_read <= 0;
+    dup_check_if_in.reset_source();
+    equihash_order_if.reset_source();
+    
     ram_rd_state <= STATE_RD_IDLE;
   end else begin
     // Defaults
@@ -157,6 +166,10 @@ always_ff @ (posedge i_clk) begin
     blake2b_in_hash.sop <= 1;
     blake2b_in_hash.eop <= 1;
     blake2b_in_hash.val <= 0;
+    
+    dup_check_if_in.val <= 0;
+    equihash_order_if.val <= 0;
+    
     equihash_sol_bram_read <= equihash_sol_bram_read << 1;
     if (equihash_sol_bram_read[0])
       equihash_sol_bram_if_b_l <= equihash_sol_bram_if_b.q;
@@ -191,6 +204,7 @@ always_ff @ (posedge i_clk) begin
         equihash_gen_in.nonce <= cblockheader.nonce;
         equihash_gen_in.index <= (equihash_sol_index)/INDICIES_PER_HASH;
         blake2b_in_hash.ctl <= (equihash_sol_index) % INDICIES_PER_HASH;
+
                 
         // Stay 2 clocks behind the RAM write
         if ((equihash_sol_bram_if_a.a*DAT_BYTS + DAT_BYTS) >= (equihash_sol_bram_if_b.a + $bits(cblockheader_t)/DAT_BITS) ||
@@ -204,6 +218,16 @@ always_ff @ (posedge i_clk) begin
           // Load input into Blake2b block
           blake2b_in_hash.val <= 1;
           sol_cnt_in <= sol_cnt_in + 1;
+    
+          dup_check_if_in.val <= 1;
+          dup_check_if_in.dat <= equihash_sol_index;
+          dup_check_if_in.sop <= (sol_cnt_in == 0);
+          dup_check_if_in.eop <= (sol_cnt_in == SOL_LIST_LEN - 1);
+          
+          equihash_order_if.val <= 1;
+          equihash_order_if.dat <= equihash_sol_index;
+          equihash_order_if.sop <= (sol_cnt_in == 0);
+          equihash_order_if.eop <= (sol_cnt_in == SOL_LIST_LEN - 1);
           
           // If our input is about to shift we need to adjust pointer by DAT_BITS
           sol_pos <= sol_pos + SOL_BITS - (equihash_sol_bram_read[0] ? DAT_BITS : 0);
@@ -228,21 +252,34 @@ always_ff @ (posedge i_clk) begin
     blake2b_out_hash.rdy <= 0;
     sol_cnt_out <= 0;
     chk_state <= STATE_CHK_IDLE;
-    hash_map_clr <= 0;
+    dup_check_if_out.rdy <= 1;
+    dup_chk_done <= 0;
+    order_chk_done <= 0;
   end else begin
     // Defaults
     blake2b_out_hash.rdy <= 1;
     
-    hash_map_clr <= 0;
-    sol_index_fifo_if_in.val <= blake2b_in_hash.val;
-    sol_index_fifo_if_in.dat <= equihash_sol_index;
-        
-    if ( (hash_map_out_val && hash_map_out_fnd) || hash_map_full )
-      o_mask.DUPLICATE_FND <= 1;
+    // Monitor for result of duplicate check
+    if (dup_check_if_out.val) begin
+      if (dup_check_if_out.dat[0] || dup_check_if_out.err) begin
+        o_mask.DUPLICATE_FND <= 1;
+      end
+      dup_chk_done <= 1;
+    end
+    
+    // Monitor for result of order check    
+    if (equihash_order_val) begin
+      if (equihash_order_wrong) begin
+        o_mask.BAD_IDX_ORDER <= 1;
+      end
+      order_chk_done <= 1;
+    end
     
     case(chk_state)
       STATE_CHK_IDLE: begin
         sol_cnt_out <= 0;
+        dup_chk_done <= 0;
+        order_chk_done <= 0;
         o_mask_val <= 0;
         o_mask <= 0;
         sol_hash_xor <= 0;
@@ -275,11 +312,11 @@ always_ff @ (posedge i_clk) begin
 
         if (ram_rd_state == STATE_RD_WAIT &&
             ram_wr_state == STATE_WR_WAIT &&
-            sol_index_fifo_if_emp ) begin
+            dup_chk_done &&
+            order_chk_done ) begin
             
           o_mask_val <= 1;
           chk_state <= STATE_CHK_DONE;
-          hash_map_clr <= 1;
         end
       end
       STATE_CHK_DONE: begin
@@ -309,11 +346,7 @@ always_comb begin
   // The SOL_BITS is also bit reversed    
   for (int i = 0; i < SOL_BITS; i++)
     equihash_sol_index[i] = equihash_sol_bram_if_b_l_comb_flip[sol_pos + SOL_BITS-1-i]; 
-    
-  // Hash map is fed directly from FIFO
-  hash_map_in_val = sol_index_fifo_if_out.val;  
-  hash_map_in_dat = sol_index_fifo_if_out.dat;
-  sol_index_fifo_if_out.rdy = hash_map_out_rdy;
+
   
 end
 
@@ -352,7 +385,7 @@ blake2b_pipe_top_i (
   .o_hash  ( blake2b_out_hash )
 );
 
-// Memory to store the equihash solution as it comes in. We use dual port,
+// Memory to store the compressed equihash solution as it comes in. We use dual port,
 // one port for writing and one port for reading
 bram #(
   .RAM_WIDTH       ( EQUIHASH_SOL_BRAM_WIDTH ),
@@ -363,44 +396,39 @@ bram #(
   .b ( equihash_sol_bram_if_b )
 );
 
-axi_stream_fifo #(
-  .SIZE     ( SOL_LIST_LEN ),
-  .DAT_BITS ( SOL_BITS     ),
-  .MOD_BITS ( 1            ),
-  .CTL_BITS ( 1            )
-)
-sol_index_fifo (
-  .i_clk  ( i_clk ),
-  .i_rst  ( i_rst ),
-  .i_axi  ( sol_index_fifo_if_in  ),
-  .o_axi  ( sol_index_fifo_if_out ),
-  .o_full (),
-  .o_emp  ( sol_index_fifo_if_emp )
-);
-
-// Hash table used to detect duplicate index, fed from FIFO
-// Could potentially be run at much higher clock
-hash_map #(
-  .KEY_BITS      ( SOL_BITS       ),
-  .DAT_BITS      ( 1              ),
-  .HASH_MEM_SIZE ( 2*SOL_LIST_LEN ),
-  .LL_MEM_SIZE   ( SOL_LIST_LEN   )
-)
-hash_map_i (
+zcash_verif_equihash_order
+equihash_order (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_key      ( hash_map_in_dat    ),
-  .i_val      ( hash_map_in_val    ),
-  .i_dat      ( 1'd1               ),
-  .i_opcode   ( 2'd1               ),
-  .o_rdy      ( hash_map_out_rdy   ),
-  .o_dat      (),
-  .o_val      ( hash_map_out_val   ),
-  .o_fnd      ( hash_map_out_fnd   ),
-  .i_cfg_clr  ( hash_map_clr       ),
-  .o_cfg_full ( hash_map_full      )  
+  
+  .i_axi         ( equihash_order_if    ),
+  .o_order_wrong ( equihash_order_wrong ),
+  .o_val         ( equihash_order_val   )
 );
 
+generate
+  if (CHECK_UNIQUE_INDEX == 1) begin: GEN_INDEX_CHECK
+    dup_check #(
+      .IN_BITS   ( SOL_BITS     ),
+      .LIST_SIZE ( SOL_LIST_LEN )
+    )
+    dup_check(
+      .i_clk ( i_clk ),
+      .i_rst ( i_rst ),
+
+      .i_axi ( dup_check_if_in ),
+      .o_axi ( dup_check_if_out )
+    );
+  end else begin
+    always_comb begin
+      dup_check_if_in.rdy = 1;
+      dup_check_if_out.val = 1;
+      dup_check_if_out.eop = 1;
+      dup_check_if_out.sop = 1;
+      dup_check_if_out.dat = 0;
+    end
+  end 
+endgenerate
 // Some checks to make sure our data structures are correct:
 initial begin
   assert ($bits(equihash_gen_in_t)/8 == 144) else $fatal(1, "%m %t ERROR: equihash_gen_in_t is not 144 bytes in size", $time);

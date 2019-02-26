@@ -15,6 +15,14 @@ module bram #(
   if_ram.sink a,
   if_ram.sink b
 );
+  
+  // Check RAM sizes match the interface
+  initial begin
+    assert ($bits(a.d) == RAM_WIDTH) else $fatal(1, "%m %t ERROR: bram RAM_WIDTH (%d) does not match interface a (%d)", $time, RAM_WIDTH, $bits(a.d));
+    assert ($bits(a.a) == $clog2(RAM_DEPTH)) else $fatal(1, "%m %t ERROR: bram $clog2(RAM_DEPTH) (%d) does not match interface a (%d)", $time, $clog2(RAM_DEPTH), $bits(a.a));
+    assert ($bits(b.d) == RAM_WIDTH) else $fatal(1, "%m %t ERROR: bram RAM_WIDTH (%d) does not match interface b (%d)", $time, RAM_WIDTH, $bits(b.d));
+    assert ($bits(b.a) == $clog2(RAM_DEPTH)) else $fatal(1, "%m %t ERROR: bram $clog2(RAM_DEPTH) (%d) does not match interface b (%d)", $time, $clog2(RAM_DEPTH), $bits(b.a));    
+  end
 
   xilinx_true_dual_port_no_change_2_clock_ram #(
     .RAM_WIDTH(RAM_WIDTH),                       // Specify RAM data width
