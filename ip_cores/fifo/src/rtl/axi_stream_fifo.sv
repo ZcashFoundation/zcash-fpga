@@ -20,34 +20,32 @@
 */
 
 module axi_stream_fifo #(
-  parameter DEPTH,
+  parameter SIZE,
   parameter DAT_BITS,
+  parameter MOD_BITS = $clog2(DAT_BITS/8),
   parameter CTL_BITS
 ) (
   input i_clk, i_rst,
   if_axi_stream.sink   i_axi,
-  if_axi_stream.source o_axi
+  if_axi_stream.source o_axi,
+  output logic         o_full,
+  output logic         o_emp
 );
   
-localparam MOD_BITS = $clog2(DAT_BITS/8);
+logic [$clog2(SIZE)-1:0] rd_ptr, wr_ptr;
 
-logic [$clog2(DEPTH):0] rd_ptr, wr_ptr;
-logic empty, full;
-
-logic [DEPTH-1:0][DAT_BITS + CTL_BITS + MOD_BITS + 3 -1:0] ram;  
+logic [SIZE-1:0][DAT_BITS + CTL_BITS + MOD_BITS + 3 -1:0] ram;  
 
 // Control for full and empty, and assigning outputs from the ram
 always_comb begin
-  empty = (rd_ptr == wr_ptr);
-  full = (wr_ptr == rd_ptr - 1);
-  i_axi.rdy = ~full;
+  i_axi.rdy = ~o_full;
   o_axi.dat = ram[rd_ptr][0 +: DAT_BITS];
   o_axi.ctl = ram[rd_ptr][DAT_BITS +: CTL_BITS];
   o_axi.mod = ram[rd_ptr][CTL_BITS+DAT_BITS +: MOD_BITS];
   o_axi.sop = ram[rd_ptr][CTL_BITS+DAT_BITS+MOD_BITS +: 1];
   o_axi.eop = ram[rd_ptr][CTL_BITS+DAT_BITS+MOD_BITS+1 +: 1];
   o_axi.err = ram[rd_ptr][CTL_BITS+DAT_BITS+MOD_BITS+2 +: 1];
-  o_axi.val = ~empty;
+  o_axi.val = ~o_emp;
 end
 
 // Logic for writing and reading from ram without reset
@@ -62,9 +60,26 @@ always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     rd_ptr <= 0;
     wr_ptr <= 0;
+    o_emp <= 1;
+    o_full <= 0;
   end else begin
-    wr_ptr <= i_axi.val && i_axi.rdy ? (wr_ptr + 1) : wr_ptr;
-    rd_ptr <= o_axi.val && o_axi.rdy ? (rd_ptr + 1) : rd_ptr;
+  
+    // Write and read
+    if (i_axi.val && i_axi.rdy && o_axi.val && o_axi.rdy) begin
+      wr_ptr <= (wr_ptr + 1) % SIZE;
+      rd_ptr <= (rd_ptr + 1) % SIZE;
+    // Write
+    end else if(~o_full && i_axi.val && i_axi.rdy) begin
+      o_emp <= 0;
+      wr_ptr <= (wr_ptr + 1) % SIZE;
+      if ((wr_ptr + 1) % SIZE == rd_ptr) o_full <= 1;
+    // Read
+    end else if (~o_emp && o_axi.val && o_axi.rdy) begin
+      o_full <= 0;
+      rd_ptr <= (rd_ptr + 1) % SIZE;
+      if ((rd_ptr + 1) % SIZE == wr_ptr) o_emp <= 1;
+    end
+    
   end
 end
   

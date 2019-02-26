@@ -21,12 +21,13 @@
 
 interface if_axi_stream # (
   parameter DAT_BYTS = 8,
-  parameter CTL_BYTS = 1
+  parameter DAT_BITS = DAT_BYTS*8,
+  parameter CTL_BYTS = 1,
+  parameter CTL_BITS = CTL_BYTS*8,
+  parameter MOD_BITS = $clog2(DAT_BYTS)
 )(
   input i_clk
 );
-  localparam DAT_BITS = DAT_BYTS*8;
-  localparam CTL_BITS = CTL_BYTS*8;
   
   logic rdy;
   logic val;
@@ -35,7 +36,7 @@ interface if_axi_stream # (
   logic eop;
   logic [CTL_BITS-1:0] ctl;
   logic [DAT_BITS-1:0] dat;
-  logic [$clog2(DAT_BYTS)-1:0] mod;
+  logic [MOD_BITS-1:0] mod;
   
   modport sink (input val, err, sop, eop, ctl, dat, mod, i_clk, output rdy);
   modport source (output val, err, sop, eop, ctl, dat, mod, input rdy, i_clk, import task reset_source());

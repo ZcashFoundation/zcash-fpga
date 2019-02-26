@@ -61,8 +61,13 @@ if_ram #(.RAM_WIDTH(EQUIHASH_SOL_BRAM_WIDTH), .RAM_DEPTH(EQUIHASH_SOL_BRAM_DEPTH
 
 logic [DAT_BITS-1:0]   equihash_sol_bram_if_b_l;
 logic [2*DAT_BITS-1:0] equihash_sol_bram_if_b_l_comb, equihash_sol_bram_if_b_l_comb_flip;
-logic [SOL_BITS-1:0]   equihash_sol_index;
+logic [SOL_BITS-1:0]   equihash_sol_index, hash_map_in_dat;
 logic [1:0]            equihash_sol_bram_read;
+
+logic hash_map_in_val, hash_map_out_rdy, hash_map_out_val, hash_map_out_fnd, hash_map_clr, hash_map_full;
+logic sol_index_fifo_if_emp;
+if_axi_stream #(.DAT_BITS(SOL_BITS), .CTL_BITS(1), .MOD_BITS(1)) sol_index_fifo_if_in(i_clk);
+if_axi_stream #(.DAT_BITS(SOL_BITS), .CTL_BITS(1), .MOD_BITS(1)) sol_index_fifo_if_out(i_clk);
 
 enum {STATE_WR_IDLE = 0,
       STATE_WR_DATA = 1,
@@ -74,7 +79,8 @@ enum {STATE_RD_IDLE = 0,
       
 enum {STATE_CHK_IDLE = 0,
       STATE_CHK_DATA = 1,
-      STATE_CHK_WAIT = 2} chk_state;      
+      STATE_CHK_WAIT = 2,
+      STATE_CHK_DONE = 3} chk_state;      
 
 // State machine for controlling writing equihash solution into the RAM and registering the header
 always_ff @ (posedge i_clk) begin
@@ -100,7 +106,7 @@ always_ff @ (posedge i_clk) begin
     case (ram_wr_state)
       // This state we are waiting for an input block
       STATE_WR_IDLE: begin
-        i_axi.rdy <= 1;
+        i_axi.rdy <= hash_map_out_rdy;
         if (i_axi.val && i_axi.rdy) begin
           ram_wr_state <= STATE_WR_DATA;
           equihash_sol_bram_if_a.a <= 0;
@@ -122,11 +128,11 @@ always_ff @ (posedge i_clk) begin
       STATE_WR_WAIT: begin
         equihash_sol_bram_if_a.we <= 0;
         equihash_sol_bram_if_a.a <= equihash_sol_bram_if_a.a;
-        if (chk_state == STATE_CHK_WAIT) begin
+        if (chk_state == STATE_CHK_DONE) begin
           ram_wr_state <= STATE_WR_IDLE;
           i_axi.rdy <= 1;
           cblockheader_val <= 0;
-          equihash_sol_bram_if_a.a <= 0;
+          equihash_sol_bram_if_a.a <= 0;          
         end
       end
     endcase
@@ -164,8 +170,8 @@ always_ff @ (posedge i_clk) begin
         sol_cnt_in <= 0;
         blake2b_in_hash.val <= 0;
         
-        //First case has special state       
-        if (equihash_sol_bram_if_a.a*DAT_BYTS >= ($bits(cblockheader_t)/8) + (DAT_BYTS*2)) begin
+        // First case has special state
+        if ( equihash_sol_bram_if_a.a*DAT_BYTS >= ($bits(cblockheader_t)/8) + (DAT_BYTS*2)) begin
           if (~|equihash_sol_bram_read) begin
             equihash_sol_bram_if_b.a <= equihash_sol_bram_if_b.a + 1;
             equihash_sol_bram_read[0] <= 1;
@@ -175,6 +181,7 @@ always_ff @ (posedge i_clk) begin
         end
       end
       STATE_RD_DATA: begin
+      
         equihash_gen_in <= 0;
         equihash_gen_in.bits <= cblockheader.bits;
         equihash_gen_in.my_time <= cblockheader.my_time;
@@ -193,7 +200,7 @@ always_ff @ (posedge i_clk) begin
             equihash_sol_bram_if_b.a <= equihash_sol_bram_if_b.a + 1;  
             equihash_sol_bram_read[0] <= 1; 
           end
-                      
+                           
           // Load input into Blake2b block
           blake2b_in_hash.val <= 1;
           sol_cnt_in <= sol_cnt_in + 1;
@@ -205,7 +212,7 @@ always_ff @ (posedge i_clk) begin
         end
       end
       STATE_RD_WAIT: begin
-        if (chk_state == STATE_CHK_WAIT) begin
+        if (chk_state == STATE_CHK_DONE) begin
           ram_rd_state <= STATE_RD_IDLE;
         end
       end
@@ -221,10 +228,17 @@ always_ff @ (posedge i_clk) begin
     blake2b_out_hash.rdy <= 0;
     sol_cnt_out <= 0;
     chk_state <= STATE_CHK_IDLE;
+    hash_map_clr <= 0;
   end else begin
     // Defaults
     blake2b_out_hash.rdy <= 1;
     
+    hash_map_clr <= 0;
+    sol_index_fifo_if_in.val <= blake2b_in_hash.val;
+    sol_index_fifo_if_in.dat <= equihash_sol_index;
+        
+    if ( (hash_map_out_val && hash_map_out_fnd) || hash_map_full )
+      o_mask.DUPLICATE_FND <= 1;
     
     case(chk_state)
       STATE_CHK_IDLE: begin
@@ -258,11 +272,18 @@ always_ff @ (posedge i_clk) begin
       end
       STATE_CHK_WAIT: begin
         o_mask.XOR_NON_ZERO <= |sol_hash_xor;
-        o_mask.DUPLICATE_FND <= 0;  //TODO this with hash
-        o_mask_val <= 1;
 
-        if (ram_rd_state == STATE_RD_IDLE && ram_wr_state == STATE_WR_IDLE)
-          chk_state <= STATE_CHK_IDLE;
+        if (ram_rd_state == STATE_RD_WAIT &&
+            ram_wr_state == STATE_WR_WAIT &&
+            sol_index_fifo_if_emp ) begin
+            
+          o_mask_val <= 1;
+          chk_state <= STATE_CHK_DONE;
+          hash_map_clr <= 1;
+        end
+      end
+      STATE_CHK_DONE: begin
+        chk_state <= STATE_CHK_IDLE;
       end
     endcase
   end
@@ -288,6 +309,12 @@ always_comb begin
   // The SOL_BITS is also bit reversed    
   for (int i = 0; i < SOL_BITS; i++)
     equihash_sol_index[i] = equihash_sol_bram_if_b_l_comb_flip[sol_pos + SOL_BITS-1-i]; 
+    
+  // Hash map is fed directly from FIFO
+  hash_map_in_val = sol_index_fifo_if_out.val;  
+  hash_map_in_dat = sol_index_fifo_if_out.dat;
+  sol_index_fifo_if_out.rdy = hash_map_out_rdy;
+  
 end
 
 // This function checks the ordering of the XORs, so that the number of zeros
@@ -334,6 +361,44 @@ bram #(
 ) equihash_sol_bram (
   .a ( equihash_sol_bram_if_a ),
   .b ( equihash_sol_bram_if_b )
+);
+
+axi_stream_fifo #(
+  .SIZE     ( SOL_LIST_LEN ),
+  .DAT_BITS ( SOL_BITS     ),
+  .MOD_BITS ( 1            ),
+  .CTL_BITS ( 1            )
+)
+sol_index_fifo (
+  .i_clk  ( i_clk ),
+  .i_rst  ( i_rst ),
+  .i_axi  ( sol_index_fifo_if_in  ),
+  .o_axi  ( sol_index_fifo_if_out ),
+  .o_full (),
+  .o_emp  ( sol_index_fifo_if_emp )
+);
+
+// Hash table used to detect duplicate index, fed from FIFO
+// Could potentially be run at much higher clock
+hash_map #(
+  .KEY_BITS      ( SOL_BITS       ),
+  .DAT_BITS      ( 1              ),
+  .HASH_MEM_SIZE ( 2*SOL_LIST_LEN ),
+  .LL_MEM_SIZE   ( SOL_LIST_LEN   )
+)
+hash_map_i (
+  .i_clk ( i_clk ),
+  .i_rst ( i_rst ),
+  .i_key      ( hash_map_in_dat    ),
+  .i_val      ( hash_map_in_val    ),
+  .i_dat      ( 1'd1               ),
+  .i_opcode   ( 2'd1               ),
+  .o_rdy      ( hash_map_out_rdy   ),
+  .o_dat      (),
+  .o_val      ( hash_map_out_val   ),
+  .o_fnd      ( hash_map_out_fnd   ),
+  .i_cfg_clr  ( hash_map_clr       ),
+  .o_cfg_full ( hash_map_full      )  
 );
 
 // Some checks to make sure our data structures are correct:
