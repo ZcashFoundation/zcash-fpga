@@ -27,15 +27,21 @@ equihash_bm_t mask;
 logic mask_val;
 logic start_241 = 0;
 logic done_241;
+logic start_241_error = 0;
+logic done_241_error;
 
 parameter DAT_BYTS = 8;
 string my_file_path_s = get_file_dir(`__FILE__);
 
 if_axi_stream #(.DAT_BYTS(DAT_BYTS)) header(clk);
 if_axi_stream #(.DAT_BYTS(DAT_BYTS)) header_241(clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) header_241_error(clk);
 
+// Need one for each test so we can multiplex the input
 always_comb begin
   header_241.rdy = 0;
+  header_241_error.rdy = 0;
+  
   if (start_241) begin
     header_241.rdy = header.rdy;
     header.val = header_241.val;
@@ -46,6 +52,17 @@ always_comb begin
     header.err = header_241.err;
     header.dat = header_241.dat;
   end
+  
+  if (start_241_error) begin
+    header_241_error.rdy = header.rdy;
+    header.val = header_241_error.val;
+    header.sop = header_241_error.sop;
+    header.eop = header_241_error.eop;
+    header.ctl = header_241_error.ctl;
+    header.mod = header_241_error.mod;
+    header.err = header_241_error.err;
+    header.dat = header_241_error.dat;
+  end  
 end
 
 initial begin
@@ -73,6 +90,20 @@ file_to_axi_block241 (
   .o_axi   ( header_241 )
 );
 
+file_to_axi #(
+  .BINARY   ( 1        ),
+  .DAT_BYTS ( DAT_BYTS ),
+  .FP       ( 0        )
+)
+file_to_axi_block241_error (
+  .i_file  ({my_file_path_s, "/../data/block_346_errors.bin"}),
+  .i_clk   ( clk              ),
+  .i_rst   ( rst              ),
+  .i_start ( start_241_error  ),
+  .o_done  ( done_241_error   ),
+  .o_axi   ( header_241_error )
+);
+
 zcash_verif_equihash 
 DUT (
   .i_clk      ( clk      ),
@@ -88,11 +119,24 @@ begin
   $display("Running test_block_346...");
   start_241 = 1;
   
-  
   while(!done_241 || !mask_val) @(posedge clk);
   
-  assert (~(|mask)) else $fatal(1, "%m %t ERROR: test_block_346 mask was non-zero", $time);
+  assert (~(|mask)) else $fatal(1, "%m %t ERROR: test_block_346 mask was non-zero:\n%p", $time, mask);
   $display("test_block_346 PASSED");
+  
+end
+endtask
+
+// This is a tests the sample block 346 in the block chain but with deliberate errors
+task test_block_346_error();
+begin
+  $display("Running test_block_346_error...");
+  start_241_error = 1;
+  
+  while(!done_241_error || !mask_val) @(posedge clk);
+  
+  assert (&mask) else $fatal(1, "%m %t ERROR: test_block_346_error mask was zero but should of failed:\n%p", $time, mask);
+  $display("test_block_346_error PASSED");
   
 end
 endtask
@@ -102,6 +146,7 @@ initial begin
  #20us; // Let internal memories reset
   
  test_block_346();
+ test_block_346_error();
 
  #10us $finish();
 

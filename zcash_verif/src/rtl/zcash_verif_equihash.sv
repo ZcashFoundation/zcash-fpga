@@ -136,7 +136,6 @@ always_ff @ (posedge i_clk) begin
         equihash_sol_bram_if_a.a <= equihash_sol_bram_if_a.a;
         if (chk_state == STATE_CHK_DONE) begin
           ram_wr_state <= STATE_WR_IDLE;
-          i_axi.rdy <= 1;
           cblockheader_val <= 0;
           equihash_sol_bram_if_a.a <= 0;          
         end
