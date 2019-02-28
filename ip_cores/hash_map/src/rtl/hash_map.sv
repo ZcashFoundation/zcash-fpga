@@ -151,6 +151,7 @@ always_ff @ (posedge i_clk) begin
     coll_ram_wait <= coll_ram_wait << 1;
     
     o_val <= 0;
+    o_fnd <= 0;
     
     case (hash_state)
       STATE_IDLE: begin
@@ -201,8 +202,13 @@ always_ff @ (posedge i_clk) begin
                 o_val <= 1;
                 hash_state <= STATE_IDLE;
               end else begin
+                if (coll_node_rd.key == key) begin
+                    o_rdy <= 1;
+                    o_val <= 1;
+                    hash_state <= STATE_IDLE; 
+                    o_fnd <= 1;
                 // Need to use free memory location from FIFO - check we have space
-                if (free_mem_fifo_emp) begin
+                end else if (free_mem_fifo_emp) begin
                   o_val <= 1;
                   hash_state <= STATE_IDLE;
                 end else begin
@@ -217,8 +223,9 @@ always_ff @ (posedge i_clk) begin
                     ll_node_wr.key <= key;
                     ll_bram_if_a.a <= free_mem_fifo_if_out.dat;
                     free_mem_fifo_if_out.rdy <= 1;
-                    ll_bram_if_a.we <= 1; 
-                    
+                    ll_bram_if_a.we <= 1;
+                     
+                    o_fnd <= 0;
                     o_rdy <= 1;
                     o_val <= 1;
                     hash_state <= STATE_IDLE;   
@@ -286,8 +293,13 @@ always_ff @ (posedge i_clk) begin
             end
             // Add
             OPCODE_ADD: begin
-              // Pop a location from the FIFO and use its memory location as the next element
-              if (ll_node_rd.nxt_ptr == 0) begin
+              if (ll_node_rd.key == key) begin
+                o_rdy <= 1;
+                o_fnd <= 1;
+                o_val <= 1;
+                hash_state <= STATE_IDLE;
+              // Pop a location from the FIFO and use its memory location as the next element  
+              end else if (ll_node_rd.nxt_ptr == 0) begin
                 ll_node_wr.used <= 1;
                 ll_node_wr.dat <= dat;
                 ll_node_wr.nxt_ptr <= 0;
@@ -296,6 +308,7 @@ always_ff @ (posedge i_clk) begin
                 free_mem_fifo_if_out.rdy <= 1;
                 ll_bram_if_a.we <= 1;
                 o_rdy <= 1;
+                o_fnd <= 0;
                 o_val <= 1;
                 hash_state <= STATE_IDLE;
               end else begin
