@@ -37,6 +37,7 @@ package zcash_verif_pkg;
     logic BAD_ZERO_ORDER;
     logic BAD_IDX_ORDER;
     logic XOR_NON_ZERO;
+    logic DIFFICULTY_FAIL;
   } equihash_bm_t;
   
   // Format for equihash input - should be 144 bytes

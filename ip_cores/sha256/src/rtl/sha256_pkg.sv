@@ -37,4 +37,47 @@ package sha256_pkg;
     32'ha54ff53a, 32'h3c6ef372, 32'hbb67ae85, 32'h6a09e667
   };
   
+  // Functions used in bit manipulations
+  function [31:0] little_sig0(input logic [31:0] in);
+    little_sig0 = {rotr(in, 7)} ^ {rotr(in, 18)} ^ {shr(in, 3)};  
+  endfunction
+  
+  function [31:0] little_sig1(input logic [31:0] in);
+    little_sig1 = {rotr(in, 17)} ^ {rotr(in, 19)} ^ {shr(in, 10)};  
+  endfunction
+  
+  function [31:0] big_sig0(input logic [31:0] in);
+    big_sig0 = {rotr(in, 2)} ^ {rotr(in, 13)} ^ {rotr(in, 22)}; 
+  endfunction
+  
+  function [31:0] big_sig1(input logic [31:0] in);
+    big_sig1 = {rotr(in, 6)} ^ {rotr(in, 11)} ^ {rotr(in, 25)};  
+  endfunction
+  
+  function [31:0] ch(input logic [31:0] x, y, z);
+    ch = (x & y) ^ (~x & z);  
+  endfunction
+  
+  function [31:0] maj(input logic [31:0] x, y, z);
+    maj = (x & y) ^ (x & z) ^ (y & z);
+  endfunction
+  
+  function [31:0] rotr(input logic [31:0] in, input int bits);
+    for (int i = 0; i < 32; i++) rotr[i] = in[(i+bits) % 32];
+  endfunction
+  
+  function [31:0] shr(input logic [31:0] in, input int bits);
+    shr = 0; 
+    shr = in >> bits;
+  endfunction
+  
+  // Swap bytes (used to convert between little and big endian)
+  function [31:0] bs32(input logic [31:0] in);
+    for (int i = 0; i < 4; i++) bs32[i*8 +: 8] = in[(4-1-i)*8 +: 8];
+  endfunction
+  
+    function [63:0] bs64(input logic [63:0] in);
+    for (int i = 0; i < 8; i++) bs64[i*8 +: 8] = in[(8-1-i)*8 +: 8];
+  endfunction
+
 endpackage

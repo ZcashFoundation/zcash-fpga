@@ -22,7 +22,7 @@ module sha256_top_tb();
 import common_pkg::*;
 
 logic clk, rst;
-
+logic [255:0] expected;
 if_axi_stream #(.DAT_BYTS(64)) i_block(clk);
 if_axi_stream #(.DAT_BYTS(32)) out_hash(clk);
 
@@ -45,17 +45,31 @@ sha256_top DUT (
 );
 
 
-// This test runs the hash which is shown in the RFC, for "abc"
-task rfc_test();
+// NIST testcase for single 512 bit block "abc"
+task nist_single_block_test();
   begin
     integer signed get_len;
     logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
-    $display("Running rfc_test...\n");
-    expected = 'h239900d4ed8623b95a92f1dba88ad31895cc3345ded552c22d79ab2a39c5877dd1a2ffdb6fbb124bb7c45a68142f214ce9f6129fb697276a0d4d1c983fa580ba;
-    i_block.put_stream("cba", 3);
+    $display("Running nist_single_block_test...\n");
+    expected = 'had1500f261ff10b49c7a1796a36103b02322ae5dde404141eacf018fbf1678ba;  // Both in little endian
+    i_block.put_stream("cba", 3); // abc in little endian
     out_hash.get_stream(get_dat, get_len);
     common_pkg::compare_and_print(get_dat, expected);
-    $display("rfc_test PASSED");
+    $display("nist_single_block_test PASSED");
+  end
+endtask
+
+// NIST testcase for double 512 bit block "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+task nist_double_block_test();
+  begin
+    integer signed get_len;
+    logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
+    $display("Running nist_double_block_test...\n");
+    expected = 'hc106db19d4edecf66721ff6459e43ca339603e0c9326c0e5b83806d2616a8d24;  // Both in little endian
+    i_block.put_stream("qponponmonmlnmlkmlkjlkjikjihjihgihgfhgfegfedfedcedcbdcba", 56);
+    out_hash.get_stream(get_dat, get_len);
+    common_pkg::compare_and_print(get_dat, expected);
+    $display("nist_double_block_test PASSED");
   end
 endtask
 
@@ -67,7 +81,8 @@ initial begin
   
   #200ns;
 
-  rfc_test();
+  nist_single_block_test();
+  nist_double_block_test();
 
   #10us $finish();
 
