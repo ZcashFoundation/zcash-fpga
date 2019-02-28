@@ -54,6 +54,8 @@ logic [64*8-1:0]                 parameters;
 if_axi_stream #(.DAT_BYTS(BLAKE2B_DIGEST_BYTS), .CTL_BYTS($clog2(INDICIES_PER_HASH))) blake2b_out_hash(i_clk);
 if_axi_stream #(.DAT_BYTS(EQUIHASH_GEN_BYTS),   .CTL_BYTS($clog2(INDICIES_PER_HASH))) blake2b_in_hash(i_clk);
 
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) difficulty_if_in(i_clk);
+
 // We write the block into a port as it comes in and then read from the b port
 localparam EQUIHASH_SOL_BRAM_DEPTH = 1 + SOL_LIST_BYTS/DAT_BYTS;
 localparam EQUIHASH_SOL_BRAM_WIDTH = DAT_BITS;
@@ -65,7 +67,8 @@ logic [2*DAT_BITS-1:0] equihash_sol_bram_if_b_l_comb, equihash_sol_bram_if_b_l_c
 logic [SOL_BITS-1:0]   equihash_sol_index;
 logic [1:0]            equihash_sol_bram_read;
 
-logic dup_chk_done, order_chk_done;
+logic dup_chk_done, order_chk_done, diff_chk_done, xor_check_done;
+logic difficulty_fail, difficulty_fail_val;
 
 if_axi_stream #(.DAT_BITS(SOL_BITS), .CTL_BITS(1), .MOD_BITS(1)) dup_check_if_in(i_clk);
 if_axi_stream #(.DAT_BITS(1), .CTL_BITS(1), .MOD_BITS(1)) dup_check_if_out(i_clk);
@@ -112,7 +115,7 @@ always_ff @ (posedge i_clk) begin
     case (ram_wr_state)
       // This state we are waiting for an input block
       STATE_WR_IDLE: begin
-        i_axi.rdy <= (dup_check_if_in.rdy && equihash_order_if.rdy);
+        i_axi.rdy <= (dup_check_if_in.rdy && equihash_order_if.rdy && difficulty_if_in.rdy);
         if (i_axi.val && i_axi.rdy) begin
           ram_wr_state <= STATE_WR_DATA;
           equihash_sol_bram_if_a.a <= 0;
@@ -254,6 +257,8 @@ always_ff @ (posedge i_clk) begin
     dup_check_if_out.rdy <= 1;
     dup_chk_done <= 0;
     order_chk_done <= 0;
+    xor_check_done <= 0;
+    diff_chk_done <= 0;
   end else begin
     // Defaults
     blake2b_out_hash.rdy <= 1;
@@ -264,6 +269,12 @@ always_ff @ (posedge i_clk) begin
         o_mask.DUPLICATE_FND <= 1;
       end
       dup_chk_done <= 1;
+    end
+    
+    // Monitor for output of difficulty check
+    if (difficulty_fail_val) begin
+      o_mask.DIFFICULTY_FAIL <= difficulty_fail;
+      diff_chk_done <= 1;
     end
     
     // Monitor for result of order check    
@@ -278,6 +289,7 @@ always_ff @ (posedge i_clk) begin
       STATE_CHK_IDLE: begin
         sol_cnt_out <= 0;
         dup_chk_done <= 0;
+        diff_chk_done <= 0;
         order_chk_done <= 0;
         o_mask_val <= 0;
         o_mask <= 0;
@@ -308,11 +320,14 @@ always_ff @ (posedge i_clk) begin
       end
       STATE_CHK_WAIT: begin
         o_mask.XOR_NON_ZERO <= |sol_hash_xor;
+        xor_check_done <= 1;
 
         if (ram_rd_state == STATE_RD_WAIT &&
             ram_wr_state == STATE_WR_WAIT &&
             dup_chk_done &&
-            order_chk_done ) begin
+            order_chk_done &&
+            diff_chk_done &&
+            xor_check_done ) begin
             
           o_mask_val <= 1;
           chk_state <= STATE_CHK_DONE;
@@ -362,6 +377,30 @@ function bit bad_order_check(input logic [N-1:0] in, input int cnt);
   end
   return bad_order_check;
 endfunction
+
+// The difficulty check block - takes a copy of the header as it is streamed in
+
+always_comb begin
+  difficulty_if_in.val = difficulty_if_in.rdy && i_axi.val && i_axi.rdy;
+  difficulty_if_in.dat = i_axi.dat;
+  difficulty_if_in.sop = i_axi.sop;
+  difficulty_if_in.eop = i_axi.eop;
+  difficulty_if_in.mod = i_axi.mod;
+  difficulty_if_in.err = 0;
+  difficulty_if_in.ctl = 0;
+end
+
+zcash_verif_equihash_difficulty #(
+  .DAT_BYTS ( DAT_BYTS )
+)
+zcash_verif_equihash_difficulty (
+  .i_clk ( i_clk ),
+  .i_rst ( i_rst ),
+  .i_axi             ( difficulty_if_in    ),
+  .i_bits            ( cblockheader.bits   ),
+  .o_difficulty_fail ( difficulty_fail     ),
+  .o_val             ( difficulty_fail_val )
+);
 
 // Instantiate the Blake2b block - use high performance pipelined version
 localparam [EQUIHASH_GEN_BYTS*8-1:0] EQUIHASH_GEN_BYTS_BM = {

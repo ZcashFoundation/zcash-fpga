@@ -20,7 +20,7 @@
 */
 
 interface if_axi_stream # (
-  parameter DAT_BYTS = 8,
+  parameter DAT_BYTS = 64,
   parameter DAT_BITS = DAT_BYTS*8,
   parameter CTL_BYTS = 1,
   parameter CTL_BITS = CTL_BYTS*8,

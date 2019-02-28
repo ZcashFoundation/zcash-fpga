@@ -23,7 +23,7 @@ module axi_stream_fifo #(
   parameter SIZE,
   parameter DAT_BITS,
   parameter MOD_BITS = $clog2(DAT_BITS/8),
-  parameter CTL_BITS,
+  parameter CTL_BITS = 8,
   parameter USE_BRAM = 0  // If using BRAM there is an extra cycle delay between reads
 ) (
   input i_clk, i_rst,

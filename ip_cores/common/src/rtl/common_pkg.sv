@@ -18,7 +18,7 @@
 */
 
 package common_pkg;
-  parameter MAX_SIM_BYTS = 1024; // In simulation tasks how big is the logic register for putting / getting data
+  parameter MAX_SIM_BYTS = 2048; // In simulation tasks how big is the logic register for putting / getting data
   
   // Compare bytes and print if they do not match
   task compare_and_print(input logic [MAX_SIM_BYTS*8-1:0] data, expected);

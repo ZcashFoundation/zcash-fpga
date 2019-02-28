@@ -26,24 +26,26 @@
 module zcash_verif_equihash_difficulty
   import zcash_verif_pkg::*;
 #(
-  parameter DAT_BYTS = 8,
+  parameter DAT_BYTS = 8
 )(
   input i_clk, i_rst,
 
   if_axi_stream.sink i_axi,
-  input logic [31:0] i_difficulty,      // Must be valid on .sop && .val
+  input logic [31:0] i_bits,
   output logic       o_difficulty_fail,
   output logic       o_val
 );
 
+localparam HEADER_BYTS = $bits(cblockheader_sol_t)/8;
+localparam DAT_BITS = DAT_BYTS*8;
 
 logic [$clog2($bits(cblockheader_sol_t)/8)-1:0] byt_cnt;
-logic o_fifo_full, o_fifo_emp;
-logic [31:0] difficulty;
+logic o_fifo_full, o_fifo_emp, bits_err;
+logic [255:0] nbits_converted;
 
-if_axi_stream #(.DAT_BYTS(DAT_BYTS)) o_fifo(clk);
-if_axi_stream #(.DAT_BYTS(64)) i_block(clk);
-if_axi_stream #(.DAT_BYTS(32)) o_hash(clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) o_fifo(i_clk);
+if_axi_stream #(.DAT_BYTS(64)) i_block(i_clk);
+if_axi_stream #(.DAT_BYTS(32)) o_hash(i_clk);
 
 enum {IDLE = 0,
       SHA256_0 = 1,
@@ -58,11 +60,15 @@ always_ff @ (posedge i_clk) begin
     i_block.reset_source();
     o_hash.rdy <= 0;
     o_fifo.rdy <= 0;
-    difficulty <= 0;
     state <= IDLE;
+    nbits_converted <= 0;
+    bits_err <= 0;
   end else begin
     o_val <= 0;
     o_hash.rdy <= 1;
+    
+    nbits_converted <= set_compact(i_bits);
+    bits_err <= check_err(i_bits);
     
     case(state)
       IDLE: begin
@@ -70,37 +76,45 @@ always_ff @ (posedge i_clk) begin
         o_fifo.rdy <= 0;
         byt_cnt <= 0;
         if (i_axi.rdy && i_axi.val && i_axi.sop) begin
-          difficulty <= i_difficulty;
           state <= SHA256_0;
           o_fifo.rdy <= 1;
         end
       end
       // Convert data to 512 bit wide
+      // Takes around 26 passes as header is 1619 bytes
       SHA256_0: begin
-        
-        if (o_fifo.rdy && o_fifo.val) begin
+        o_fifo.rdy <= 0;
+        if (~i_block.val || (i_block.val && i_block.rdy)) begin
           i_block.val <= 0;
-          byt_cnt <= byt_cnt + DAT_BYTS;
-          i_block.dat[byt_cnt +: DAT_BYTS] <= o_fifo.dat;
-        end
-        
-        if (((byt_cnt + DAT_BYTS) % 64 == 0) ||
-            (byt_cnt + DAT_BYTS) == $bits(cblockheader_sol_t)/8) begin
-          i_block.val <= 1;
-          i_block.sop <= (byt_cnt + DAT_BYTS)/64 == 1;
-          i_block.eop <= 0;
-          i_block.mod <= (byt_cnt + DAT_BYTS);
-          o_fifo.rdy <= i_block.rdy;
-          if ((byt_cnt + DAT_BYTS) == $bits(cblockheader_sol_t)/8) begin
-            i_block.eop <= 1;
-            state <= SHA256_1;
-          end
-        end else begin
           o_fifo.rdy <= 1;
+          
+          if (i_block.val && i_block.rdy)
+            i_block.dat <= 0;
+          
+          if (o_fifo.rdy && o_fifo.val) begin
+            byt_cnt <= byt_cnt + DAT_BYTS;
+            i_block.dat[(byt_cnt % 64) *8 +: DAT_BITS] <= o_fifo.dat;
+
+            if (((byt_cnt + DAT_BYTS) % 64 == 0) ||
+                (byt_cnt + DAT_BYTS) >= $bits(cblockheader_sol_t)/8) begin
+              i_block.val <= 1;
+              o_fifo.rdy <= 0;
+              i_block.sop <= (byt_cnt + DAT_BYTS)/64 == 1;
+              i_block.eop <= 0;
+              i_block.mod <= 0;
+              if ((byt_cnt + DAT_BYTS) >= $bits(cblockheader_sol_t)/8) begin
+                i_block.eop <= 1;
+                i_block.mod <= $bits(cblockheader_sol_t)/8;
+                state <= SHA256_1;
+              end
+            end
+          end
         end
-        
+
       end
+      // Only single pass
       SHA256_1: begin
+        o_fifo.rdy <= 1; // We might have data we don't care about (transactions)
         if (i_block.val && i_block.rdy) begin
           i_block.val <= 0;
         end
@@ -115,12 +129,13 @@ always_ff @ (posedge i_clk) begin
         end
       end
       FINISHED: begin
+        o_fifo.rdy <= 1; // We might have data we don't care about (transactions)
         if (i_block.val && i_block.rdy) begin
           i_block.val <= 0;
         end
         
         if (o_hash.val && o_hash.rdy) begin
-          o_difficulty_fail <= check_difficulty(o_hash.dat, difficulty);
+          o_difficulty_fail <= bits_err || (o_hash.dat > nbits_converted);
           o_val <= 1;
           state <= IDLE;
         end
@@ -143,18 +158,38 @@ end
 
 // Function to check if difficulty passes - bits is the number of 0s we
 // need
-// TODO target function
-function check_difficulty(input logic [255:0] hash, logic [31:0] bits);
-  check_difficulty = 0;
-  for (int i = 0; i < 64; i++)
-    if (i > bits && hash[(64-1-i)*8 +: 8] != 0)
-      check_difficulty = 1;
+function [255:0] set_compact(input logic [31:0] ncompact);
+  logic [31:0] nsize, nword; 
+  nsize = ncompact >> 24;
+  nword = ncompact;
+    
+   if (nsize <= 3) begin
+     set_compact = nword >> 8 * (3 - nsize);
+   end else begin
+     set_compact = nword << 8 * (nsize - 3);
+   end
+
 endfunction
+
+function check_err(input logic [31:0] ncompact);
+  logic [31:0] nsize, nword; 
+  nsize = ncompact >> 24;
+  nword = ncompact;
+  check_err = 0;
+   // For sanity checking we set o_err and fail the check
+   if (ncompact == 0 ||
+       (nword != 0 && ncompact[3*8]) ||
+       (nword != 0 && (nsize > 34 || (nword > 8'hff && nsize > 33) || (nword > 16'hffff && nsize > 32)))) begin
+     check_err = 1;
+   end
+                           
+endfunction
+
 
 // FIFO for storing input stream
 axi_stream_fifo #(
   .SIZE     ( ($bits(cblockheader_sol_t)/8)/DAT_BYTS ),
-  .DAT_BITS ( DAT_BYTS/8                             ),
+  .DAT_BITS ( DAT_BYTS*8                             ),
   .USE_BRAM ( 1                                      )
 )
 axi_stream_fifo (
