@@ -73,6 +73,23 @@ task nist_double_block_test();
   end
 endtask
 
+// Test  with 1487 bytes (size of equihash header + sol + len)
+task large_test();
+  begin
+    integer signed get_len;
+    logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat, in_dat;
+    $display("Running large_test...\n");
+    for (int i = 0; i < 23; i++)
+      in_dat[i*512 +: 512] = 'h0ff00ff0aa55aa55efbeadde55aa55aa0ff00ff0aa55aa55efbeadde55aa55aa0ff00ff0aa55aa55efbeadde55aa55aa0ff00ff0aa55aa55efbeadde55aa55aa;
+    in_dat[23*512 +: 512] = 'h636261aa55aa55efbeadde55aa55aa;
+    expected = 'ha09e5cbc1a770a777f20888ebb0efbaf5ba25767f10b52e6f3676c671760945a;  // Both in little endian
+    i_block.put_stream(in_dat, 1487);
+    out_hash.get_stream(get_dat, get_len);
+    common_pkg::compare_and_print(get_dat, expected);
+    $display("large_test PASSED");
+  end
+endtask
+
 
 // Main testbench calls
 initial begin
@@ -83,6 +100,7 @@ initial begin
 
   nist_single_block_test();
   nist_double_block_test();
+  large_test();
 
   #10us $finish();
 

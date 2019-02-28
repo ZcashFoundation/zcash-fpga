@@ -80,7 +80,8 @@ always_ff @ (posedge i_clk) begin
         i_block.rdy <= 1;
         // As soon as we have one write on the input we can start
         if (i_block.rdy && i_block.val && i_block.sop) begin
-          W <= i_block.dat;
+          for (int i = 0; i < 16; i++)
+            W[i] <= sha256_pkg::bs32(i_block.dat[i*32 +: 32]);
           bit_len <= DAT_BITS;
           i_block.rdy <= 0;
           if (i_block.eop)
@@ -113,12 +114,13 @@ always_ff @ (posedge i_clk) begin
             W[0] <= sha256_pkg::bs32(32'd1);
           sha_state <= SHA_ROUNDS;
         end else if (i_block.rdy && i_block.val) begin
-          W <= i_block.dat;
+          for (int i = 0; i < 16; i++)
+            W[i] <= sha256_pkg::bs32(i_block.dat[i*32 +: 32]);
           bit_len <= bit_len + DAT_BITS;
           if (i_block.eop) begin
             msg_eop();
-            i_block.rdy <= 0;
           end
+          i_block.rdy <= 0;
           sha_state <= SHA_ROUNDS;
         end
       end
