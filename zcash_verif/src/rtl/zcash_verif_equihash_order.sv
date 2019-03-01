@@ -86,7 +86,6 @@ always_ff @ (posedge i_clk) begin
       o_val <= 1;
       sol_cnt <= 0;
     end
-
   end
 end
 
