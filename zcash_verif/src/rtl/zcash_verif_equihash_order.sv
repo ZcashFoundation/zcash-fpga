@@ -81,6 +81,7 @@ always_ff @ (posedge i_clk) begin
       done <= 0;
       order_check <= 0;
       index_val <= 0;
+      index_l <= 0;
       o_order_wrong <= |order_check;
       o_val <= 1;
       sol_cnt <= 0;

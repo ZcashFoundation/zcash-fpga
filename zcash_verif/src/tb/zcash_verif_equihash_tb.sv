@@ -43,7 +43,7 @@ always_comb begin
   header_346_error.rdy = 0;
   header.val = 0;
   
-  if (start_346) begin
+  if (start_346 && ~done_346) begin
     header_346.rdy = header.rdy;
     header.val = header_346.val;
     header.sop = header_346.sop;
@@ -54,7 +54,7 @@ always_comb begin
     header.dat = header_346.dat;
   end
   
-  if (start_346_error) begin
+  if (start_346_error && ~done_346_error) begin
     header_346_error.rdy = header.rdy;
     header.val = header_346_error.val;
     header.sop = header_346_error.sop;
@@ -146,8 +146,9 @@ endtask
 initial begin
  #20us; // Let internal memories reset
   
- test_block_346();
  test_block_346_error();
+ test_block_346();
+ 
 
  #10us $finish();
 

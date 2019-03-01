@@ -140,6 +140,7 @@ always_ff @ (posedge i_clk) begin
         if (chk_state == STATE_CHK_DONE) begin
           ram_wr_state <= STATE_WR_IDLE;
           cblockheader_val <= 0;
+          cblockheader_byts <= 0;
           equihash_sol_bram_if_a.a <= 0;          
         end
       end
