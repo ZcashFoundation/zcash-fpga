@@ -17,7 +17,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-package zcash_verif_pkg;
+package equihash_pkg;
   
   // Variables used in the equihash PoW
   parameter [31:0] N = 32'd200;
@@ -27,18 +27,24 @@ package zcash_verif_pkg;
   parameter [7:0] BLAKE2B_DIGEST_BYTS = (N*INDICIES_PER_HASH)/8;
   parameter       SOL_BITS =  COLLISION_BIT_LEN+1;
   parameter       SOL_LIST_LEN = 1 << K;
-  parameter       SOL_LIST_BYTS = 3 + SOL_LIST_LEN*SOL_BITS/8;
   
   parameter [127:0] POW_TAG = {K, N, "WoPhsacZ"}; // ZcashPoW is reversed here
   
+  parameter SOL_LIST_ENC = (SOL_LIST_LEN*SOL_BITS/8 < 8'hFD ? 1 : 3); // 3 Bytes used to encode size for N = 200, K = 9. 
+  parameter SOL_LIST_BYTS = SOL_LIST_ENC + SOL_LIST_LEN*SOL_BITS/8;
+  
+  parameter MAX_BLOCK_BYTS = 2*1024*1024; // 2MB
+  
+  
   // Values used for resulting error masks
   typedef struct packed {
+    logic [2:0] padding;
     logic DUPLICATE_FND;
     logic BAD_ZERO_ORDER;
     logic BAD_IDX_ORDER;
     logic XOR_NON_ZERO;
     logic DIFFICULTY_FAIL;
-  } equihash_bm_t;
+  } equihash_bm_t; 
   
   // Format for equihash input - should be 144 bytes
   typedef struct packed {
@@ -54,7 +60,7 @@ package zcash_verif_pkg;
   
   typedef struct packed {
     logic [SOL_LIST_LEN-1:0][SOL_BITS-1:0] sol;
-    logic [3*8-1:0] size; // Contains size of solution array - should be 1347 for (200,9)
+    logic [SOL_LIST_ENC*8-1:0] size; // Contains size of solution array - should be 1347 for (200,9)
   } equihash_sol_t;
   
   // Header format for block header (CBlockheader)
@@ -73,6 +79,6 @@ package zcash_verif_pkg;
     equihash_sol_t equihash_sol;
     cblockheader_t cblockheader;
   } cblockheader_sol_t;
-   
+  
 
 endpackage

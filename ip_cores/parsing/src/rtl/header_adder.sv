@@ -18,8 +18,8 @@
 */
 
 module header_adder #(
-    parameter HDR_BYTS,
-    parameter DAT_BYTS
+  parameter HDR_BYTS,
+  parameter DAT_BYTS
 ) (
   input i_clk, i_rst,
   

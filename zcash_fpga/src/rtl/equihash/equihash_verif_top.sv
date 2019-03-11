@@ -2,8 +2,8 @@
   This verifies that a Zcash equihash solution is correct,
   input is an axi stream of the block header. This block checks:
     1. XOR of EquihashGen() is 0
-    2. Ordering
-    3. No duplicates
+    2. Ordering correct of leafs
+    3. No duplicate index
     4. Difficulty passes
   
   Code is split up into 3 main always blocks, one for loading RAM, one for parsing
@@ -25,14 +25,15 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */ 
 
-module zcash_verif_equihash
-  import zcash_verif_pkg::*;
+module equihash_verif_top
+  import equihash_pkg::*;
 #(
-  parameter DAT_BYTS = 8,
-  parameter CHECK_UNIQUE_INDEX = 1
+  parameter DAT_BYTS = 8
 )(
   input i_clk, i_rst,
-
+  
+  input i_clk_300, i_rst_300,  // Faster clock
+  
   if_axi_stream.sink   i_axi,
   output equihash_bm_t o_mask,
   output logic         o_mask_val
@@ -40,6 +41,7 @@ module zcash_verif_equihash
  
 localparam [7:0] EQUIHASH_GEN_BYTS = $bits(equihash_gen_in_t)/8;
 localparam       DAT_BITS = DAT_BYTS*8;
+localparam       MOD_BITS = $clog2(DAT_BYTS);
 
 cblockheader_t                              cblockheader;
 logic                                       cblockheader_val;
@@ -71,7 +73,9 @@ logic dup_chk_done, order_chk_done, diff_chk_done, xor_check_done;
 logic difficulty_fail, difficulty_fail_val;
 
 if_axi_stream #(.DAT_BITS(SOL_BITS), .CTL_BITS(1), .MOD_BITS(1)) dup_check_if_in(i_clk);
+if_axi_stream #(.DAT_BITS(SOL_BITS), .CTL_BITS(1), .MOD_BITS(1)) dup_check_if_in_sync(i_clk_300);
 if_axi_stream #(.DAT_BITS(1), .CTL_BITS(1), .MOD_BITS(1)) dup_check_if_out(i_clk);
+if_axi_stream #(.DAT_BITS(1), .CTL_BITS(1), .MOD_BITS(1)) dup_check_if_out_sync(i_clk);
 
 if_axi_stream #(.DAT_BITS(SOL_BITS), .MOD_BITS(1),  .CTL_BITS(1)) equihash_order_if(i_clk);
 logic equihash_order_val, equihash_order_wrong;
@@ -308,8 +312,6 @@ always_ff @ (posedge i_clk) begin
             
           sol_cnt_out <= sol_cnt_out + 1;
    
-          //TODO here we also need to check the ordering, and duplicate indixe?
-          //TODO some additional order requirements on the indexies < for certain ones
           // We also check the order is correct
           o_mask.BAD_ZERO_ORDER <= bad_order_check(sol_hash_xor, sol_cnt_out) | o_mask.BAD_ZERO_ORDER;
         end
@@ -391,10 +393,10 @@ always_comb begin
   difficulty_if_in.ctl = 0;
 end
 
-zcash_verif_equihash_difficulty #(
+equihash_verif_difficulty #(
   .DAT_BYTS ( DAT_BYTS )
 )
-zcash_verif_equihash_difficulty (
+equihash_verif_difficulty (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
   .i_axi             ( difficulty_if_in    ),
@@ -435,7 +437,7 @@ bram #(
   .b ( equihash_sol_bram_if_b )
 );
 
-zcash_verif_equihash_order
+equihash_verif_order
 equihash_order (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
@@ -445,29 +447,84 @@ equihash_order (
   .o_val         ( equihash_order_val   )
 );
 
-generate
-  if (CHECK_UNIQUE_INDEX == 1) begin: GEN_INDEX_CHECK
-    dup_check #(
-      .IN_BITS   ( SOL_BITS     ),
-      .LIST_SIZE ( SOL_LIST_LEN )
-    )
-    dup_check(
-      .i_clk ( i_clk ),
-      .i_rst ( i_rst ),
+// We use a clock crossing on the dup_check as it takes longer
+cdc_fifo #(
+  .SIZE     ( 16           ),
+  .DAT_BITS ( SOL_BITS + 2 ),
+  .USE_BRAM ( 0            )
+)
+dup_check_fifo_in (
+  .i_clk_a ( i_clk ),
+  .i_rst_a ( i_rst ),
+  .i_clk_b ( i_clk_300 ),
+  .i_rst_b ( i_rst_300 ),
+  
+  .i_val_a ( dup_check_if_in.val ),
+  .o_rdy_a ( dup_check_if_in.rdy ),
+  .i_dat_a ( {dup_check_if_in.dat,
+              dup_check_if_in.sop,
+              dup_check_if_in.eop} ),
+  .o_full_a(),  
+  
+  .i_rdy_b ( dup_check_if_in_sync.rdy ),
+  .o_val_b ( dup_check_if_in_sync.val ),
 
-      .i_axi ( dup_check_if_in ),
-      .o_axi ( dup_check_if_out )
-    );
-  end else begin
-    always_comb begin
-      dup_check_if_in.rdy = 1;
-      dup_check_if_out.val = 1;
-      dup_check_if_out.eop = 1;
-      dup_check_if_out.sop = 1;
-      dup_check_if_out.dat = 0;
-    end
-  end 
-endgenerate
+  .o_dat_b ( {dup_check_if_in_sync.dat,
+              dup_check_if_in_sync.sop,
+              dup_check_if_in_sync.eop} ),
+   .o_emp_b()
+);
+
+always_comb begin
+  dup_check_if_in_sync.ctl = 0;
+  dup_check_if_in_sync.err = 0;
+  dup_check_if_in_sync.mod = 0;
+  dup_check_if_out.ctl = 0;
+  dup_check_if_out.mod = 0;
+end
+  
+dup_check #(
+  .IN_BITS   ( SOL_BITS     ),
+  .LIST_SIZE ( SOL_LIST_LEN )
+)
+dup_check(
+  .i_clk ( i_clk_300 ),
+  .i_rst ( i_rst_300 ),
+
+  .i_axi ( dup_check_if_in_sync ),
+  .o_axi ( dup_check_if_out_sync )
+);
+
+// Clock crossing on output to get result
+cdc_fifo #(
+  .SIZE     ( 4 ),
+  .DAT_BITS ( 4 ),
+  .USE_BRAM ( 0 )
+)
+dup_check_fifo_out (
+  .i_clk_a ( i_clk_300 ),
+  .i_rst_a ( i_rst_300 ),
+  .i_clk_b ( i_clk ),
+  .i_rst_b ( i_rst ),
+
+  .i_val_a ( dup_check_if_out_sync.val ),
+  .o_rdy_a ( dup_check_if_out_sync.rdy ),
+  .i_dat_a ( {dup_check_if_out_sync.dat,
+              dup_check_if_out_sync.sop,
+              dup_check_if_out_sync.eop,
+              dup_check_if_out_sync.err} ),
+  .o_full_a(),  
+
+  .i_rdy_b ( dup_check_if_out.rdy ),
+  .o_val_b ( dup_check_if_out.val ),
+
+  .o_dat_b ( {dup_check_if_out.dat,
+              dup_check_if_out.sop,
+              dup_check_if_out.eop,
+              dup_check_if_out.err} ),
+  .o_emp_b()
+);
+
 // Some checks to make sure our data structures are correct:
 initial begin
   assert ($bits(equihash_gen_in_t)/8 == 144) else $fatal(1, "%m %t ERROR: equihash_gen_in_t is not 144 bytes in size", $time);

@@ -23,8 +23,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */ 
 
-module zcash_verif_equihash_difficulty
-  import zcash_verif_pkg::*;
+module equihash_verif_difficulty
+  import equihash_pkg::*;
 #(
   parameter DAT_BYTS = 8
 )(

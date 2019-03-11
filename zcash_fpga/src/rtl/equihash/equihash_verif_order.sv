@@ -23,8 +23,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */ 
 
-module zcash_verif_equihash_order
-  import zcash_verif_pkg::*;
+module equihash_verif_order
+  import equihash_pkg::*;
 (
   input i_clk, i_rst,
 

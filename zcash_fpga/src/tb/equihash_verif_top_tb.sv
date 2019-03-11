@@ -1,5 +1,5 @@
 /*
-  The zcash_verif_equihash testbench.
+  The equihash_verif_top testbench.
   
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -17,12 +17,13 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-module zcash_verif_equihash_tb();
+module equihash_verif_top_tb();
 
-import zcash_verif_pkg::*;
+import equihash_pkg::*;
 import common_pkg::*;
 
 logic clk, rst;
+logic clk_300, rst_300;
 equihash_bm_t mask;
 logic mask_val;
 logic start_346 = 0;
@@ -73,8 +74,19 @@ initial begin
 end
 
 initial begin
+  rst_300 = 0;
+  #100ns rst_300 = 1;
+  #100ns rst_300 = 0;
+end
+
+initial begin
   clk = 0;
   forever #10ns clk = ~clk;
+end
+
+initial begin
+  clk_300 = 0;
+  forever #3ns clk_300 = ~clk_300;
 end
 
 file_to_axi #(
@@ -105,10 +117,12 @@ file_to_axi_block346_error (
   .o_axi   ( header_346_error )
 );
 
-zcash_verif_equihash 
+equihash_verif_top 
 DUT (
   .i_clk      ( clk      ),
   .i_rst      ( rst      ),
+  .i_clk_300  ( clk_300  ),
+  .i_rst_300  ( rst_300  ),
   .i_axi      ( header   ),
   .o_mask     ( mask     ),
   .o_mask_val ( mask_val )

@@ -1,8 +1,8 @@
 /*
-  This takes in an AXI stream of a block and runs verification
-  checks (detailed in the architecture document). When all the checks are
-  completed the o_val will go high, and o_mask bit mask will be 1 for any
-  checks that failed.
+  This is the top level of the Zcash FPGA acceleration engine.
+  
+  We have different interfaces that are all muxed together to provide FPGA
+  with commands and data.
   
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -20,14 +20,42 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */ 
 
-module zcash_verif_system #(
+module zcash_fpga_top
+  import zcash_verif_pkg::*; 
+#(
+  parameter DAT_BYTS = 8
 )(
-  input i_clk, i_rst,
+  // Clocks and resets
+
+  input i_clk_100, i_rst_100,
   
-  if_axi_stream.sink  i_axi,
-  output logic [31:0] o_mask,
-  output logic        o_val
+  // Interface inputs and outputs
+  // UART
+  if_axi_stream.sink   uart_if_rx,
+  if_axi_stream.source uart_if_tx,
+  // Ethernet
+  if_axi_stream.sink   eth_if_rx,
+  if_axi_stream.source eth_if_tx,
+  // PCIe
+  if_axi_stream.sink   pcie_if_rx,
+  if_axi_stream.source pcie_if_tx  
 );
+
+// This block is used to verify a equihash solution
+zcash_verif_equihash #(
+  .DAT_BYTS(DAT_BYTS)
+)
+equihash_verif_top (
+  .i_clk ( i_clk ),
+  .i_rst ( i_rst ),
   
+  .i_clk_300 ( i_clk_300 ),
+  .i_rst_300 ( i_rst_300 ),  // Faster clock
+  
+  .i_axi      ( equihash_verif_if       ),
+  .o_mask     ( equihash_verif_mask     ),
+  .o_mask_val ( equihash_verif_mask_val )
+);  
+
 
 endmodule

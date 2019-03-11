@@ -1,0 +1,102 @@
+/*
+  Parameter values and tasks for the FPGA system.
+ 
+  Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+package zcash_fpga_pkg;
+  
+  import equihash_pkg::equihash_bm_t;
+  import equihash_pkg::cblockheader_sol_t;
+  
+  parameter FPGA_VERSION = 32'h0;
+  localparam [63:0] FPGA_CMD_CAP = 64'h0;
+  
+  // These are all the command types the FPGA supports
+  // Reply messages from the FPGA to host all have the last
+  // bit set (start at 0x80000000). Messages with bits [31:16] == 0 are processed by a different state machine
+  typedef enum logic [31:0] {
+    RESET_FPGA       = 'h0000_00_00,
+    FPGA_STATUS      = 'h0000_00_01,
+    VERIFY_EQUIHASH  = 'h0000_01_00,
+    
+    // Replies from the FPGA
+    RESET_FPGA_RPL      = 'h80_00_00_00,
+    FPGA_STATUS_RPL     = 'h80_00_00_01,
+    VERIFY_EQUIHASH_RPL = 'h80_00_01_00
+  } command_t;
+  
+  // Data sent to the FPGA must start with a header aligned to
+  // a 8 byte boundary. 
+  typedef struct packed {
+    command_t    cmd;
+    logic [31:0] len;
+  } header_t;
+  
+  typedef struct packed {
+    header_t     hdr;
+  } fpga_reset_rpl_t;
+  
+  // These are registers we use for debug
+  typedef struct packed {
+    logic [3:0] padding;
+    logic [2:0] typ1_state;
+    logic error; // Any error on FPGA will have this set
+  } fpga_state_t;
+  
+  typedef struct packed {
+    fpga_state_t fpga_state;
+    logic [63:0] cmd_cap;
+    logic [63:0] build_host;
+    logic [63:0] build_date;
+    logic [31:0] version;
+    header_t     hdr;
+  } fpga_status_rpl_t;
+  
+  typedef struct packed {
+    cblockheader_sol_t cblockheader_sol;
+    logic [63:0]       index;
+    header_t           hdr;
+  } verify_equihash_t;
+  
+  typedef struct packed {
+    equihash_bm_t  bm;
+    logic [63:0]   index;
+    header_t       hdr;
+  } verify_equihash_rpl_t;
+  
+  // We have a function for building each type of reply from the FPGA
+  function fpga_reset_rpl_t get_fpga_reset_rpl();
+    get_fpga_reset_rpl.hdr = '{cmd:RESET_FPGA_RPL, len:$bits(fpga_reset_rpl_t)/8};    
+  endfunction
+  
+  function fpga_status_rpl_t get_fpga_status_rpl(input [63:0] build_host, build_date, fpga_state_t fpga_state);
+    get_fpga_status_rpl.cmd_cap = FPGA_CMD_CAP;
+    get_fpga_status_rpl.hdr = '{cmd:FPGA_STATUS_RPL, len:$bits(fpga_status_rpl_t)/8};    
+    get_fpga_status_rpl.version = FPGA_VERSION;
+    get_fpga_status_rpl.build_host = build_host;
+    get_fpga_status_rpl.build_date = build_date;
+    get_fpga_status_rpl.fpga_state = fpga_state;
+  endfunction
+  
+  function verify_equihash_rpl_t get_verify_equihash_rpl(input equihash_bm_t mask, logic [63:0] equihash_index);
+    get_verify_equihash_rpl.hdr = '{cmd:VERIFY_EQUIHASH_RPL, len:$bits(verify_equihash_rpl_t)/8};
+    get_verify_equihash_rpl.index = equihash_index;
+    get_verify_equihash_rpl.bm = mask;
+  endfunction
+
+  
+endpackage

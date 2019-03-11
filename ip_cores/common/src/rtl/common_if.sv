@@ -24,7 +24,7 @@ interface if_axi_stream # (
   parameter DAT_BITS = DAT_BYTS*8,
   parameter CTL_BYTS = 1,
   parameter CTL_BITS = CTL_BYTS*8,
-  parameter MOD_BITS = $clog2(DAT_BYTS)
+  parameter MOD_BITS = DAT_BYTS == 1 ? 1 : $clog2(DAT_BYTS)
 )(
   input i_clk
 );
@@ -38,8 +38,10 @@ interface if_axi_stream # (
   logic [DAT_BITS-1:0] dat;
   logic [MOD_BITS-1:0] mod;
   
-  modport sink (input val, err, sop, eop, ctl, dat, mod, i_clk, output rdy);
-  modport source (output val, err, sop, eop, ctl, dat, mod, input rdy, i_clk, import task reset_source());
+  modport sink (input val, err, sop, eop, ctl, dat, mod, i_clk, output rdy,
+                import function to_struct() );
+  modport source (output val, err, sop, eop, ctl, dat, mod, input rdy, i_clk,
+                  import task reset_source(), import task copy_if(in), import function to_struct());
  
   // Task to reset a source interface signals to all 0
   task reset_source();
@@ -50,6 +52,37 @@ interface if_axi_stream # (
     dat <= 0;
     ctl <= 0;
     mod <= 0;
+  endtask
+ 
+  typedef struct packed {
+    logic val;
+    logic err;
+    logic sop;
+    logic eop;
+    logic [CTL_BITS-1:0] ctl;
+    logic [DAT_BITS-1:0] dat;
+    logic [MOD_BITS-1:0] mod;
+  } if_t;
+  
+  function if_t to_struct();
+    to_struct.val = val;
+    to_struct.err = err;
+    to_struct.sop = sop;
+    to_struct.eop = eop;
+    to_struct.ctl = ctl;
+    to_struct.dat = dat;
+    to_struct.mod = mod;
+  endfunction
+  
+    // Task to apply signals from one task to another in a clocked process
+  task copy_if(if_t in);
+    dat <= in.dat;
+    val <= in.val;
+    sop <= in.sop;
+    eop <= in.eop;
+    mod <= in.mod;
+    ctl <= in.ctl;
+    err <= in.err;
   endtask
   
   // Task used in simulation to drive data on a source interface
@@ -74,6 +107,10 @@ interface if_axi_stream # (
     reset_source();
   endtask
   
+  task print();
+    $display("@ %t Interface values .val %h .sop %h .eop %h .err %h .mod 0x%h\n.dat 0x%h", $time, val, sop, eop, err, mod, dat);
+  endtask;
+  
   // Task used in simulation to get data from a sink interface
   task automatic get_stream(ref logic [common_pkg::MAX_SIM_BYTS*8-1:0] data, ref integer signed len);
     logic sop_l = 0;
@@ -85,15 +122,16 @@ interface if_axi_stream # (
     while (1) begin
       if (val && rdy) begin
         sop_l = sop_l || sop;
-        if (!sop_l) $warning("%m %t:WARNING, get_stream() .val without seeing .sop", $time);
+        if (!sop_l) begin
+          print();
+          $fatal(1, "%m %t:ERROR, get_stream() .val without seeing .sop", $time);
+        end
         data[len*8 +: DAT_BITS] = dat;
         len = len + (eop ? (mod == 0 ? DAT_BYTS : mod) : DAT_BYTS);
         if (eop) break;
       end
       @(posedge i_clk);
     end
-    
-  
   endtask
   
 endinterface

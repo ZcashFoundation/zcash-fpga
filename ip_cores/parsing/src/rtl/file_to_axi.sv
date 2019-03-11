@@ -21,9 +21,9 @@
 */
 
 module file_to_axi #(
-    parameter        BINARY,        // 0 for ASCII, 1 for binary
-    parameter        DAT_BYTS,
-    parameter        FP = 0        // Forward pressure, if this is non-zero then this is the % of cycles o_axi.val will be low
+  parameter        BINARY,        // 0 for ASCII, 1 for binary
+  parameter        DAT_BYTS,
+  parameter        FP = 0        // Forward pressure, if this is non-zero then this is the % of cycles o_axi.val will be low
 ) (
   input i_clk, i_rst,
   input string i_file,            // Path to file to read from
