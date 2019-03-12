@@ -60,8 +60,7 @@ always_ff @ (posedge i_clk) begin
   end else begin
     if (~locked) begin
       idx <= get_next(idx);
-      if (val[idx] && rdy[idx]) begin
-        idx <= idx;
+      if (val[get_next(idx)]) begin
         locked <= 1;
       end
     end else if (eop[idx] && val[idx] && rdy[idx]) begin
@@ -76,7 +75,7 @@ function [$clog2(NUM_IN)-1:0] get_next(input [NUM_IN-1:0] idx);
   get_next = idx;
   for (int i = 0; i < NUM_IN; i++)
     if (val[(idx+i+1) % NUM_IN]) begin
-      get_next = i;
+      get_next = (idx+i+1) % NUM_IN;
       break;
     end
 endfunction

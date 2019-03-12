@@ -41,7 +41,7 @@ interface if_axi_stream # (
   modport sink (input val, err, sop, eop, ctl, dat, mod, i_clk, output rdy,
                 import function to_struct() );
   modport source (output val, err, sop, eop, ctl, dat, mod, input rdy, i_clk,
-                  import task reset_source(), import task copy_if(in), import function to_struct());
+                  import task reset_source(), import task copy_if(in), import task copy_if_comb(in), import function to_struct());
  
   // Task to reset a source interface signals to all 0
   task reset_source();
@@ -74,7 +74,7 @@ interface if_axi_stream # (
     to_struct.mod = mod;
   endfunction
   
-    // Task to apply signals from one task to another in a clocked process
+  // Task to apply signals from one task to another in a clocked process
   task copy_if(if_t in);
     dat <= in.dat;
     val <= in.val;
@@ -85,6 +85,17 @@ interface if_axi_stream # (
     err <= in.err;
   endtask
   
+  // Same task but for comb
+  task copy_if_comb(if_t in);
+    dat = in.dat;
+    val = in.val;
+    sop = in.sop;
+    eop = in.eop;
+    mod = in.mod;
+    ctl = in.ctl;
+    err = in.err;
+  endtask
+    
   // Task used in simulation to drive data on a source interface
   task automatic put_stream(input logic [common_pkg::MAX_SIM_BYTS*8-1:0] data, input integer signed len);
     logic sop_l=0;

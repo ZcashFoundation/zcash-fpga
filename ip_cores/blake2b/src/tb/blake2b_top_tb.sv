@@ -172,6 +172,35 @@ task test_144_encode_len_person_bytes();
   end
 endtask
 
+// This test runs the hash which is shown in the RFC, for "abc"
+task test_multiple_hash_val_low();
+begin
+  integer signed get_len;
+    // 50 bytes needed for Equihash (n=200, k=9)
+    logic [7:0] digest_len = 'd50;
+    logic [127:0] POW_TAG = {32'd9, 32'd200, "WoPhsacZ"}; // ZcashPoW is reversed here
+    logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat, in_dat;
+    $display("Running test_144_encode_len_person_bytes...");
+    expected = 'ha6e2f3b234b93dab4c9a246731f31b6215dda0a3cc548c5443b3dbaa0b452265f5d0eb8ca4d7a31747967f8ecc1f0f8b021a;
+    in_dat = 'h000009df030000000000000000000000000000000000000000000000000001a450b5b21b1e03c3bf5813853f0000000000000000000000000000000000000000000000000000000000000000508093fb69a9d9cdf502cc6432d3c2b8bcf81d239e6b3bd59d34122355311630000000488f10fdd62f4d7868c6c21c628bc3d5dfa0f32ff719425110a4d1d61300000004;
+    
+    i_byte_len = 144;    
+    parameters = {32'd0, 8'd1, 8'd1, 8'd0, digest_len};
+    parameters[48*8 +: 16*8] = POW_TAG; 
+    fork
+      repeat(3) begin
+        i_block.put_stream(in_dat, i_byte_len);
+        i_block.dat = 0;
+      end
+      repeat(3) out_hash.get_stream(get_dat, get_len);
+    join
+    // Zero out bytes above digest length
+    for (int i = digest_len; i < common_pkg::MAX_SIM_BYTS; i++) get_dat[i*8 +: 8] = 0;
+    common_pkg::compare_and_print(get_dat, expected);
+  $display("test_multiple_hash_val_low PASSED");
+end
+endtask
+
 // Main testbench calls
 initial begin
   i_block.reset_source();
@@ -179,13 +208,22 @@ initial begin
   parameters = {32'd0, 8'd1, 8'd1, 8'd0, 8'd64};
   #200ns;
   
-  rfc_test();
-  test_127_bytes();
-  test_128_bytes();
-  test_129_bytes();
-  test_140_bytes();
-  test_144_encode_len_person_bytes();
-
+  // If you run these with the pipelined version you need to set the message
+  // length correctly
+  if (USE_BLAKE2B_PIPE == 0 || USE_BLAKE2B_PIPE_MSG_LEN <= 128) begin
+    //rfc_test();
+    //test_127_bytes();   
+    //test_128_bytes();
+    test_multiple_hash_val_low();
+  end
+  
+  if (USE_BLAKE2B_PIPE == 0 || USE_BLAKE2B_PIPE_MSG_LEN > 128) begin
+    //test_129_bytes();
+    //test_140_bytes();
+    //test_144_encode_len_person_bytes();
+    test_multiple_hash_val_low();
+  end
+  
   #10us $finish();
 
 end

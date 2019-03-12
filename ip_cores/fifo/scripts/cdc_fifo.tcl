@@ -18,6 +18,7 @@
 set cdc_fifo_instance [get_cells -hierarchical -filter { ORIG_REF_NAME =~  "cdc_fifo" || REF_NAME =~  "cdc_fifo" } ]
 foreach child $cdc_fifo_instance {
 
+  set using_bram [get_property USE_BRAM [get_cells $child]]
   set name [get_property NAME $child]
   
   set wr_ptr_cells [get_cells -hierarchical -filter "NAME =~ $name/synchronizer_wr_ptr/* "]
@@ -35,8 +36,9 @@ foreach child $cdc_fifo_instance {
   set_bus_skew -from [get_pins  -filter { NAME =~  "*dat_reg[0]*C" }  -of_objects $rd_ptr_cells] -to [get_pins  -filter { NAME =~  "*dat_reg[1]*D" }  -of_objects $rd_ptr_cells] [expr $clock_period/2]
   set_max_delay -from [get_pins  -filter { NAME =~  "*dat_reg[0]*C" }  -of_objects $rd_ptr_cells] -to [get_pins  -filter { NAME =~  "*dat_reg[1]*D" }  -of_objects $rd_ptr_cells] -datapath_only [expr $clock_period/2]
   
-  set all_cells [get_cells -hierarchical -filter "NAME =~ $name/* "]  
-  set_bus_skew -from [get_pins  -filter { NAME =~  "*ram*C" } -of_objects $all_cells] -to [get_pins  -filter { NAME =~  "*o_dat_b*D" } -of_objects $all_cells] [expr $clock_period/2]
-  set_max_delay -from [get_pins  -filter { NAME =~  "*ram*C" } -of_objects $all_cells] -to [get_pins  -filter { NAME =~  "*o_dat_b*D" } -of_objects $all_cells] -datapath_only [expr $clock_period/2]
+  # This is only needed if the cell is using registers (not BRAM)
+  set all_cells [get_cells -hierarchical -filter "NAME =~ $name/* "]
+  catch {set_bus_skew -from [get_pins  -filter { NAME =~  "*ram*C" } -of_objects $all_cells] -to [get_pins  -filter { NAME =~  "*o_dat_b*D" } -of_objects $all_cells] [expr $clock_period/2]}
+  catch {set_max_delay -from [get_pins  -filter { NAME =~  "*ram*C" } -of_objects $all_cells] -to [get_pins  -filter { NAME =~  "*o_dat_b*D" } -of_objects $all_cells] -datapath_only [expr $clock_period/2]}
   
 } 
