@@ -140,8 +140,8 @@ task test_eh_verify_message();
 begin
   verify_equihash_t  msg;
   verify_equihash_rpl_t verify_equihash_rpl;
-  integer signed get_len, in_len;
-  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
+  integer signed get_len, in_len, eh_len;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat, get_dat_eh;
   logic fail = 0;
   $display("Running test_eh_verify_message...");
   msg.hdr.cmd = VERIFY_EQUIHASH;
@@ -150,17 +150,23 @@ begin
  
   fork
     uart_tx_if.put_stream(msg, $bits(msg)/8);
-    uart_rx_if.get_stream(get_dat, get_len);
     begin
-      while (!usr_rst) @(posedge core_clk);
-      while (usr_rst) @(posedge core_clk);
+      equihash_axi.get_stream(get_dat_eh, eh_len);
+      equihash_mask_val = 1;
+      equihash_mask = 0;
     end
+    uart_rx_if.get_stream(get_dat, get_len);
   join
   
+  equihash_mask_val = 0;
+  
   verify_equihash_rpl = get_dat;
+  
+  fail |= eh_len != $bits(cblockheader_sol_t)/8;
   fail |= verify_equihash_rpl.hdr.cmd != VERIFY_EQUIHASH_RPL;
-  fail |= verify_equihash_rpl.hdr.len != $bits(fpga_status_rpl_t)/8;
+  fail |= verify_equihash_rpl.hdr.len != $bits(verify_equihash_rpl_t)/8;
   fail |= verify_equihash_rpl.index != 1;
+  fail |= verify_equihash_rpl.bm != 0;
   
   assert (~fail) else $fatal(1, "%m %t ERROR: test_eh_verify_message was wrong:\n%p", $time, verify_equihash_rpl);
   
@@ -170,7 +176,7 @@ endtask
 
 // Main testbench calls
 initial begin
-  equihash_axi.rdy = 1;
+  equihash_axi.rdy = 0;
   equihash_mask_val = 0;
   equihash_mask = 0;
   uart_tx_if.val = 0;
@@ -180,8 +186,9 @@ initial begin
   test_reset_message();
   test_status_message();
   test_eh_verify_message();
+  test_status_message();
 
-  #10us $finish();
+  #1us $finish();
 
 end
 

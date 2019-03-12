@@ -135,8 +135,8 @@ begin
   start_346 = 1;
   
   while(!done_346 || !mask_val) @(posedge clk);
-  
-  assert (~(|mask)) else $fatal(1, "%m %t ERROR: test_block_346 mask was non-zero:\n%p", $time, mask);
+   
+  assert (|mask == 0) else $fatal(1, "%m %t ERROR: test_block_346 mask was non-zero:\n%p", $time, mask);
   $display("test_block_346 PASSED");
   
 end
@@ -145,12 +145,20 @@ endtask
 // This is a tests the sample block 346 in the block chain but with deliberate errors
 task test_block_346_error();
 begin
+  logic fail = 1;
   $display("Running test_block_346_error...");
   start_346_error = 1;
   
+
   while(!done_346_error || !mask_val) @(posedge clk);
   
-  assert (&mask) else $fatal(1, "%m %t ERROR: test_block_346_error mask was zero but should of failed:\n%p", $time, mask);
+  fail &= mask.DUPLICATE_FND;
+  fail &= mask.BAD_ZERO_ORDER;
+  fail &= mask.BAD_IDX_ORDER;
+  fail &= mask.XOR_NON_ZERO;
+  fail &= mask.DIFFICULTY_FAIL;
+  
+  assert (fail) else $fatal(1, "%m %t ERROR: test_block_346_error mask was zero but should of failed:\n%p", $time, mask);
   $display("test_block_346_error PASSED");
   
 end

@@ -52,9 +52,9 @@ logic [N-1:0]                    sol_hash_xor, equihash_sol_string, equihash_sol
 logic [$clog2(SOL_LIST_LEN)-1:0] sol_cnt_out, sol_cnt_in; // This tracks how many solutions we have XORed
 logic [$clog2(2*DAT_BITS)-1:0]   sol_pos;                 // This tracks the pos in our DAT_BITS RAM output
 logic [64*8-1:0]                 parameters;
-
-if_axi_stream #(.DAT_BYTS(BLAKE2B_DIGEST_BYTS), .CTL_BYTS($clog2(INDICIES_PER_HASH))) blake2b_out_hash(i_clk);
-if_axi_stream #(.DAT_BYTS(EQUIHASH_GEN_BYTS),   .CTL_BYTS($clog2(INDICIES_PER_HASH))) blake2b_in_hash(i_clk);
+//TODO tmep
+if_axi_stream #(.DAT_BYTS(BLAKE2B_DIGEST_BYTS), .CTL_BYTS(4)) blake2b_out_hash(i_clk);
+if_axi_stream #(.DAT_BYTS(EQUIHASH_GEN_BYTS),   .CTL_BYTS(4)) blake2b_in_hash(i_clk);
 
 if_axi_stream #(.DAT_BYTS(DAT_BYTS)) difficulty_if_in(i_clk);
 
@@ -106,7 +106,7 @@ always_ff @ (posedge i_clk) begin
     ram_wr_state <= STATE_WR_IDLE;
   end else begin
     // Defaults
-    equihash_sol_bram_if_a.we <= 1;
+    equihash_sol_bram_if_a.we <= i_axi.val;
     equihash_sol_bram_if_a.en <= 1;
     equihash_sol_bram_if_a.d <= i_axi.dat;
 
@@ -178,8 +178,12 @@ always_ff @ (posedge i_clk) begin
     equihash_order_if.val <= 0;
     
     equihash_sol_bram_read <= equihash_sol_bram_read << 1;
-    if (equihash_sol_bram_read[0])
+    if (equihash_sol_bram_read[0]) begin
       equihash_sol_bram_if_b_l <= equihash_sol_bram_if_b.q;
+      // If nothign else changes sol_pos, we need to shfit it here too
+      //if ((equihash_sol_bram_if_a.a*DAT_BYTS) < ((equihash_sol_bram_if_b.a+1)*DAT_BYTS + $bits(cblockheader_t)/DAT_BITS))
+        sol_pos <= sol_pos - DAT_BITS;
+    end
     
     case(ram_rd_state)
       STATE_RD_IDLE: begin
@@ -211,10 +215,10 @@ always_ff @ (posedge i_clk) begin
         equihash_gen_in.nonce <= cblockheader.nonce;
         equihash_gen_in.index <= (equihash_sol_index)/INDICIES_PER_HASH;
         blake2b_in_hash.ctl <= (equihash_sol_index) % INDICIES_PER_HASH;
-
+        blake2b_in_hash.ctl[8 +: 24] <= equihash_sol_index;
                 
         // Stay 2 clocks behind the RAM write
-        if ((equihash_sol_bram_if_a.a*DAT_BYTS + DAT_BYTS) >= (equihash_sol_bram_if_b.a + $bits(cblockheader_t)/DAT_BITS) ||
+        if ((equihash_sol_bram_if_a.a*DAT_BYTS) >= ((equihash_sol_bram_if_b.a+1)*DAT_BYTS + $bits(cblockheader_t)/DAT_BITS) ||
              ram_wr_state == STATE_WR_WAIT) begin
           // Check if we need to load next memory address
           if ((sol_pos + 3*SOL_BITS >= 2*DAT_BITS) && ~|equihash_sol_bram_read) begin
@@ -237,9 +241,16 @@ always_ff @ (posedge i_clk) begin
           equihash_order_if.eop <= (sol_cnt_in == SOL_LIST_LEN - 1);
           
           // If our input is about to shift we need to adjust pointer by DAT_BITS
-          sol_pos <= sol_pos + SOL_BITS - (equihash_sol_bram_read[0] ? DAT_BITS : 0);
-          if (sol_cnt_in == SOL_LIST_LEN - 1)
+          //sol_pos <= sol_pos + SOL_BITS - (equihash_sol_bram_read[0] ? DAT_BITS : 0);
+          
+          sol_pos <= sol_pos + SOL_BITS - (sol_pos + 2*SOL_BITS >= 2*DAT_BITS ? DAT_BITS : 0);
+          
+          if (sol_cnt_in == SOL_LIST_LEN - 1) begin
             ram_rd_state <= STATE_RD_WAIT;
+          end
+        end else begin
+          // Hold some values steady
+         // equihash_sol_bram_read <= equihash_sol_bram_read;
         end
       end
       STATE_RD_WAIT: begin
@@ -314,11 +325,14 @@ always_ff @ (posedge i_clk) begin
    
           // We also check the order is correct
           o_mask.BAD_ZERO_ORDER <= bad_order_check(sol_hash_xor, sol_cnt_out) | o_mask.BAD_ZERO_ORDER;
+          
+          if (sol_cnt_out == SOL_LIST_LEN - 1) begin
+            chk_state <= STATE_CHK_WAIT;
+          end
+        
         end
         
-        if (sol_cnt_out == SOL_LIST_LEN - 1) begin
-          chk_state <= STATE_CHK_WAIT;
-        end
+
 
       end
       STATE_CHK_WAIT: begin
@@ -352,7 +366,7 @@ always_comb begin
   
   // We have to select what part of Blake2b output to sleect
   // and then re-order the bytes so the XOR zeros grow from the left
-  equihash_sol_string = blake2b_out_hash.dat[N*blake2b_out_hash.ctl +: N];
+  equihash_sol_string = blake2b_out_hash.dat[N*blake2b_out_hash.ctl[0] +: N];
   for (int i = 0; i < N/8; i++)
     equihash_sol_string_flip[i*8 +: 8] = equihash_sol_string[N - 8 -i*8 +: 8];
   
@@ -415,7 +429,7 @@ localparam [EQUIHASH_GEN_BYTS*8-1:0] EQUIHASH_GEN_BYTS_BM = {
 blake2b_pipe_top #(
   .MSG_LEN    ( EQUIHASH_GEN_BYTS         ),
   .MSG_VAR_BM ( EQUIHASH_GEN_BYTS_BM      ),   
-  .CTL_BITS   ( $clog2(INDICIES_PER_HASH) )
+  .CTL_BITS   ( 32 )
 )
 blake2b_pipe_top_i (
   .i_clk ( i_clk ),

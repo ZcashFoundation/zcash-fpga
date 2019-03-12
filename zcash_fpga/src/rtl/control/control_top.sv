@@ -22,6 +22,7 @@ module control_top
   import zcash_fpga_pkg::*, equihash_pkg::*;
 #(
   parameter        IN_DAT_BYTS,
+  parameter        CORE_DAT_BYTS = 8, // Only tested at 8 byte data width
   parameter [63:0] BUILD_HOST = "test",
   parameter [63:0] BUILD_DATE = "20180311"
 )(
@@ -39,9 +40,6 @@ module control_top
   input               i_equihash_mask_val
 );
 
-localparam CORE_DAT_BYTS = 8; // Only tested at 8 byte data width
-
-
 localparam IN_DAT_BITS = IN_DAT_BYTS*8;
 localparam CORE_DAT_BITS = CORE_DAT_BYTS*8;
 
@@ -58,8 +56,7 @@ if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_int1_if (i_clk_core);
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_typ0_if (i_clk_core);
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_typ1_if (i_clk_core);
 
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) tx_typ0_if (i_clk_core);
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) tx_typ1_if (i_clk_core);
+if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) tx_arb_in_if [2] (i_clk_core);
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) tx_int_if (i_clk_core);
 
 enum {TYP0_IDLE = 0,
@@ -79,6 +76,7 @@ verify_equihash_rpl_t verify_equihash_rpl;
 logic [7:0] typ0_wrd_cnt, typ1_wrd_cnt, reset_cnt;
 logic [63:0] equihash_index;
 logic equihash_index_val, rx_typ1_if_rdy, verify_equihash_rpl_val;
+logic sop_l;
 
 fpga_state_t fpga_state;
 always_comb begin
@@ -87,7 +85,7 @@ always_comb begin
   fpga_state.typ1_state = TYP1_IDLE;
   header = rx_int_if.dat;
   header0 = rx_typ0_if.dat;
-  header1 = rx_typ0_if.dat;
+  header1 = rx_typ1_if.dat;
 end
 
 // Logic for processing msg_type == 0 messages
@@ -96,7 +94,7 @@ always_ff @ (posedge i_clk_core) begin
     rx_typ0_if.rdy <= 0;
     typ0_msg_state <= TYP0_IDLE;
     header0_l <= 0;
-    tx_typ0_if.reset_source();
+    tx_arb_in_if[0].reset_source();
     fpga_status_rpl <= 0;
     fpga_reset_rpl <= 0;
     typ0_wrd_cnt <= 0;
@@ -132,16 +130,16 @@ always_ff @ (posedge i_clk_core) begin
       end
       TYP0_SEND_STATUS: begin
         rx_typ0_if.rdy <= 0;
-        if (~tx_typ0_if.val || (tx_typ0_if.rdy && tx_typ0_if.val)) begin
-          tx_typ0_if.dat <= fpga_status_rpl;
-          tx_typ0_if.val <= 1;
-          tx_typ0_if.sop <= typ0_wrd_cnt == $bits(fpga_status_rpl_t)/8;
-          tx_typ0_if.eop <= typ0_wrd_cnt <= CORE_DAT_BYTS;
-          tx_typ0_if.mod <= typ0_wrd_cnt < CORE_DAT_BYTS ? typ0_wrd_cnt : 0;
+        if (~tx_arb_in_if[0].val || (tx_arb_in_if[0].rdy && tx_arb_in_if[0].val)) begin
+          tx_arb_in_if[0].dat <= fpga_status_rpl;
+          tx_arb_in_if[0].val <= 1;
+          tx_arb_in_if[0].sop <= typ0_wrd_cnt == $bits(fpga_status_rpl_t)/8;
+          tx_arb_in_if[0].eop <= typ0_wrd_cnt <= CORE_DAT_BYTS;
+          tx_arb_in_if[0].mod <= typ0_wrd_cnt < CORE_DAT_BYTS ? typ0_wrd_cnt : 0;
           typ0_wrd_cnt <= (typ0_wrd_cnt > CORE_DAT_BYTS) ? (typ0_wrd_cnt - CORE_DAT_BYTS) : 0;
           fpga_status_rpl <= fpga_status_rpl >> CORE_DAT_BITS;
           if (typ0_wrd_cnt == 0) begin
-            tx_typ0_if.val <= 0;
+            tx_arb_in_if[0].val <= 0;
             typ0_msg_state <= TYP0_IDLE;
           end
         end
@@ -154,16 +152,16 @@ always_ff @ (posedge i_clk_core) begin
           reset_cnt <= reset_cnt - 1;
         
         if (~o_usr_rst) begin
-          if (~tx_typ0_if.val || (tx_typ0_if.rdy && tx_typ0_if.val)) begin
-            tx_typ0_if.dat <= fpga_reset_rpl;
-            tx_typ0_if.val <= 1;
-            tx_typ0_if.sop <= typ0_wrd_cnt == $bits(fpga_reset_rpl_t)/8;
-            tx_typ0_if.eop <= typ0_wrd_cnt <= CORE_DAT_BYTS;
-            tx_typ0_if.mod <= typ0_wrd_cnt < CORE_DAT_BYTS ? typ0_wrd_cnt : 0;
+          if (~tx_arb_in_if[0].val || (tx_arb_in_if[0].rdy && tx_arb_in_if[0].val)) begin
+            tx_arb_in_if[0].dat <= fpga_reset_rpl;
+            tx_arb_in_if[0].val <= 1;
+            tx_arb_in_if[0].sop <= typ0_wrd_cnt == $bits(fpga_reset_rpl_t)/8;
+            tx_arb_in_if[0].eop <= typ0_wrd_cnt <= CORE_DAT_BYTS;
+            tx_arb_in_if[0].mod <= typ0_wrd_cnt < CORE_DAT_BYTS ? typ0_wrd_cnt : 0;
             typ0_wrd_cnt <= (typ0_wrd_cnt > CORE_DAT_BYTS) ? (typ0_wrd_cnt - CORE_DAT_BYTS) : 0;
             fpga_reset_rpl <= fpga_reset_rpl >> CORE_DAT_BITS;
             if (typ0_wrd_cnt == 0) begin
-              tx_typ0_if.val <= 0;
+              tx_arb_in_if[0].val <= 0;
               typ0_msg_state <= TYP0_IDLE;
             end
           end
@@ -192,18 +190,22 @@ always_ff @ (posedge i_clk_core) begin
     rx_typ1_if_rdy <= 0;
     typ1_msg_state <= TYP1_IDLE;
     header1_l <= 0;
-    tx_typ1_if.reset_source();
+    tx_arb_in_if[1].reset_source();
     o_equihash_axi.reset_source();
     verify_equihash_rpl <= 0;
     typ1_wrd_cnt <= 0;
     equihash_index <= 0;
     verify_equihash_rpl_val <= 0;
+    equihash_index_val <= 0;
+    sop_l <= 0;    
   end else begin
     rx_typ1_if.rdy <= 1;
     case (typ1_msg_state)
       
       TYP1_IDLE: begin
         verify_equihash_rpl_val <= 0;
+        equihash_index_val <= 0;
+        sop_l <= 0;
         if (rx_typ1_if.val && rx_typ1_if.rdy) begin
           header1_l <= header1;
           rx_typ1_if_rdy <= 0;
@@ -224,33 +226,41 @@ always_ff @ (posedge i_clk_core) begin
           rx_typ1_if_rdy <= 0;
           
         if (~equihash_index_val) begin
-          if (rx_typ1_if.rdy && rx_typ1_if.val)
-            equihash_index <= equihash_index_val;
+          if (rx_typ1_if.rdy && rx_typ1_if.val) begin
+            equihash_index <= rx_typ1_if.dat;
+            equihash_index_val <= 1;
+          end
         end else begin         
           // First load block data (this might be bypassed if loading from memory)  
           if (~o_equihash_axi.val || (o_equihash_axi.rdy && o_equihash_axi.val)) begin
             o_equihash_axi.copy_if(rx_typ1_if.to_struct());
+            // First cycle has .sop set
+            o_equihash_axi.sop <= ~sop_l;
+            if (o_equihash_axi.val) begin
+              sop_l <= 1;
+              o_equihash_axi.sop <= 0;
+            end
           end
         end
         
         // Wait for reply with result
-        if (i_equihash_mask_val) begin
+        if (i_equihash_mask_val && ~verify_equihash_rpl_val) begin
           verify_equihash_rpl <= get_verify_equihash_rpl(i_equihash_mask, equihash_index);
           verify_equihash_rpl_val <= 1;
         end
         
         // Send result
         if (verify_equihash_rpl_val) begin
-          if (~tx_typ1_if.val || (tx_typ1_if.rdy && tx_typ1_if.val)) begin
-            tx_typ1_if.dat <= verify_equihash_rpl;
-            tx_typ1_if.val <= 1;
-            tx_typ1_if.sop <= typ1_wrd_cnt == $bits(verify_equihash_rpl_t)/8;
-            tx_typ1_if.eop <= typ1_wrd_cnt <= CORE_DAT_BYTS;
-            tx_typ1_if.mod <= typ1_wrd_cnt < CORE_DAT_BYTS ? typ1_wrd_cnt : 0;
+          if (~tx_arb_in_if[1].val || (tx_arb_in_if[1].rdy && tx_arb_in_if[1].val)) begin
+            tx_arb_in_if[1].dat <= verify_equihash_rpl;
+            tx_arb_in_if[1].val <= 1;
+            tx_arb_in_if[1].sop <= typ1_wrd_cnt == $bits(verify_equihash_rpl_t)/8;
+            tx_arb_in_if[1].eop <= typ1_wrd_cnt <= CORE_DAT_BYTS;
+            tx_arb_in_if[1].mod <= typ1_wrd_cnt < CORE_DAT_BYTS ? typ1_wrd_cnt : 0;
             typ1_wrd_cnt <= (typ1_wrd_cnt > CORE_DAT_BYTS) ? (typ1_wrd_cnt - CORE_DAT_BYTS) : 0;
             verify_equihash_rpl <= verify_equihash_rpl >> CORE_DAT_BITS;
             if (typ1_wrd_cnt == 0) begin
-              tx_typ1_if.val <= 0;
+              tx_arb_in_if[1].val <= 0;
               typ1_msg_state <= TYP1_IDLE;
             end
           end
@@ -268,14 +278,14 @@ end
 // Logic to mux the packet depending on its command type
 logic msg_type, msg_type_l;
 always_comb begin
-  rx_int0_if.copy_if(rx_int_if.to_struct());
-  rx_int1_if.copy_if(rx_int_if.to_struct());
+  rx_int0_if.copy_if_comb(rx_int_if.to_struct());
+  rx_int1_if.copy_if_comb(rx_int_if.to_struct());
   
   rx_int0_if.val = 0;
   rx_int1_if.val = 0;
   rx_int_if.rdy = 0;
   
-  if (rx_int_if.sop && rx_int_if.val && rx_int_if.rdy) begin
+  if (rx_int_if.sop && rx_int_if.val) begin
     if(header.cmd[8 +: 8] == 8'd0) begin
       msg_type = 0;
       rx_int0_if.val = rx_int_if.val;
@@ -288,7 +298,7 @@ always_comb begin
   end else begin
     rx_int0_if.val = rx_int_if.val && (msg_type_l == 0);
     rx_int1_if.val = rx_int_if.val && (msg_type_l == 1);
-    rx_int_if.rdy = msg_type_l == 0 ? rx_int0_if.rdy : rx_int1_if.rdy;
+    rx_int_if.rdy = (msg_type_l == 0) ? rx_int0_if.rdy : rx_int1_if.rdy;
     msg_type = msg_type_l;
   end
 end
@@ -352,8 +362,8 @@ packet_arb_tx (
   .i_clk ( i_clk_core ),
   .i_rst ( i_rst_core || o_usr_rst ),
 
-  .i_axi ({tx_typ1_if, tx_typ0_if}), 
-  .o_axi ( tx_int_if              )
+  .i_axi ( tx_arb_in_if ), 
+  .o_axi ( tx_int_if    )
 );
 
 // Width change back to tx interface

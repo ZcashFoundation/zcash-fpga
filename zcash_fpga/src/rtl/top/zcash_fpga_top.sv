@@ -21,41 +21,66 @@
  */ 
 
 module zcash_fpga_top
-  import zcash_verif_pkg::*; 
+  import zcash_fpga_pkg::*, equihash_pkg::*;
 #(
-  parameter DAT_BYTS = 8
+  parameter IF_DAT_BYTS = 2,
+  parameter CORE_DAT_BYTS = 8 // Only tested at 8 byte data width
 )(
   // Clocks and resets
-
-  input i_clk_100, i_rst_100,
+  input i_clk_200, i_rst_200,
+  input i_clk_300, i_rst_300,
+  input i_clk_if, i_rst_if,
   
-  // Interface inputs and outputs
+  // Interface input and output
   // UART
-  if_axi_stream.sink   uart_if_rx,
-  if_axi_stream.source uart_if_tx,
-  // Ethernet
-  if_axi_stream.sink   eth_if_rx,
-  if_axi_stream.source eth_if_tx,
-  // PCIe
-  if_axi_stream.sink   pcie_if_rx,
-  if_axi_stream.source pcie_if_tx  
+  if_axi_stream.sink   rx_if,
+  if_axi_stream.source tx_if
 );
 
+logic usr_rst, core_clk, core_rst;
+if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS)) equihash_axi(core_clk);
+
+equihash_bm_t equihash_mask;
+logic         equihash_mask_val;
+  
+always_comb begin
+  core_clk = i_clk_200;
+  core_rst = i_rst_200;
+end
+
+// This block takes in the interface signals and interfaces with other blocks
+control_top #(
+  .CORE_DAT_BYTS ( CORE_DAT_BYTS ),
+  .IN_DAT_BYTS   ( IF_DAT_BYTS   )
+)
+control_top (
+  .i_clk_core ( core_clk ),
+  .i_rst_core ( core_rst ),
+  .i_clk_if ( i_clk_if ),
+  .i_rst_if ( i_rst_if ),
+  .o_usr_rst ( usr_rst ),
+  .rx_if ( rx_if ),
+  .tx_if ( tx_if ),
+  .o_equihash_axi      ( equihash_axi      ),
+  .i_equihash_mask     ( equihash_mask     ),
+  .i_equihash_mask_val ( equihash_mask_val )
+);
+
+
 // This block is used to verify a equihash solution
-zcash_verif_equihash #(
-  .DAT_BYTS(DAT_BYTS)
+equihash_verif_top #(
+  .DAT_BYTS( CORE_DAT_BYTS )
 )
 equihash_verif_top (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
+  .i_clk ( core_clk ),
+  .i_rst ( core_rst || usr_rst ),
   
   .i_clk_300 ( i_clk_300 ),
-  .i_rst_300 ( i_rst_300 ),  // Faster clock
+  .i_rst_300 ( i_rst_300 || usr_rst ),  // Faster clock
   
-  .i_axi      ( equihash_verif_if       ),
-  .o_mask     ( equihash_verif_mask     ),
-  .o_mask_val ( equihash_verif_mask_val )
+  .i_axi      ( equihash_axi      ),
+  .o_mask     ( equihash_mask     ),
+  .o_mask_val ( equihash_mask_val )
 );  
-
 
 endmodule
