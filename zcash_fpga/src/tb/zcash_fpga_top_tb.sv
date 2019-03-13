@@ -123,53 +123,65 @@ DUT(
 );
 
 // This is a tests the sample block 346 in the block chain with the header to verify the equihash solution
-// Also send a status request to check it is correct
+// Also send a reset first and then status request to check it is correct
 task test_block_346_equihash();
 begin
   header_t  header;
   fpga_status_rpl_t fpga_status_rpl;
+  fpga_reset_rpl_t fpga_reset_rpl;
   verify_equihash_rpl_t verify_equihash_rpl;
-  integer signed get_len1, get_len2;
-  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat1, get_dat2;
+  integer signed get_len1, get_len2, get_len3;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat1, get_dat2, get_dat3;
   logic fail = 0;
   $display("Running test_block_346_equihash...");
   
-  header.cmd = FPGA_STATUS;
-  header.len = $bits(header_t)/8;
-  
   fork 
     begin
+      // First send reset
+      header.cmd = RESET_FPGA;
+      header.len = $bits(header_t)/8;
+      tx_if.put_stream(header, $bits(header)/8);
+      // Wait for tx_if.rdy to go low (reset started)
+      while (tx_if.rdy) @(posedge tx_if.i_clk);
+      // Then send data
       start_346 = 1;
       while(!done_346) @(posedge clk_if);
+      // Then status request
+      header.cmd = FPGA_STATUS;
+      header.len = $bits(header_t)/8;
       tx_if.put_stream(header, $bits(header)/8);
     end
     begin
-      rx_if.get_stream(get_dat1, get_len1);
-      rx_if.get_stream(get_dat2, get_len2);
+      rx_if.get_stream(get_dat1, get_len1); // reset rpl
+      rx_if.get_stream(get_dat2, get_len2); // status rpl
+      rx_if.get_stream(get_dat3, get_len3); // equihash rpl
     end
   join
   
-  verify_equihash_rpl = get_dat2;
-  fpga_status_rpl = get_dat1;
+  fpga_reset_rpl = get_dat1;
+  verify_equihash_rpl = get_dat3;
+  fpga_status_rpl = get_dat2;
   
-  fail |= get_len2 != $bits(verify_equihash_rpl_t)/8;
+  fail |= get_len3 != $bits(verify_equihash_rpl_t)/8;
   fail |= verify_equihash_rpl.hdr.cmd != VERIFY_EQUIHASH_RPL;
   fail |= verify_equihash_rpl.hdr.len != $bits(verify_equihash_rpl_t)/8;
   fail |= verify_equihash_rpl.index != 1;
   fail |= verify_equihash_rpl.bm != 0;
-  
   assert (~fail) else $fatal(1, "%m %t ERROR: test_block_346_equihash equihash rply was wrong:\n%p", $time, verify_equihash_rpl);
   
-  fail |= get_len1 != $bits(fpga_status_rpl_t)/8;
+  fail |= get_len2 != $bits(fpga_status_rpl_t)/8;
   fail |= fpga_status_rpl.hdr.cmd != FPGA_STATUS_RPL;
   fail |= fpga_status_rpl.hdr.len != $bits(fpga_status_rpl_t)/8;
-  fail |= fpga_status_rpl.hdr.len != get_len1;
+  fail |= fpga_status_rpl.hdr.len != get_len2;
   fail |= fpga_status_rpl.version != FPGA_VERSION;
   fail |= fpga_status_rpl.build_host != "test";
   fail |= fpga_status_rpl.build_date != "20180311";
-  fail |= fpga_status_rpl.fpga_state.typ1_state == 1;
-  
+  fail |= fpga_status_rpl.fpga_state == 1;
   assert (~fail) else $fatal(1, "%m %t ERROR: test_block_346_equihash status reply was wrong:\n%p", $time, fpga_status_rpl);
+  
+  fail |= get_len1 != $bits(fpga_reset_rpl_t)/8;
+  fail |= fpga_reset_rpl.hdr.cmd != RESET_FPGA_RPL;
+  assert (~fail) else $fatal(1, "%m %t ERROR: test_block_346_equihash reset reply was wrong:\n%p", $time, fpga_reset_rpl);
   
   $display("test_block_346_equihash PASSED");
   

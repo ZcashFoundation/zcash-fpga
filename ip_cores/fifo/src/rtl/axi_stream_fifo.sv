@@ -93,7 +93,7 @@ endgenerate
 
 // Control for full and empty, and assigning outputs from the ram
 always_comb begin
-  i_axi.rdy = ~o_full;
+  i_axi.rdy = ~o_full && ~i_rst;
   
   o_axi.dat = data_out[0 +: DAT_BITS];
   o_axi.ctl = data_out[DAT_BITS +: CTL_BITS];

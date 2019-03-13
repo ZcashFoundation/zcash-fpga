@@ -18,6 +18,8 @@
  */ 
 
 module packet_arb # (
+  parameter DAT_BYTS,
+  parameter CTL_BITS,
   parameter NUM_IN
 ) (
   input i_clk, i_rst,
@@ -26,10 +28,16 @@ module packet_arb # (
   if_axi_stream.source o_axi
 );
 
+localparam DAT_BITS = DAT_BYTS*8;
+localparam MOD_BITS = $clog2(DAT_BYTS);
+
 logic [$clog2(NUM_IN)-1:0] idx;
 logic locked;
 
-logic [NUM_IN-1:0] rdy, val, eop;
+logic [NUM_IN-1:0]               rdy, val, eop, sop, err;
+logic [NUM_IN-1:0][DAT_BITS-1:0] dat;
+logic [NUM_IN-1:0][MOD_BITS-1:0] mod;
+logic [NUM_IN-1:0][CTL_BITS-1:0] ctl;
 
 generate
   genvar g;
@@ -38,21 +46,28 @@ generate
       i_axi[g].rdy = rdy[g];
       val[g] = i_axi[g].val;
       eop[g] = i_axi[g].eop;
+      sop[g] = i_axi[g].sop;
+      err[g] = i_axi[g].err;
+      dat[g] = i_axi[g].dat;
+      mod[g] = i_axi[g].mod;
+      ctl[g] = i_axi[g].ctl;
     end
-    
-    always_ff @ (posedge i_clk) begin
-      if(g == idx)
-        o_axi.copy_if(i_axi[g].to_struct());
-    end
-    
-  end
+  end 
 endgenerate
 
 always_comb begin
   rdy = 0;
   rdy[idx] = o_axi.rdy;
+  o_axi.dat = dat[idx];
+  o_axi.mod = mod[idx];
+  o_axi.ctl = ctl[idx];
+  o_axi.val = val[idx];
+  o_axi.err = err[idx];
+  o_axi.sop = sop[idx];
+  o_axi.eop = eop[idx];
 end
 
+// Logic to arbitrate is registered
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     locked <= 0;

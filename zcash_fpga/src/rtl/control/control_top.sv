@@ -82,7 +82,7 @@ fpga_state_t fpga_state;
 always_comb begin
   fpga_state = 0;
   fpga_state.error = 0;
-  fpga_state.typ1_state = TYP1_IDLE;
+  fpga_state.typ1_state = typ1_msg_state;
   header = rx_int_if.dat;
   header0 = rx_typ0_if.dat;
   header1 = rx_typ1_if.dat;
@@ -199,10 +199,9 @@ always_ff @ (posedge i_clk_core) begin
     equihash_index_val <= 0;
     sop_l <= 0;    
   end else begin
-    rx_typ1_if.rdy <= 1;
     case (typ1_msg_state)
-      
       TYP1_IDLE: begin
+        rx_typ1_if_rdy <= 1;
         verify_equihash_rpl_val <= 0;
         equihash_index_val <= 0;
         sop_l <= 0;
@@ -342,7 +341,7 @@ width_change_cdc_fifo #(
   .IN_DAT_BYTS  ( IN_DAT_BYTS   ),
   .OUT_DAT_BYTS ( CORE_DAT_BYTS ),
   .CTL_BITS     ( 8             ),
-  .FIFO_ABITS   ( $clog2(16*1024/IN_DAT_BITS) ),
+  .FIFO_ABITS   ( $clog2(1024/IN_DAT_BITS) ),
   .USE_BRAM     ( 1             ) 
 ) 
 cdc_fifo_rx (
@@ -356,7 +355,9 @@ cdc_fifo_rx (
 
 // Arbitrator for sending messages back
 packet_arb # (
-  .NUM_IN ( 2 )
+  .NUM_IN   ( 2             ),
+  .DAT_BYTS ( CORE_DAT_BYTS ),
+  .CTL_BITS ( 8             )
 ) 
 packet_arb_tx (
   .i_clk ( i_clk_core ),
@@ -371,7 +372,7 @@ width_change_cdc_fifo #(
   .IN_DAT_BYTS  ( CORE_DAT_BYTS ),
   .OUT_DAT_BYTS ( IN_DAT_BYTS   ),
   .CTL_BITS     ( 8             ),
-  .FIFO_ABITS   ( $clog2(16*1024/CORE_DAT_BYTS) ),
+  .FIFO_ABITS   ( $clog2(1024/CORE_DAT_BYTS) ),
   .USE_BRAM     ( 1             ) 
 ) 
 cdc_fifo_tx (

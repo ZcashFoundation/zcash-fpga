@@ -22,7 +22,8 @@
 module cdc_fifo #(
   parameter SIZE = 4,         // Needs to be a power of 2
   parameter DAT_BITS = 8,
-  parameter USE_BRAM = 0  // If using BRAM there is an extra cycle delay between reads
+  parameter USE_BRAM = 0,  // If using BRAM there is an extra cycle delay between reads
+  parameter RAM_PERFORMANCE = "HIGH_PERFORMANCE"
 ) (
   input i_clk_a, i_rst_a,
   input i_clk_b, i_rst_b,
@@ -74,26 +75,41 @@ generate
   end else begin
     
     logic [DAT_BITS-1:0] dat_b;
+    logic [1:0] read_cyc;
     if_ram #(.RAM_WIDTH(DAT_BITS), .RAM_DEPTH(SIZE)) bram_if_rd (i_clk_b, i_rst_b);
     if_ram #(.RAM_WIDTH(DAT_BITS), .RAM_DEPTH(SIZE)) bram_if_wr (i_clk_a, i_rst_a);
     
     bram #(
-      .RAM_WIDTH       ( DAT_BITS      ),
-      .RAM_DEPTH       ( SIZE          ),
-      .RAM_PERFORMANCE ( "LOW_LATENCY" )
+      .RAM_WIDTH       ( DAT_BITS        ),
+      .RAM_DEPTH       ( SIZE            ),
+      .RAM_PERFORMANCE ( RAM_PERFORMANCE )
     ) bram_i (
       .a ( bram_if_rd ),
       .b ( bram_if_wr )
     );
 
-  
+    
     always_ff @ (posedge i_clk_b) begin
-      o_val_b <= 0;
-      if (~o_emp_b) o_val_b <= 1;
-      if (o_val_b && i_rdy_b) o_val_b <= 0;
+      if (i_rst_b) begin
+        read_cyc <= 0;
+        o_val_b <= 0;
+      end else begin
+        read_cyc <= read_cyc << 1;
+        o_val_b <= 0;
+        if (~o_emp_b) o_val_b <= 1;
+        
+        if (o_val_b && i_rdy_b) begin 
+          o_val_b <= 0;
+          read_cyc[0] <= 1;
+        end
+        if (RAM_PERFORMANCE == "HIGH_PERFORMANCE" && read_cyc[0])
+          o_val_b <= 0;
+        
+      end
     end
     
     always_comb begin
+      
       bram_if_rd.re = 1;
       bram_if_rd.a = rd_ptr_b[ABITS-1:0];
       bram_if_rd.d = 0;
@@ -144,7 +160,7 @@ always_comb begin
 end
 
 always_comb begin
-  o_rdy_a = ~o_full_a;
+  o_rdy_a = ~o_full_a && ~i_rst_a;
   o_rd_wrds_b = o_emp_b ? (1 << ABITS) : wr_ptr_b[ABITS-1:0] - rd_ptr_b[ABITS-1:0];
 end
 
