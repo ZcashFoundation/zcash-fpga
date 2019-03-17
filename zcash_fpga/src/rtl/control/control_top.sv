@@ -50,7 +50,6 @@ localparam MAX_BYT_MSG = 256; // Max bytes in a reply message
 // and one for everything else. This is so we can process these messages even if we are 
 // running something else.
 
-
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_int_if (i_clk_core);
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_int0_if (i_clk_core);
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_int1_if (i_clk_core);
@@ -69,23 +68,23 @@ typedef enum {TYP0_IDLE = 0,
 
 typ0_msg_state_t typ0_msg_state;
 
-enum {TYP1_IDLE = 0,
+typedef enum {TYP1_IDLE = 0,
       TYP1_VERIFY_EQUIHASH = 1,
-      TYP1_IGNORE = 2} typ1_msg_state;
+      TYP1_SEND_IGNORE = 2,
+      TYP1_IGNORE = 3} typ1_msg_state_t;
       
+typ1_msg_state_t typ1_msg_state;
+
 header_t header, header0, header1, header0_l, header1_l;
-//fpga_status_rpl_t fpga_status_rpl;
-//fpga_reset_rpl_t fpga_reset_rpl;
-//fpga_ignore_rpl_t fpga0_ignore_rpl;
-verify_equihash_rpl_t verify_equihash_rpl;
+logic verify_equihash_rpl_val;
 
 logic [7:0] reset_cnt;
 logic [$clog2(MAX_BYT_MSG) -1:0] typ0_wrd_cnt, typ1_wrd_cnt;
-logic [MAX_BYT_MSG*8 -1:0] typ0_msg;
+logic [MAX_BYT_MSG*8 -1:0] typ0_msg, typ1_msg;
 logic [63:0] equihash_index;
-logic equihash_index_val, rx_typ1_if_rdy, verify_equihash_rpl_val;
+logic equihash_index_val, rx_typ1_if_rdy;
 logic sop_l;
-logic eop_typ0_l;
+logic eop_typ0_l, eop_typ1_l;
 
 fpga_state_t fpga_state;
 always_comb begin
@@ -104,9 +103,6 @@ always_ff @ (posedge i_clk_core) begin
     typ0_msg_state <= TYP0_IDLE;
     header0_l <= 0;
     tx_arb_in_if[0].reset_source();
- //   fpga_status_rpl <= 0;
- //   fpga_reset_rpl <= 0;
-///    fpga0_ignore_rpl <= 0;
     typ0_wrd_cnt <= 0;
     o_usr_rst <= 0;
     reset_cnt <= 0;
@@ -116,11 +112,7 @@ always_ff @ (posedge i_clk_core) begin
     rx_typ0_if.rdy <= 1;
     case (typ0_msg_state)
       
-      TYP0_IDLE: begin
-        //fpga_status_rpl <= get_fpga_status_rpl(BUILD_HOST, BUILD_DATE, fpga_state);
-        //fpga_reset_rpl <= get_fpga_reset_rpl();
-        //fpga0_ignore_rpl <= get_fpga_ignore_rpl(header0);
-      
+      TYP0_IDLE: begin      
         if (rx_typ0_if.val && rx_typ0_if.rdy) begin
           header0_l <= header0;
           rx_typ0_if.rdy <= 0;
@@ -139,6 +131,7 @@ always_ff @ (posedge i_clk_core) begin
             end
             default: begin
               typ0_msg <= get_fpga_ignore_rpl(header0);
+              typ0_wrd_cnt <= $bits(fpga_ignore_rpl_t)/8;
               eop_typ0_l <= rx_typ0_if.eop;
               typ0_msg_state <= TYP0_SEND_IGNORE;
             end
@@ -146,23 +139,7 @@ always_ff @ (posedge i_clk_core) begin
         end
       end
       TYP0_SEND_STATUS: begin
-        /*
-        rx_typ0_if.rdy <= 0;
-        if (~tx_arb_in_if[0].val || (tx_arb_in_if[0].rdy && tx_arb_in_if[0].val)) begin
-          tx_arb_in_if[0].dat <= fpga_status_rpl;
-          tx_arb_in_if[0].val <= 1;
-          tx_arb_in_if[0].sop <= typ0_wrd_cnt == $bits(fpga_status_rpl_t)/8;
-          tx_arb_in_if[0].eop <= typ0_wrd_cnt <= CORE_DAT_BYTS;
-          tx_arb_in_if[0].mod <= typ0_wrd_cnt < CORE_DAT_BYTS ? typ0_wrd_cnt : 0;
-          typ0_wrd_cnt <= (typ0_wrd_cnt > CORE_DAT_BYTS) ? (typ0_wrd_cnt - CORE_DAT_BYTS) : 0;
-          fpga_status_rpl <= fpga_status_rpl >> CORE_DAT_BITS;
-          if (typ0_wrd_cnt == 0) begin
-            tx_arb_in_if[0].val <= 0;
-            typ0_msg_state <= TYP0_IDLE;
-          end
-        end
-        */
-        send_typ0_message($bits(fpga_status_rpl_t)/8, typ0_msg, typ0_wrd_cnt);
+        send_typ0_message($bits(fpga_status_rpl_t)/8);
       end
       TYP0_RESET_FPGA: begin
         rx_typ0_if.rdy <= 0;  
@@ -172,40 +149,11 @@ always_ff @ (posedge i_clk_core) begin
           reset_cnt <= reset_cnt - 1;
         
         if (~o_usr_rst) begin
-          send_typ0_message($bits(fpga_reset_rpl_t)/8, typ0_msg, typ0_wrd_cnt);
-          /*
-          if (~tx_arb_in_if[0].val || (tx_arb_in_if[0].rdy && tx_arb_in_if[0].val)) begin
-            tx_arb_in_if[0].dat <= fpga_reset_rpl;
-            tx_arb_in_if[0].val <= 1;
-            tx_arb_in_if[0].sop <= typ0_wrd_cnt == $bits(fpga_reset_rpl_t)/8;
-            tx_arb_in_if[0].eop <= typ0_wrd_cnt <= CORE_DAT_BYTS;
-            tx_arb_in_if[0].mod <= typ0_wrd_cnt < CORE_DAT_BYTS ? typ0_wrd_cnt : 0;
-            typ0_wrd_cnt <= (typ0_wrd_cnt > CORE_DAT_BYTS) ? (typ0_wrd_cnt - CORE_DAT_BYTS) : 0;
-            fpga_reset_rpl <= fpga_reset_rpl >> CORE_DAT_BITS;
-            if (typ0_wrd_cnt == 0) begin
-              tx_arb_in_if[0].val <= 0;
-              typ0_msg_state <= TYP0_IDLE;
-            end
-          end*/
+          send_typ0_message($bits(fpga_reset_rpl_t)/8);
         end
       end
       TYP0_SEND_IGNORE: begin
-        send_typ0_message($bits(fpga0_ignore_rpl_t)/8, typ0_msg, typ0_wrd_cnt, eop_typ0_l ? TYP0_IDLE :TYP0_IGNORE);
-        /*
-        rx_typ0_if.rdy <= 0;
-        if (~tx_arb_in_if[0].val || (tx_arb_in_if[0].rdy && tx_arb_in_if[0].val)) begin
-          tx_arb_in_if[0].dat <= fpga_ignore_rpl;
-          tx_arb_in_if[0].val <= 1;
-          tx_arb_in_if[0].sop <= typ0_wrd_cnt == $bits(fpga0_ignore_rpl_t)/8;
-          tx_arb_in_if[0].eop <= typ0_wrd_cnt <= CORE_DAT_BYTS;
-          tx_arb_in_if[0].mod <= typ0_wrd_cnt < CORE_DAT_BYTS ? typ0_wrd_cnt : 0;
-          typ0_wrd_cnt <= (typ0_wrd_cnt > CORE_DAT_BYTS) ? (typ0_wrd_cnt - CORE_DAT_BYTS) : 0;
-          fpga_ignore_rpl <= fpga_ignore_rpl >> CORE_DAT_BITS;
-          if (typ0_wrd_cnt == 0) begin
-            tx_arb_in_if[0].val <= 0;
-            typ0_msg_state <= eop_typ0_l ? TYP0_IDLE :TYP0_IGNORE;
-          end
-        end*/
+        send_typ0_message($bits(fpga_ignore_rpl_t)/8, eop_typ0_l ? TYP0_IDLE : TYP0_IGNORE);
       end      
       TYP0_IGNORE: begin
         rx_typ0_if.rdy <= 1;
@@ -217,17 +165,18 @@ always_ff @ (posedge i_clk_core) begin
 end
 
 // Task to help build reply messages. Assume no message will be more than MAX_BYT_MSG bytes
-task automatic send_typ0_message(input logic [$clog2(MAX_BYT_MSG)-1:0] msg_size, ref logic [MAX_BYT_MSG*8-1:0] msg, ref logic [$clog2(MAX_BYT_MSG)-1:0] byt_cnt, input typ0_msg_state_t nxt_state = TYP0_IDLE);
+task send_typ0_message(input logic [$clog2(MAX_BYT_MSG)-1:0] msg_size,
+                       input typ0_msg_state_t nxt_state = TYP0_IDLE);
   rx_typ0_if.rdy <= 0;
   if (~tx_arb_in_if[0].val || (tx_arb_in_if[0].rdy && tx_arb_in_if[0].val)) begin
-    tx_arb_in_if[0].dat <= msg;
+    tx_arb_in_if[0].dat <= typ0_msg;
     tx_arb_in_if[0].val <= 1;
-    tx_arb_in_if[0].sop <= byt_cnt == msg_size;
-    tx_arb_in_if[0].eop <= byt_cnt <= CORE_DAT_BYTS;
-    tx_arb_in_if[0].mod <= byt_cnt < CORE_DAT_BYTS ? byt_cnt : 0;
-    byt_cnt <= (byt_cnt > CORE_DAT_BYTS) ? (byt_cnt - CORE_DAT_BYTS) : 0;
-    msg <= msg >> CORE_DAT_BITS;
-    if (byt_cnt == 0) begin
+    tx_arb_in_if[0].sop <= typ0_wrd_cnt == msg_size;
+    tx_arb_in_if[0].eop <= typ0_wrd_cnt <= CORE_DAT_BYTS;
+    tx_arb_in_if[0].mod <= typ0_wrd_cnt < CORE_DAT_BYTS ? typ0_wrd_cnt : 0;
+    typ0_wrd_cnt <= (typ0_wrd_cnt > CORE_DAT_BYTS) ? (typ0_wrd_cnt - CORE_DAT_BYTS) : 0;
+    typ0_msg <= typ0_msg >> CORE_DAT_BITS;
+    if (typ0_wrd_cnt == 0) begin
       tx_arb_in_if[0].val <= 0;
       typ0_msg_state <= nxt_state;
     end
@@ -249,12 +198,13 @@ always_ff @ (posedge i_clk_core) begin
     header1_l <= 0;
     tx_arb_in_if[1].reset_source();
     o_equihash_axi.reset_source();
-    verify_equihash_rpl <= 0;
     typ1_wrd_cnt <= 0;
     equihash_index <= 0;
     verify_equihash_rpl_val <= 0;
     equihash_index_val <= 0;
-    sop_l <= 0;    
+    sop_l <= 0;
+    eop_typ1_l <= 0;
+    typ1_msg <= 0;
   end else begin
     // TODO add IGNORE type here
     case (typ1_msg_state)
@@ -272,9 +222,12 @@ always_ff @ (posedge i_clk_core) begin
               typ1_wrd_cnt <= $bits(verify_equihash_rpl_t)/8;
               typ1_msg_state <= TYP1_VERIFY_EQUIHASH;
             end
-            default:
-              if (~rx_typ1_if.eop)
-                typ1_msg_state <= TYP1_IGNORE;
+            default: begin
+              typ1_msg <= get_fpga_ignore_rpl(header1);
+              typ1_wrd_cnt <= $bits(fpga_ignore_rpl_t)/8;
+              eop_typ1_l <= rx_typ1_if.eop;
+              typ1_msg_state <= TYP1_SEND_IGNORE;
+            end
           endcase
         end
       end
@@ -302,26 +255,17 @@ always_ff @ (posedge i_clk_core) begin
         
         // Wait for reply with result
         if (i_equihash_mask_val && ~verify_equihash_rpl_val) begin
-          verify_equihash_rpl <= get_verify_equihash_rpl(i_equihash_mask, equihash_index);
+          typ1_msg <= get_verify_equihash_rpl(i_equihash_mask, equihash_index);
           verify_equihash_rpl_val <= 1;
         end
         
         // Send result
         if (verify_equihash_rpl_val) begin
-          if (~tx_arb_in_if[1].val || (tx_arb_in_if[1].rdy && tx_arb_in_if[1].val)) begin
-            tx_arb_in_if[1].dat <= verify_equihash_rpl;
-            tx_arb_in_if[1].val <= 1;
-            tx_arb_in_if[1].sop <= typ1_wrd_cnt == $bits(verify_equihash_rpl_t)/8;
-            tx_arb_in_if[1].eop <= typ1_wrd_cnt <= CORE_DAT_BYTS;
-            tx_arb_in_if[1].mod <= typ1_wrd_cnt < CORE_DAT_BYTS ? typ1_wrd_cnt : 0;
-            typ1_wrd_cnt <= (typ1_wrd_cnt > CORE_DAT_BYTS) ? (typ1_wrd_cnt - CORE_DAT_BYTS) : 0;
-            verify_equihash_rpl <= verify_equihash_rpl >> CORE_DAT_BITS;
-            if (typ1_wrd_cnt == 0) begin
-              tx_arb_in_if[1].val <= 0;
-              typ1_msg_state <= TYP1_IDLE;
-            end
-          end
+          send_typ1_message($bits(verify_equihash_rpl_t)/8);
         end
+      end
+      TYP1_SEND_IGNORE: begin
+        send_typ1_message($bits(fpga_ignore_rpl_t)/8, eop_typ1_l ? TYP1_IDLE : TYP1_IGNORE);
       end
       TYP1_IGNORE: begin
         rx_typ1_if_rdy <= 1;
@@ -331,6 +275,25 @@ always_ff @ (posedge i_clk_core) begin
     endcase
   end
 end
+
+// Task to help build reply messages. Assume no message will be more than MAX_BYT_MSG bytes
+task send_typ1_message(input logic [$clog2(MAX_BYT_MSG)-1:0] msg_size,
+                       input typ1_msg_state_t nxt_state = TYP1_IDLE);
+  rx_typ1_if.rdy <= 0;
+  if (~tx_arb_in_if[1].val || (tx_arb_in_if[1].rdy && tx_arb_in_if[1].val)) begin
+    tx_arb_in_if[1].dat <= typ1_msg;
+    tx_arb_in_if[1].val <= 1;
+    tx_arb_in_if[1].sop <= typ1_wrd_cnt == msg_size;
+    tx_arb_in_if[1].eop <= typ1_wrd_cnt <= CORE_DAT_BYTS;
+    tx_arb_in_if[1].mod <= typ1_wrd_cnt < CORE_DAT_BYTS ? typ1_wrd_cnt : 0;
+    typ1_wrd_cnt <= (typ1_wrd_cnt > CORE_DAT_BYTS) ? (typ1_wrd_cnt - CORE_DAT_BYTS) : 0;
+    typ1_msg <= typ1_msg >> CORE_DAT_BITS;
+    if (typ1_wrd_cnt == 0) begin
+      tx_arb_in_if[1].val <= 0;
+      typ1_msg_state <= nxt_state;
+    end
+  end
+endtask
 
 // Logic to mux the packet depending on its command type
 logic msg_type, msg_type_l;

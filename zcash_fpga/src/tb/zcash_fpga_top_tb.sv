@@ -112,10 +112,10 @@ zcash_fpga_top #(
   )
 DUT(
   // Clocks and resets
-  .i_clk_200 ( clk_200 ),
-  .i_rst_200 ( rst_200 ),
-  .i_clk_300 ( clk_300 ),
-  .i_rst_300 ( rst_300 ),
+  .i_clk_core0 ( clk_200 ),
+  .i_rst_core0 ( rst_200 ),
+  .i_clk_core1 ( clk_300 ),
+  .i_rst_core1 ( rst_300 ),
   .i_clk_if ( clk_if ),
   .i_rst_if ( rst_if ),
   .rx_if ( tx_if ),
@@ -188,14 +188,43 @@ begin
 end
 endtask
 
+// This task sends a malformed message and checks it gets ignored
+task test_ignored_message();
+begin
+  header_t  header;
+  fpga_ignore_rpl_t fpga_ignore_rpl;
+  integer signed get_len;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
+  logic fail = 0;
+  $display("Running test_ignored_message...");
+  
+  // Some header value that is invalid
+  header = {$bits(header_t){1'b1}};
+  header.cmd[8 +: 8] = 0;
+  fork 
+    tx_if.put_stream(header, $bits(header)/8);
+    rx_if.get_stream(get_dat, get_len);
+  join
+  
+  fpga_ignore_rpl = get_dat;
+  
+  fail |= get_len != $bits(fpga_ignore_rpl_t)/8;
+  fail |= fpga_ignore_rpl.hdr.cmd != FPGA_IGNORE_RPL;
+  fail |= fpga_ignore_rpl.hdr.len != $bits(fpga_ignore_rpl_t)/8;
+  assert (~fail) else $fatal(1, "%m %t ERROR: test_ignored_message rply was wrong:\n%p", $time, fpga_ignore_rpl);
+  
+  $display("test_ignored_message PASSED");
+  
+end
+endtask
 
 // Main testbench calls
 initial begin
   rx_if.rdy = 0;
   #20us; // Let internal memories reset
   
-  test_block_346_equihash();
   test_ignored_message();
+  test_block_346_equihash();
   
   #1us $finish();
 

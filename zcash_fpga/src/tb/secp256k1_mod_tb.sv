@@ -40,10 +40,14 @@ end
 always_comb begin
   out_if.sop = 1;
   out_if.eop = 1;
-  out_if.err = 0;
   out_if.ctl = 0;
   out_if.mod = 0;
 end
+
+// Check for errors
+always_ff @ (posedge clk)
+  if (out_if.val && out_if.err)
+    $error(1, "%m %t ERROR: output .err asserted", $time);
 
 secp256k1_mod secp256k1_mod
 (
@@ -53,6 +57,7 @@ secp256k1_mod secp256k1_mod
   .i_val( in_if.val  ),
   .o_rdy( in_if.rdy  ),
   .o_dat( out_if.dat ),
+  .o_err( out_if.err ),
   .i_rdy( out_if.rdy ),
   .o_val( out_if.val )
 );
@@ -77,19 +82,19 @@ endtask;
 task test_loop();
 begin
   integer signed get_len, i, max;
-  logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected, in_dat, get_dat;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] in_dat, get_dat;
+  logic [256:0] expected;
   $display("Running test_loop...");
   in_dat = 1 << 433;
   expected = 256'd822752465816620949324161418291805943222876982255305228346720256;
   i = 0;
-  max = 10000;
-  repeat (max) begin
-    
-    in_dat = in_dat*2;
-    expected = expected*2;
-    while (expected >= p_eq)
-      expected = expected - p_eq;
-    
+  max = 1000;
+  while (i < max) begin
+  
+    in_dat = random_vector(512);
+    in_dat = in_dat % (p_eq*p_eq);
+    expected = in_dat % p_eq;
+     
     fork
       in_if.put_stream(in_dat, 512/8);
       out_if.get_stream(get_dat, get_len);
@@ -109,8 +114,10 @@ initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
+  
   test0();
-  test_loop();
+  test_loop();  // This one is a bit slower since we compute the expected result
+  
   #1us $finish();
 end
 endmodule

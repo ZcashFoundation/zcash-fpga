@@ -95,6 +95,7 @@ package zcash_fpga_pkg;
     
   function fpga_ignore_rpl_t get_fpga_ignore_rpl(header_t hdr);
     get_fpga_ignore_rpl.hdr = '{cmd:FPGA_IGNORE_RPL, len:$bits(fpga_ignore_rpl_t)/8};    
+    get_fpga_ignore_rpl.ignore_hdr = hdr;
   endfunction
   
   function fpga_status_rpl_t get_fpga_status_rpl(input [63:0] build_host, build_date, fpga_state_t fpga_state);

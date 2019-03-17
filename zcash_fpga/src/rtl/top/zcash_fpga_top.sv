@@ -38,8 +38,6 @@ module zcash_fpga_top
 
 logic rst_core0, rst_core1, rst_if, usr_rst, usr_rst_r;
 
-logic rst_200, rst_300;
-
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS)) equihash_axi(i_clk_core0);
 
 equihash_bm_t equihash_mask;
@@ -101,7 +99,7 @@ equihash_verif_top #(
 )
 equihash_verif_top (
   .i_clk ( i_clk_core0 ),
-  .i_rst ( core_rst ),
+  .i_rst ( rst_core0   ),
   .i_clk_300 ( i_clk_core1 ), // Faster clock
   .i_rst_300 ( rst_core1   ), 
   .i_axi      ( equihash_axi      ),

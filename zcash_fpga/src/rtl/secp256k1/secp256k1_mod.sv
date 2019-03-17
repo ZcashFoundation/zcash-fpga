@@ -35,7 +35,8 @@ module secp256k1_mod (
   // output
   output logic [255:0] o_dat,
   input                i_rdy,
-  output logic         o_val
+  output logic         o_val,
+  output logic         o_err // Will go high if after 1 reduction we are still >= p
 );
   
 import secp256k1_pkg::*;
@@ -55,9 +56,11 @@ always_ff @ (posedge i_clk) begin
     state <= IDLE;
     o_val <= 0;
     o_rdy <= 0;
+    o_err <= 0;
   end else begin
     o_rdy <= 0;
     o_dat <= a_ >= p_eq ? (a_ - p_eq) : a_;
+    
     case(state)
       IDLE: begin
         o_rdy <= 1;
@@ -76,10 +79,12 @@ always_ff @ (posedge i_clk) begin
       end
       S2: begin
         o_val <= 1;
+        o_err <= a_ >= 2* p_eq;
         if (o_val && i_rdy) begin
           state <=IDLE;
           o_rdy <= 1;
           o_val <= 0;
+          o_err <= 0;
         end
       end
     endcase
