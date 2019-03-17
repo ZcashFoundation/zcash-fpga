@@ -26,7 +26,7 @@ module control_top
   parameter [63:0] BUILD_HOST = "test",
   parameter [63:0] BUILD_DATE = "20180311"
 )(
-  input i_clk_core, i_rst_core,
+  input i_clk_core, i_rst_core, i_rst_core_perm, // _perm reset is not effected by o_usr_rst
   input i_clk_if, i_rst_if,
   // User is able to reset custom logic on FPGA
   output logic o_usr_rst,
@@ -42,6 +42,8 @@ module control_top
 
 localparam IN_DAT_BITS = IN_DAT_BYTS*8;
 localparam CORE_DAT_BITS = CORE_DAT_BYTS*8;
+
+localparam MAX_BYT_MSG = 256; // Max bytes in a reply message
 
 // When a command comes in it is put through a clock crossing, and then stored in a command
 // FIFO to be processed. There are two FIFOS - one for processing status / reset commands (msg_type == 0),
@@ -59,24 +61,31 @@ if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_typ1_if (i_clk_core);
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) tx_arb_in_if [2] (i_clk_core);
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) tx_int_if (i_clk_core);
 
-enum {TYP0_IDLE = 0,
+typedef enum {TYP0_IDLE = 0,
       TYP0_SEND_STATUS = 1,
       TYP0_RESET_FPGA = 2,
-      TYP0_IGNORE = 3} typ0_msg_state;
+      TYP0_SEND_IGNORE = 3,
+      TYP0_IGNORE = 4} typ0_msg_state_t;
+
+typ0_msg_state_t typ0_msg_state;
 
 enum {TYP1_IDLE = 0,
       TYP1_VERIFY_EQUIHASH = 1,
       TYP1_IGNORE = 2} typ1_msg_state;
       
 header_t header, header0, header1, header0_l, header1_l;
-fpga_status_rpl_t fpga_status_rpl;
-fpga_reset_rpl_t fpga_reset_rpl;
+//fpga_status_rpl_t fpga_status_rpl;
+//fpga_reset_rpl_t fpga_reset_rpl;
+//fpga_ignore_rpl_t fpga0_ignore_rpl;
 verify_equihash_rpl_t verify_equihash_rpl;
 
-logic [7:0] typ0_wrd_cnt, typ1_wrd_cnt, reset_cnt;
+logic [7:0] reset_cnt;
+logic [$clog2(MAX_BYT_MSG) -1:0] typ0_wrd_cnt, typ1_wrd_cnt;
+logic [MAX_BYT_MSG*8 -1:0] typ0_msg;
 logic [63:0] equihash_index;
 logic equihash_index_val, rx_typ1_if_rdy, verify_equihash_rpl_val;
 logic sop_l;
+logic eop_typ0_l;
 
 fpga_state_t fpga_state;
 always_comb begin
@@ -90,45 +99,54 @@ end
 
 // Logic for processing msg_type == 0 messages
 always_ff @ (posedge i_clk_core) begin
-  if (i_rst_core) begin
+  if (i_rst_core_perm ) begin
     rx_typ0_if.rdy <= 0;
     typ0_msg_state <= TYP0_IDLE;
     header0_l <= 0;
     tx_arb_in_if[0].reset_source();
-    fpga_status_rpl <= 0;
-    fpga_reset_rpl <= 0;
+ //   fpga_status_rpl <= 0;
+ //   fpga_reset_rpl <= 0;
+///    fpga0_ignore_rpl <= 0;
     typ0_wrd_cnt <= 0;
     o_usr_rst <= 0;
     reset_cnt <= 0;
+    eop_typ0_l <= 0;
+    typ0_msg <= 0;
   end else begin
     rx_typ0_if.rdy <= 1;
     case (typ0_msg_state)
       
       TYP0_IDLE: begin
-        fpga_status_rpl <= get_fpga_status_rpl(BUILD_HOST, BUILD_DATE, fpga_state);
-        fpga_reset_rpl <= get_fpga_reset_rpl();
+        //fpga_status_rpl <= get_fpga_status_rpl(BUILD_HOST, BUILD_DATE, fpga_state);
+        //fpga_reset_rpl <= get_fpga_reset_rpl();
+        //fpga0_ignore_rpl <= get_fpga_ignore_rpl(header0);
       
         if (rx_typ0_if.val && rx_typ0_if.rdy) begin
           header0_l <= header0;
           rx_typ0_if.rdy <= 0;
           case(header0.cmd)
             RESET_FPGA: begin
+              typ0_msg <= get_fpga_reset_rpl();
               typ0_wrd_cnt <= $bits(fpga_reset_rpl_t)/8;
               typ0_msg_state <= TYP0_RESET_FPGA;
               o_usr_rst <= 1;
               reset_cnt <= -1;
             end
             FPGA_STATUS: begin
+              typ0_msg <= get_fpga_status_rpl(BUILD_HOST, BUILD_DATE, fpga_state);
               typ0_wrd_cnt <= $bits(fpga_status_rpl_t)/8;
               typ0_msg_state <= TYP0_SEND_STATUS;
             end
-            default:
-              if (~rx_typ0_if.eop)
-                typ0_msg_state <= TYP0_IGNORE;
+            default: begin
+              typ0_msg <= get_fpga_ignore_rpl(header0);
+              eop_typ0_l <= rx_typ0_if.eop;
+              typ0_msg_state <= TYP0_SEND_IGNORE;
+            end
           endcase
         end
       end
       TYP0_SEND_STATUS: begin
+        /*
         rx_typ0_if.rdy <= 0;
         if (~tx_arb_in_if[0].val || (tx_arb_in_if[0].rdy && tx_arb_in_if[0].val)) begin
           tx_arb_in_if[0].dat <= fpga_status_rpl;
@@ -143,6 +161,8 @@ always_ff @ (posedge i_clk_core) begin
             typ0_msg_state <= TYP0_IDLE;
           end
         end
+        */
+        send_typ0_message($bits(fpga_status_rpl_t)/8, typ0_msg, typ0_wrd_cnt);
       end
       TYP0_RESET_FPGA: begin
         rx_typ0_if.rdy <= 0;  
@@ -152,6 +172,8 @@ always_ff @ (posedge i_clk_core) begin
           reset_cnt <= reset_cnt - 1;
         
         if (~o_usr_rst) begin
+          send_typ0_message($bits(fpga_reset_rpl_t)/8, typ0_msg, typ0_wrd_cnt);
+          /*
           if (~tx_arb_in_if[0].val || (tx_arb_in_if[0].rdy && tx_arb_in_if[0].val)) begin
             tx_arb_in_if[0].dat <= fpga_reset_rpl;
             tx_arb_in_if[0].val <= 1;
@@ -164,10 +186,27 @@ always_ff @ (posedge i_clk_core) begin
               tx_arb_in_if[0].val <= 0;
               typ0_msg_state <= TYP0_IDLE;
             end
-          end
+          end*/
         end
-
       end
+      TYP0_SEND_IGNORE: begin
+        send_typ0_message($bits(fpga0_ignore_rpl_t)/8, typ0_msg, typ0_wrd_cnt, eop_typ0_l ? TYP0_IDLE :TYP0_IGNORE);
+        /*
+        rx_typ0_if.rdy <= 0;
+        if (~tx_arb_in_if[0].val || (tx_arb_in_if[0].rdy && tx_arb_in_if[0].val)) begin
+          tx_arb_in_if[0].dat <= fpga_ignore_rpl;
+          tx_arb_in_if[0].val <= 1;
+          tx_arb_in_if[0].sop <= typ0_wrd_cnt == $bits(fpga0_ignore_rpl_t)/8;
+          tx_arb_in_if[0].eop <= typ0_wrd_cnt <= CORE_DAT_BYTS;
+          tx_arb_in_if[0].mod <= typ0_wrd_cnt < CORE_DAT_BYTS ? typ0_wrd_cnt : 0;
+          typ0_wrd_cnt <= (typ0_wrd_cnt > CORE_DAT_BYTS) ? (typ0_wrd_cnt - CORE_DAT_BYTS) : 0;
+          fpga_ignore_rpl <= fpga_ignore_rpl >> CORE_DAT_BITS;
+          if (typ0_wrd_cnt == 0) begin
+            tx_arb_in_if[0].val <= 0;
+            typ0_msg_state <= eop_typ0_l ? TYP0_IDLE :TYP0_IGNORE;
+          end
+        end*/
+      end      
       TYP0_IGNORE: begin
         rx_typ0_if.rdy <= 1;
         if (rx_typ0_if.rdy && rx_typ0_if.eop && rx_typ0_if.val)
@@ -176,6 +215,24 @@ always_ff @ (posedge i_clk_core) begin
     endcase
   end
 end
+
+// Task to help build reply messages. Assume no message will be more than MAX_BYT_MSG bytes
+task automatic send_typ0_message(input logic [$clog2(MAX_BYT_MSG)-1:0] msg_size, ref logic [MAX_BYT_MSG*8-1:0] msg, ref logic [$clog2(MAX_BYT_MSG)-1:0] byt_cnt, input typ0_msg_state_t nxt_state = TYP0_IDLE);
+  rx_typ0_if.rdy <= 0;
+  if (~tx_arb_in_if[0].val || (tx_arb_in_if[0].rdy && tx_arb_in_if[0].val)) begin
+    tx_arb_in_if[0].dat <= msg;
+    tx_arb_in_if[0].val <= 1;
+    tx_arb_in_if[0].sop <= byt_cnt == msg_size;
+    tx_arb_in_if[0].eop <= byt_cnt <= CORE_DAT_BYTS;
+    tx_arb_in_if[0].mod <= byt_cnt < CORE_DAT_BYTS ? byt_cnt : 0;
+    byt_cnt <= (byt_cnt > CORE_DAT_BYTS) ? (byt_cnt - CORE_DAT_BYTS) : 0;
+    msg <= msg >> CORE_DAT_BITS;
+    if (byt_cnt == 0) begin
+      tx_arb_in_if[0].val <= 0;
+      typ0_msg_state <= nxt_state;
+    end
+  end
+endtask
 
 always_comb begin
   case(typ1_msg_state)
@@ -199,6 +256,7 @@ always_ff @ (posedge i_clk_core) begin
     equihash_index_val <= 0;
     sop_l <= 0;    
   end else begin
+    // TODO add IGNORE type here
     case (typ1_msg_state)
       TYP1_IDLE: begin
         rx_typ1_if_rdy <= 1;
@@ -303,7 +361,7 @@ always_comb begin
 end
   
 always_ff @ (posedge i_clk_core) begin
-  if (i_rst_core || o_usr_rst) begin
+  if (i_rst_core ) begin
     msg_type_l <= 0;
   end else begin
     if (rx_int_if.val && rx_int_if.rdy) begin
@@ -321,7 +379,7 @@ axi_stream_fifo #(
 )
 cmd_fifo0 (
   .i_clk ( i_clk_core ),
-  .i_rst ( i_rst_core || o_usr_rst ),
+  .i_rst ( i_rst_core ),
   .i_axi ( rx_int0_if ),
   .o_axi ( rx_typ0_if )
 );
@@ -332,7 +390,7 @@ axi_stream_fifo #(
 )
 cmd_fifo1 (
   .i_clk ( i_clk_core ),
-  .i_rst ( i_rst_core || o_usr_rst ),
+  .i_rst ( i_rst_core ),
   .i_axi ( rx_int1_if ),
   .o_axi ( rx_typ1_if )
 );
@@ -346,9 +404,9 @@ width_change_cdc_fifo #(
 ) 
 cdc_fifo_rx (
   .i_clk_a ( i_clk_if   ),
-  .i_rst_a ( i_rst_if   || o_usr_rst ),
+  .i_rst_a ( i_rst_if   ),
   .i_clk_b ( i_clk_core ),
-  .i_rst_b ( i_rst_core || o_usr_rst ),
+  .i_rst_b ( i_rst_core ),
   .i_axi_a ( rx_if      ),
   .o_axi_b ( rx_int_if  )
 );
@@ -361,7 +419,7 @@ packet_arb # (
 ) 
 packet_arb_tx (
   .i_clk ( i_clk_core ),
-  .i_rst ( i_rst_core || o_usr_rst ),
+  .i_rst ( i_rst_core ),
 
   .i_axi ( tx_arb_in_if ), 
   .o_axi ( tx_int_if    )
@@ -377,9 +435,9 @@ width_change_cdc_fifo #(
 ) 
 cdc_fifo_tx (
   .i_clk_a ( i_clk_core ),
-  .i_rst_a ( i_rst_core || o_usr_rst ),
+  .i_rst_a ( i_rst_core ),
   .i_clk_b ( i_clk_if   ),
-  .i_rst_b ( i_rst_if   || o_usr_rst ),
+  .i_rst_b ( i_rst_if   ),
   .i_axi_a ( tx_int_if  ),
   .o_axi_b ( tx_if      )
 );

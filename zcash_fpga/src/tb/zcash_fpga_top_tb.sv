@@ -195,6 +195,7 @@ initial begin
   #20us; // Let internal memories reset
   
   test_block_346_equihash();
+  test_ignored_message();
   
   #1us $finish();
 

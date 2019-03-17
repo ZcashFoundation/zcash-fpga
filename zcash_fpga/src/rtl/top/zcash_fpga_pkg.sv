@@ -21,9 +21,13 @@ package zcash_fpga_pkg;
   
   import equihash_pkg::equihash_bm_t;
   import equihash_pkg::cblockheader_sol_t;
+  import equihash_pkg::N;
+  import equihash_pkg::K;
   
   parameter FPGA_VERSION = 32'h0;
-  localparam [63:0] FPGA_CMD_CAP = 64'h0;
+  localparam [63:0] FPGA_CMD_CAP = {{62'd0},
+                                    (equihash_pkg::N == 144 && equihash_pkg::K == 5),       // N = 144, K = 5 for VERIFY_EQUIHASH command
+                                    (equihash_pkg::N == 200 && equihash_pkg::K == 9)};      // N = 200, K = 9 for VERIFY_EQUIHASH command
   
   // These are all the command types the FPGA supports
   // Reply messages from the FPGA to host all have the last
@@ -36,6 +40,7 @@ package zcash_fpga_pkg;
     // Replies from the FPGA
     RESET_FPGA_RPL      = 'h80_00_00_00,
     FPGA_STATUS_RPL     = 'h80_00_00_01,
+    FPGA_IGNORE_RPL     = 'h80_00_00_02,
     VERIFY_EQUIHASH_RPL = 'h80_00_01_00
   } command_t;
   
@@ -49,6 +54,11 @@ package zcash_fpga_pkg;
   typedef struct packed {
     header_t     hdr;
   } fpga_reset_rpl_t;
+  
+  typedef struct packed {
+    header_t     hdr;
+    logic [63:0] ignore_hdr;
+  } fpga_ignore_rpl_t;
   
   // These are registers we use for debug
   typedef struct packed {
@@ -81,6 +91,10 @@ package zcash_fpga_pkg;
   // We have a function for building each type of reply from the FPGA
   function fpga_reset_rpl_t get_fpga_reset_rpl();
     get_fpga_reset_rpl.hdr = '{cmd:RESET_FPGA_RPL, len:$bits(fpga_reset_rpl_t)/8};    
+  endfunction
+    
+  function fpga_ignore_rpl_t get_fpga_ignore_rpl(header_t hdr);
+    get_fpga_ignore_rpl.hdr = '{cmd:FPGA_IGNORE_RPL, len:$bits(fpga_ignore_rpl_t)/8};    
   endfunction
   
   function fpga_status_rpl_t get_fpga_status_rpl(input [63:0] build_host, build_date, fpga_state_t fpga_state);

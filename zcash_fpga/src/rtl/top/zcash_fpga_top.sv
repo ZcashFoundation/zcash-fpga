@@ -27,26 +27,53 @@ module zcash_fpga_top
   parameter CORE_DAT_BYTS = 8 // Only tested at 8 byte data width
 )(
   // Clocks and resets
-  input i_clk_200, i_rst_200,
-  input i_clk_300, i_rst_300,
-  input i_clk_if, i_rst_if,
+  input i_clk_core0, i_rst_core0, // Core 0 is the main clock
+  input i_clk_core1, i_rst_core1, // Core 1 is used on logic with faster clock
+  input i_clk_if, i_rst_if,       // Command interface clock (e.g. UART / PCIe)
   
-  // Interface input and output
-  // UART
+  // Command interface input and output
   if_axi_stream.sink   rx_if,
   if_axi_stream.source tx_if
 );
 
-logic usr_rst, core_clk, core_rst;
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS)) equihash_axi(core_clk);
+logic rst_core0, rst_core1, rst_if, usr_rst, usr_rst_r;
+
+logic rst_200, rst_300;
+
+if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS)) equihash_axi(i_clk_core0);
 
 equihash_bm_t equihash_mask;
 logic         equihash_mask_val;
   
-always_comb begin
-  core_clk = i_clk_200;
-  core_rst = i_rst_200;
+always_ff @ (posedge i_clk_core0) begin
+  usr_rst_r <= usr_rst;
+  rst_core0 <= i_rst_core0 || usr_rst_r;
 end
+
+// Synchronize resets
+(* DONT_TOUCH = "yes" *)
+synchronizer  #(
+  .DAT_BITS ( 1 ),
+  .NUM_CLKS ( 3 )
+)
+core_rst1_sync (
+  .i_clk_a ( i_clk_core0 ),
+  .i_clk_b ( i_clk_core1 ),
+  .i_dat_a ( usr_rst_r || i_rst_core1 ),
+  .o_dat_b ( rst_core1 )
+);
+
+(* DONT_TOUCH = "yes" *)
+synchronizer  #(
+  .DAT_BITS ( 1 ),
+  .NUM_CLKS ( 3 )
+)
+if_rst_sync (
+  .i_clk_a ( i_clk_core0 ),
+  .i_clk_b ( i_clk_if   ),
+  .i_dat_a ( usr_rst_r || i_rst_if ),
+  .o_dat_b ( rst_if )
+);
 
 // This block takes in the interface signals and interfaces with other blocks
 control_top #(
@@ -54,10 +81,11 @@ control_top #(
   .IN_DAT_BYTS   ( IF_DAT_BYTS   )
 )
 control_top (
-  .i_clk_core ( core_clk ),
-  .i_rst_core ( core_rst ),
+  .i_clk_core ( i_clk_core0      ),
+  .i_rst_core ( rst_core0        ),
+  .i_rst_core_perm ( i_rst_core0 ),
   .i_clk_if ( i_clk_if ),
-  .i_rst_if ( i_rst_if ),
+  .i_rst_if ( rst_if   ),
   .o_usr_rst ( usr_rst ),
   .rx_if ( rx_if ),
   .tx_if ( tx_if ),
@@ -72,12 +100,10 @@ equihash_verif_top #(
   .DAT_BYTS( CORE_DAT_BYTS )
 )
 equihash_verif_top (
-  .i_clk ( core_clk ),
-  .i_rst ( core_rst || usr_rst ),
-  
-  .i_clk_300 ( i_clk_300 ),
-  .i_rst_300 ( i_rst_300 || usr_rst ),  // Faster clock
-  
+  .i_clk ( i_clk_core0 ),
+  .i_rst ( core_rst ),
+  .i_clk_300 ( i_clk_core1 ), // Faster clock
+  .i_rst_300 ( rst_core1   ), 
   .i_axi      ( equihash_axi      ),
   .o_mask     ( equihash_mask     ),
   .o_mask_val ( equihash_mask_val )

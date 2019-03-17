@@ -18,7 +18,6 @@
 set cdc_fifo_instance [get_cells -hierarchical -filter { ORIG_REF_NAME =~  "cdc_fifo" || REF_NAME =~  "cdc_fifo" } ]
 foreach child $cdc_fifo_instance {
 
-  set using_bram [get_property USE_BRAM [get_cells $child]]
   set name [get_property NAME $child]
   
   set wr_ptr_cells [get_cells -hierarchical -filter "NAME =~ $name/synchronizer_wr_ptr/* "]

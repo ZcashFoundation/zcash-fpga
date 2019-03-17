@@ -1,6 +1,9 @@
-create_clock -period 5.000 -name i_clk_200 -waveform {0.000 2.500} [get_ports -filter { NAME =~  "*i_clk_200*" && DIRECTION == "IN" }]
-create_clock -period 3.333 -name i_clk_300 -waveform {0.000 1.666} [get_ports -filter { NAME =~  "i_clk_300" && DIRECTION == "IN" }]
+create_clock -period 3.000 -name i_clk_core1 -waveform {0.000 1.500} [get_ports -filter { NAME =~  "i_clk_core1" && DIRECTION == "IN" }]
+create_clock -period 5.000 -name i_clk_core0 -waveform {0.000 2.500} [get_ports -filter { NAME =~  "i_clk_core0" && DIRECTION == "IN" }]
 create_clock -period 10.000 -name i_clk_if -waveform {0.000 5.000} [get_ports -filter { NAME =~  "i_clk_if" && DIRECTION == "IN" }]
+
+#Just for when we are synth a test block
+create_clock -period 5.000 -name i_clk -waveform {0.000 2.500} [get_ports -filter { NAME =~  "i_clk" && DIRECTION == "IN" }]
 
 set_bus_skew -from [get_pins -filter { NAME =~  "*dat_reg[0]*C" } -of_objects [get_cells -hierarchical -filter {NAME =~ control_top/cdc_fifo_rx/cdc_fifo/synchronizer_wr_ptr/* }]] -to [get_pins -filter { NAME =~  "*dat_reg[1]*D" } -of_objects [get_cells -hierarchical -filter {NAME =~ control_top/cdc_fifo_rx/cdc_fifo/synchronizer_wr_ptr/* }]] 2.500
 set_max_delay -datapath_only -from [get_pins -filter { NAME =~  "*dat_reg[0]*C" } -of_objects [get_cells -hierarchical -filter {NAME =~ control_top/cdc_fifo_rx/cdc_fifo/synchronizer_wr_ptr/* }]] -to [get_pins -filter { NAME =~  "*dat_reg[1]*D" } -of_objects [get_cells -hierarchical -filter {NAME =~ control_top/cdc_fifo_rx/cdc_fifo/synchronizer_wr_ptr/* }]] 2.500
@@ -48,5 +51,9 @@ set_bus_skew -from [get_pins -filter { NAME =~  "*dat_reg[0]*C" } -of_objects [g
 set_max_delay -datapath_only -from [get_pins -filter { NAME =~  "*dat_reg[0]*C" } -of_objects [get_cells -hierarchical -filter {NAME =~ equihash_verif_top/dup_check_fifo_out/synchronizer_rd_ptr/* }]] -to [get_pins -filter { NAME =~  "*dat_reg[1]*D" } -of_objects [get_cells -hierarchical -filter {NAME =~ equihash_verif_top/dup_check_fifo_out/synchronizer_rd_ptr/* }]] 1.667
 set_bus_skew -from [get_pins -filter { NAME =~  "*ram*C" } -of_objects [get_cells -hierarchical -filter {NAME =~ equihash_verif_top/dup_check_fifo_out/* }]] -to [get_pins -filter { NAME =~  "*o_dat_b*D" } -of_objects [get_cells -hierarchical -filter {NAME =~ equihash_verif_top/dup_check_fifo_out/* }]] 1.667
 set_max_delay -datapath_only -from [get_pins -filter { NAME =~  "*ram*C" } -of_objects [get_cells -hierarchical -filter {NAME =~ equihash_verif_top/dup_check_fifo_out/* }]] -to [get_pins -filter { NAME =~  "*o_dat_b*D" } -of_objects [get_cells -hierarchical -filter {NAME =~ equihash_verif_top/dup_check_fifo_out/* }]] 1.667
-set_multicycle_path -hold -from [get_pins control_top/o_usr_rst_reg/C] 5
-set_multicycle_path -setup -from [get_pins control_top/o_usr_rst_reg/C] 5
+
+
+
+set_false_path -from [get_pins {core_rst1_sync/dat_reg[0][0]/C}] -to [get_pins {core_rst1_sync/dat_reg[2][0]_srl2/D}]
+set_false_path -from [get_pins {if_rst_sync/dat_reg[0][0]/C}] -to [get_pins {if_rst_sync/dat_reg[2][0]_srl2/D}]
+
