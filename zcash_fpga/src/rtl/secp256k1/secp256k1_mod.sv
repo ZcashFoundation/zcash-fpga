@@ -5,9 +5,6 @@
   
   p = 2^256 - 2^32 - 2^9 - 2^8 - 2^7 - 2^6 - 2^4 - 1
   
-  Implemented with 2 stages of 8x 256b adds and one final optional
-  subtract in the case we are >= p.
-  
   returns o_dat = i_dat % p, where i_dat < p^2
  
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
@@ -26,11 +23,14 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-module secp256k1_mod (
+module secp256k1_mod #(
+  parameter USE_MULT = 0   // Set to 1 to use multiple operation (should infer DSP and use less LUTs)
+)(
   input i_clk, i_rst,
   // Input value
   input [256*2-1:0] i_dat,
   input             i_val,
+  input             i_err,
   output logic      o_rdy,
   // output
   output logic [255:0] o_dat,
@@ -41,53 +41,49 @@ module secp256k1_mod (
   
 import secp256k1_pkg::*;
   
-logic [256*2-1:0] b, a, a_;
+logic [256*2-1:0] res0, res1;
+logic [1:0] val, err;
 
-always_comb begin
-  a_ = (a << 32) + (a << 9) + (a << 8) + (a << 7) + (a << 6) + (a << 4) + a + b;
-end
+generate
+  if (USE_MULT == 1) begin: GEN_MULT
+    logic [256*2-1:0] c;
+    always_comb begin
+      c = (1 << 32) + (1 << 9) + (1 << 8) + (1 << 7) + (1 << 6) + (1 << 4) + 1;
+    end
+    always_ff @ (posedge i_clk) begin
+      res0 <= i_dat[511:256]*c + i_dat[255:0];
+      res1 <= res0[511:256]*c + res0[255:0];
+    end    
+  end else begin
+    logic [256*2-1:0] res0_, res1_;
+    always_comb begin
+      res0_ = (i_dat[511:256] << 32) + (i_dat[511:256] << 9) + (i_dat[511:256] << 8) + (i_dat[511:256] << 7) + (i_dat[511:256] << 6) + (i_dat[511:256] << 4) + i_dat[511:256]+ i_dat[255:0];
+      res1_ = (res0[511:256] << 32) + (res0[511:256] << 9) + (res0[511:256] << 8) + (res0[511:256] << 7) + (res0[511:256] << 6) + (res0[511:256] << 4) + res0[511:256]+ res0[255:0];
+    end
+    always_ff @ (posedge i_clk) begin
+      res0 <= res0_;
+      res1 <= res1_;
+    end
+  end    
+endgenerate
 
-enum {IDLE, S1, S2} state;
+always_comb o_rdy = i_rdy;
 
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
-    a <= 0;
-    b <= 0;
-    state <= IDLE;
+    val <= 0;
+    err <= 0;
     o_val <= 0;
-    o_rdy <= 0;
     o_err <= 0;
   end else begin
-    o_rdy <= 0;
-    o_dat <= a_ >= p_eq ? (a_ - p_eq) : a_;
-    
-    case(state)
-      IDLE: begin
-        o_rdy <= 1;
-        o_val <= 0;
-        if (i_val && o_rdy) begin
-          a <= i_dat[511:256];
-          b <= i_dat[255:0];
-          o_rdy <= 0;
-          state <= S1;
-        end
-      end
-      S1: begin
-        a <= a_[511:256];
-        b <= a_[255:0];
-        state <= S2;
-      end
-      S2: begin
-        o_val <= 1;
-        o_err <= a_ >= 2* p_eq;
-        if (o_val && i_rdy) begin
-          state <=IDLE;
-          o_rdy <= 1;
-          o_val <= 0;
-          o_err <= 0;
-        end
-      end
-    endcase
+    o_val <= 0;
+    val <= val << 1;
+    err <= err << 1;
+    val[0] <= i_val;
+    err[0] <= i_err;
+    o_dat <= res1 >= p_eq ? res1 - p_eq : res1;
+    o_err <= err[1] || (res1 >= 2*p_eq);
+    o_val <= val[1];
   end
 end
 

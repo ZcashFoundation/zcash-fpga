@@ -16,7 +16,7 @@
 */
 `timescale 1ps/1ps
 
-module secp256k1_mod_tb ();
+module secp256k1_mult_mod_tb ();
 import common_pkg::*;
 import secp256k1_pkg::*;
 
@@ -49,65 +49,45 @@ always_ff @ (posedge clk)
   if (out_if.val && out_if.err)
     $error(1, "%m %t ERROR: output .err asserted", $time);
 
-secp256k1_mod #(
-  .USE_MULT ( 0 )
-)
-secp256k1_mod (
-  .i_clk( clk        ),
-  .i_rst( rst        ),
-  .i_dat( in_if.dat  ),
-  .i_val( in_if.val  ),
-  .i_err( in_if.err  ),
-  .o_rdy( in_if.rdy  ),
-  .o_dat( out_if.dat ),
-  .o_err( out_if.err ),
-  .i_rdy( out_if.rdy ),
-  .o_val( out_if.val )
+secp256k1_mult_mod secp256k1_mult_mod (
+  .i_clk( clk         ),
+  .i_rst( rst         ),
+  .i_dat_a( in_if.dat[0 +: 256]   ),
+  .i_dat_b( in_if.dat[256 +: 256] ),  
+  .i_val( in_if.val   ),
+  .i_err( in_if.err   ),
+  .o_rdy( in_if.rdy   ),
+  .o_dat( out_if.dat  ),
+  .o_err( out_if.err  ),
+  .i_rdy( out_if.rdy  ),
+  .o_val( out_if.val  )
 );
-
-task test0();
-begin
-  integer signed get_len;
-  logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected, in_dat, get_dat;
-  $display("Running test0...");
-  in_dat = 1 << 433;
-  expected = 256'd822752465816620949324161418291805943222876982255305228346720256;
-  fork
-    in_if.put_stream(in_dat, 512/8);
-    out_if.get_stream(get_dat, get_len);
-  join
-  
-  common_pkg::compare_and_print(get_dat, expected);
-  $display("test0 PASSED");
-end
-endtask;
 
 task test_loop();
 begin
-  integer signed get_len, i, max;
-  logic [common_pkg::MAX_SIM_BYTS*8-1:0] in_dat, get_dat;
-  logic [256:0] expected;
+  integer signed get_len;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
+  logic [255:0] in_a, in_b;
+  integer i, max;
+  
   $display("Running test_loop...");
-  in_dat = 1 << 433;
-  expected = 256'd822752465816620949324161418291805943222876982255305228346720256;
   i = 0;
   max = 10000;
-  while (i < max) begin
   
-    in_dat = random_vector(512);
-    in_dat = in_dat % (p_eq*p_eq);
-    expected = in_dat % p_eq;
-     
+  while (i < max) begin
+    in_a = random_vector(256/8) % p_eq;
+    in_b = random_vector(256/8) % p_eq;
+    expected = (in_a * in_b) % p_eq;
+    
     fork
-      in_if.put_stream(in_dat, 512/8);
+      in_if.put_stream({in_b, in_a}, 512/8);
       out_if.get_stream(get_dat, get_len);
     join
-    
+  
     common_pkg::compare_and_print(get_dat, expected);
     $display("test_loop PASSED loop %d/%d", i, max);
     i = i + 1;
   end
-  
   
   $display("test_loop PASSED");
 end
@@ -118,9 +98,8 @@ initial begin
   in_if.val = 0;
   #(40*CLK_PERIOD);
   
-  test0();
-  test_loop();  // This one is a bit slower since we compute the expected result
-  
+  test_loop();
+
   #1us $finish();
 end
 endmodule
