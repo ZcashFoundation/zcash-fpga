@@ -42,7 +42,7 @@ module secp256k1_mult_mod (
 import secp256k1_pkg::*;
 import common_pkg::*;
 
-localparam KARATSUBA_LEVEL = 3;
+localparam KARATSUBA_LEVEL = 2;
 if_axi_stream #(.DAT_BYTS(512/8)) int_if(i_clk);
 
 always_comb o_rdy = int_if.rdy;
