@@ -147,6 +147,28 @@ interface if_axi_stream # (
   
 endinterface
 
+interface if_axi_mm # (
+  parameter D_BITS = 64,
+  parameter A_BITS = 8
+)(
+  input i_clk
+);
+  
+  logic [A_BITS-1:0] raddr;
+  logic [A_BITS-1:0] waddr;
+  logic [D_BITS-1:0] rdat;
+  logic [D_BITS-1:0] wdat;
+  logic              rval;
+  logic              wval;
+  logic              rrdy;
+  logic              wrdy;
+  
+  modport sink (input raddr, waddr, wdat, wval, rrdy, i_clk, output rdat, rval, wrdy);
+  modport source (input rdat, rval, wrdy , i_clk, output raddr, waddr, wdat, wval, rrdy);
+ 
+    
+endinterface
+
 interface if_ram # (
   parameter RAM_WIDTH = 32,
   parameter RAM_DEPTH = 128
