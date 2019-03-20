@@ -16,20 +16,16 @@
 */
 `timescale 1ps/1ps
 
-module barret_mod_tb ();
+module accum_mult_tb ();
 import common_pkg::*;
-import secp256k1_pkg::*;
 
 localparam CLK_PERIOD = 100;
 
 logic clk, rst;
 
-localparam IN_BITS = 512;
-localparam OUT_BITS = 256;
-localparam [OUT_BITS-1:0] P = secp256k1_pkg::n;
+if_axi_stream #(.DAT_BYTS(512/8)) in_if(clk);
+if_axi_stream #(.DAT_BYTS(512/8)) out_if(clk);
 
-if_axi_stream #(.DAT_BYTS(IN_BITS/8)) in_if(clk);
-if_axi_stream #(.DAT_BYTS(OUT_BITS/8)) out_if(clk);
 initial begin
   rst = 0;
   repeat(2) #(20*CLK_PERIOD) rst = ~rst;
@@ -45,6 +41,7 @@ always_comb begin
   out_if.eop = 1;
   out_if.ctl = 0;
   out_if.mod = 0;
+  out_if.err = 0;
 end
 
 // Check for errors
@@ -52,28 +49,30 @@ always_ff @ (posedge clk)
   if (out_if.val && out_if.err)
     $error(1, "%m %t ERROR: output .err asserted", $time);
 
-barret_mod #(
-  .IN_BITS  ( IN_BITS  ),
-  .OUT_BITS ( OUT_BITS ),
-  .P        ( P        )
+accum_mult # (
+  .BITS_A  ( 256 ),
+  .LEVEL_A ( 4   ),
+  .LEVEL_B ( 4   )
 ) 
-barret_mod (
-  .i_clk ( clk        ),
-  .i_rst ( rst        ),
-  .i_dat ( in_if.dat  ),
-  .i_val ( in_if.val  ),
-  .o_rdy ( in_if.rdy  ),
+accum_mult (
+  .i_clk ( clk ),
+  .i_rst ( rst ),
+  .i_dat_a ( in_if.dat[0 +: 256]   ),
+  .i_dat_b ( in_if.dat[256 +: 256] ),
+  .i_val   ( in_if.val             ),
+  .o_rdy ( in_if.rdy ),
   .o_dat ( out_if.dat ),
   .o_val ( out_if.val ),
   .i_rdy ( out_if.rdy )
 );
 
 
+
 task test_loop();
 begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
-  logic [512*8-1:0] in;
+  logic [255:0] in_a, in_b;
   integer i, max;
   
   $display("Running test_loop...");
@@ -81,13 +80,15 @@ begin
   max = 10000;
   
   while (i < max) begin
-    in = random_vector(IN_BITS/8);
-    expected = (in % P);
+    in_a = random_vector(256/8);
+    in_b = random_vector(256/8);
+    expected = (in_a * in_b);
     
     fork
-      in_if.put_stream(in, IN_BITS/8);
+      in_if.put_stream({in_b, in_a}, 512/8);
       out_if.get_stream(get_dat, get_len);
     join
+  
     common_pkg::compare_and_print(get_dat, expected);
     $display("test_loop PASSED loop %d/%d", i, max);
     i = i + 1;
