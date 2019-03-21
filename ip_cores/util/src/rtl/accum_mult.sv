@@ -2,6 +2,9 @@
   Accumulating multiplier. Inputs can be of different bit size and the
   level each is accumulated over can be different.
   
+  If using Xilinx FPGA it is best to have a 1.5:1 ratio on BITS,
+  since the multiplier is 27x18
+  
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
   This program is free software: you can redistribute it and/or modify
@@ -35,7 +38,7 @@ module accum_mult # (
   output logic                     o_val,
   input                            i_rdy
 );
-  
+
 localparam BITS_A_LVL = BITS_A/LEVEL_A;
 localparam BITS_B_LVL = BITS_B/LEVEL_B;
 

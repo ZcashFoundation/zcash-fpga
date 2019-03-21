@@ -97,7 +97,9 @@ interface if_axi_stream # (
   endtask
     
   // Task used in simulation to drive data on a source interface
-  task automatic put_stream(input logic [common_pkg::MAX_SIM_BYTS*8-1:0] data, input integer signed len);
+  task automatic put_stream(input logic [common_pkg::MAX_SIM_BYTS*8-1:0] data,
+                            input integer signed len,
+                            input logic [CTL_BITS-1:0] ctl_in = 0);
     logic sop_l=0;
     
     reset_source();
@@ -105,6 +107,7 @@ interface if_axi_stream # (
     
     while (len > 0) begin
       sop = ~sop_l;
+      ctl = ctl_in;
       eop = len - DAT_BYTS <= 0;
       val = 1;
       dat = data;
@@ -154,18 +157,29 @@ interface if_axi_mm # (
   input i_clk
 );
   
-  logic [A_BITS-1:0] raddr;
-  logic [A_BITS-1:0] waddr;
-  logic [D_BITS-1:0] rdat;
-  logic [D_BITS-1:0] wdat;
-  logic              rval;
-  logic              wval;
-  logic              rrdy;
-  logic              wrdy;
+  logic [A_BITS-1:0] addr;
+  logic [D_BITS-1:0] rd_dat;
+  logic [D_BITS-1:0] wr_dat;
+  logic              wr;
+  logic              rd;
+  logic              rd_dat_val;
+  logic              wait_rq;
   
-  modport sink (input raddr, waddr, wdat, wval, rrdy, i_clk, output rdat, rval, wrdy);
-  modport source (input rdat, rval, wrdy , i_clk, output raddr, waddr, wdat, wval, rrdy);
+  modport sink (input addr, wr_dat, wr, rd, i_clk, output rd_dat, rd_dat_val, wait_rq, import task reset_sink());
+  modport source (input rd_dat, rd_dat_val, wait_rq , i_clk, output addr, wr_dat, wr, rd, import task reset_source());
  
+  task reset_source();
+    addr <= 0;
+    wr_dat <= 0;
+    wr <= 0;
+    rd <= 0;
+  endtask
+  
+  task reset_sink();
+    rd_dat <= 0;
+    rd_dat_val <= 0;
+    wait_rq <= 0;
+  endtask
     
 endinterface
 

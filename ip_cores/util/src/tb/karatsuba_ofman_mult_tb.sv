@@ -24,10 +24,9 @@ localparam CLK_PERIOD = 100;
 
 logic clk, rst;
 
-if_axi_stream #(.DAT_BYTS(512/8)) in_if(clk);
-if_axi_stream #(.DAT_BYTS(512/8)) out_if(clk);
+if_axi_stream #(.DAT_BYTS(512/8), .CTL_BITS(8)) in_if(clk);
+if_axi_stream #(.DAT_BYTS(512/8), .CTL_BITS(8)) out_if(clk);
 
-logic [511:0] test; 
 initial begin
   rst = 0;
   repeat(2) #(20*CLK_PERIOD) rst = ~rst;
@@ -50,32 +49,25 @@ always_ff @ (posedge clk)
   if (out_if.val && out_if.err)
     $error(1, "%m %t ERROR: output .err asserted", $time);
 
-localparam LEVEL = 3;
-logic [LEVEL-1:0] val;
-
+localparam LEVEL = 2;
 karatsuba_ofman_mult # (
-  .BITS (256),
-  .LEVEL (LEVEL)
+  .BITS     ( 256   ),
+  .CTL_BITS ( 8     ),
+  .LEVEL    ( LEVEL )
 )
 karatsuba_ofman_mult (
   .i_clk  ( clk                   ),
   .i_dat_a( in_if.dat[0 +: 256]   ),
-  .i_dat_b( in_if.dat[256 +: 256] ),  
-  .o_dat  ( out_if.dat            )
+  .i_dat_b( in_if.dat[256 +: 256] ),
+  .i_val  ( in_if.val  ),
+  .o_val  ( out_if.val ),
+  .i_ctl  ( in_if.ctl  ),
+  .o_ctl  ( out_if.ctl ),
+  .i_rdy  ( out_if.rdy ),
+  .o_rdy  ( in_if.rdy  ),
+  
+  .o_dat  ( out_if.dat )
 );
-
-always_ff @ (posedge clk) begin
-  if (rst) begin
-    val <= 0;
-  end else begin
-    val <= {val, in_if.val};
-  end  
-end
-
-always_comb begin
-  out_if.val = val[LEVEL-1];
-  in_if.rdy = out_if.rdy;
-end
 
 task test_loop();
 begin
@@ -94,7 +86,7 @@ begin
     expected = (in_a * in_b);
     
     fork
-      in_if.put_stream({in_b, in_a}, 512/8);
+      in_if.put_stream({in_b, in_a}, 512/8, i);
       out_if.get_stream(get_dat, get_len);
     join
   

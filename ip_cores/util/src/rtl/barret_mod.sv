@@ -120,12 +120,13 @@ always_ff @ (posedge i_clk) begin
   end
 end
 
-//To do the multiplications
+// Do the multiplications
 generate 
   if (MULTIPLIER == "ACCUM_MULT") begin: MULTIPLIER_GEN
     accum_mult # (
       .BITS_A  ( OUT_BITS +8 ),
-      .LEVEL_A ( 4           ) // 32 bit multiply
+      .LEVEL_A ( 6           ), // 32 bit multiply
+      .LEVEL_B ( 4           )
     ) 
     accum_mult (
       .i_clk ( i_clk ),

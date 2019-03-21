@@ -24,25 +24,29 @@
 */
 
 module secp256k1_mod #(
-  parameter USE_MULT = 0   // Set to 1 to use multiple operation (should infer DSP and use less LUTs)
+  parameter USE_MULT = 0,   // Set to 1 to use multiple operation (should infer DSP and use less LUTs)
+  parameter CTL_BITS = 8
 )(
   input i_clk, i_rst,
   // Input value
-  input [256*2-1:0] i_dat,
-  input             i_val,
-  input             i_err,
-  output logic      o_rdy,
+  input [256*2-1:0]    i_dat,
+  input                i_val,
+  input                i_err,
+  input [CTL_BITS-1:0] i_ctl,
+  output logic         o_rdy,
   // output
-  output logic [255:0] o_dat,
-  input                i_rdy,
-  output logic         o_val,
-  output logic         o_err // Will go high if after 1 reduction we are still >= p
+  output logic [255:0]        o_dat,
+  output logic [CTL_BITS-1:0] o_ctl,
+  input                       i_rdy,
+  output logic                o_val,
+  output logic                o_err // Will go high if after 1 reduction we are still >= p
 );
   
 import secp256k1_pkg::*;
   
 logic [256*2-1:0] res0, res1;
 logic [1:0] val, err;
+logic [1:0][CTL_BITS-1:0] ctl;
 
 generate
   if (USE_MULT == 1) begin: GEN_MULT
@@ -74,16 +78,20 @@ always_ff @ (posedge i_clk) begin
     val <= 0;
     err <= 0;
     o_val <= 0;
+    ctl <= 0;
     o_err <= 0;
   end else begin
     o_val <= 0;
     val <= val << 1;
+    ctl <= {ctl, i_ctl};
     err <= err << 1;
     val[0] <= i_val;
     err[0] <= i_err;
+  
     o_dat <= res1 >= p_eq ? res1 - p_eq : res1;
     o_err <= err[1] || (res1 >= 2*p_eq);
     o_val <= val[1];
+    o_ctl <= ctl[1];
   end
 end
 

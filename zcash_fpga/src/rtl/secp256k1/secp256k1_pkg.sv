@@ -30,4 +30,51 @@ package secp256k1_pkg;
   
   parameter [255:0] p_eq =  (1 << 256) - (1 << 32) - (1 << 9) - (1 << 8) - (1 << 7) - (1 << 6) - (1 << 4) - 1;
   
+  // Use register map for debug, holds information on current operation
+  parameter REGISTER_SIZE = 64;
+  // The mapping to index
+  parameter CURR_CMD = 0;     // What command are we processing
+  parameter CURR_STATE = 1;   // What state are we in
+  // If it is processing a signature verification, these bits will be populated:
+  parameter SIG_VER_HASH = 8; // 256 bits
+  parameter SIG_VER_S = 12;   // 256 bits
+  parameter SIG_VER_R = 16;   // 256 bits
+  parameter SIG_VER_Q = 20;   // 512 bits
+  parameter SIG_VER_W = 28;   // 256 bits - Result of invert(s)
+  
+  // Expected to be in Jacobian coordinates
+  typedef struct packed {
+    logic [255:0] x, y, z;
+  } jb_point_t;
+  
+  typedef struct packed {
+    logic [5:0] padding;
+    logic X_INFINITY_POINT;
+    logic OUT_OF_RANGE_S;
+    logic OUT_OF_RANGE_R;
+  } secp256k1_ver_t; 
+  
+  function is_zero(jb_point_t p);
+    is_zero = (p.x == 0 && p.y == 0 && p.z == 1);
+  endfunction
+  
+  // Function to double point in Jacobian coordinates (for comparison in testbench)
+  // Here a is 0, and we also mod p the result
+  function jb_point_t dbl_jb_point(jb_point_t p);
+    logic [1023:0] A, B, C, D;
+    A = (p.y*p.y) % p_eq;
+    B = (4*p.x*A) % p_eq;
+    C = (8*A*A) % p_eq;
+    D = (3*p.x*p.x) % p_eq;
+    dbl_jb_point.x = (D*D - 2*B) % p_eq;
+    dbl_jb_point.y = (D*(B-dbl_jb_point.x) - C) % p_eq;
+    dbl_jb_point.z = (2*p.y*p.z) % p_eq;
+  endfunction
+  
+  function print_jb_point(jb_point_t p);
+    $display("x:%h", p.x);
+    $display("y:%h", p.y);
+    $display("z:%h", p.z);
+  endfunction
+  
 endpackage

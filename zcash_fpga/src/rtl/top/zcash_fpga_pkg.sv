@@ -24,7 +24,7 @@ package zcash_fpga_pkg;
   import equihash_pkg::N;
   import equihash_pkg::K;
   
-  parameter FPGA_VERSION = 32'h0;
+  parameter FPGA_VERSION = 32'h01_00_00;  //v1.0.0
   localparam [63:0] FPGA_CMD_CAP = {{62'd0},
                                     (equihash_pkg::N == 144 && equihash_pkg::K == 5),       // N = 144, K = 5 for VERIFY_EQUIHASH command
                                     (equihash_pkg::N == 200 && equihash_pkg::K == 9)};      // N = 200, K = 9 for VERIFY_EQUIHASH command
@@ -33,9 +33,10 @@ package zcash_fpga_pkg;
   // Reply messages from the FPGA to host all have the last
   // bit set (start at 0x80000000). Messages with bits [31:16] == 0 are processed by a different state machine
   typedef enum logic [31:0] {
-    RESET_FPGA       = 'h0000_00_00,
-    FPGA_STATUS      = 'h0000_00_01,
-    VERIFY_EQUIHASH  = 'h0000_01_00,
+    RESET_FPGA            = 'h0000_00_00,
+    FPGA_STATUS           = 'h0000_00_01,
+    VERIFY_EQUIHASH       = 'h0000_01_00,
+    VERIFY_SECP256K1_SIG  = 'h0000_01_01,
     
     // Replies from the FPGA
     RESET_FPGA_RPL      = 'h80_00_00_00,

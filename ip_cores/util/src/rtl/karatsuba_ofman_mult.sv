@@ -2,7 +2,7 @@
   Multiplication using Karatsuba-Ofman algorithm.
   
   Multiple of these can be instantiated, each one takes 2 clocks cycles
-  per level.
+  per level. Fully pipelined so can accept a new input every clock.
   
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -22,12 +22,19 @@
 
 module karatsuba_ofman_mult # (
   parameter BITS = 256,
+  parameter CTL_BITS = 8,
   parameter LEVEL = 1
 ) (
-  input                     i_clk,
-  input [BITS-1:0]          i_dat_a,
-  input [BITS-1:0]          i_dat_b,
-  output logic [BITS*2-1:0] o_dat
+  input                       i_clk,
+  input [BITS-1:0]            i_dat_a,
+  input [BITS-1:0]            i_dat_b,
+  input                       i_val,
+  input [CTL_BITS-1:0]        i_ctl,
+  input                       i_rdy,
+  output logic                o_rdy,
+  output logic                o_val,
+  output logic [CTL_BITS-1:0] o_ctl,
+  output logic [BITS*2-1:0]   o_dat
 );
 
 localparam HBITS = BITS/2;
@@ -36,6 +43,8 @@ logic [BITS-1:0] m0, m1, m2;
 logic [BITS*2-1:0] q;
 logic [HBITS-1:0] a0, a1;
 logic sign, sign_;
+logic val;
+logic [CTL_BITS-1:0] ctl;
 
 generate
   always_comb begin
@@ -52,7 +61,11 @@ generate
       m2 = i_dat_a[0 +: HBITS] * i_dat_b[0 +: HBITS];    
       m1 = (a0 * a1);
       sign = sign_;
+      o_rdy = i_rdy;
+      val = i_val;
+      ctl = i_ctl;
     end
+    
 
   end else begin 
     // pipeline the other non-mult values x clock cycles and add them after multipliers
@@ -67,35 +80,56 @@ generate
     end
     
     karatsuba_ofman_mult # (
-      .BITS ( HBITS   ),
-      .LEVEL( LEVEL-1 )
+      .BITS     ( HBITS    ),
+      .CTL_BITS ( CTL_BITS ),
+      .LEVEL    ( LEVEL-1  )
     )
     karatsuba_ofman_mult_m0 (
       .i_clk   ( i_clk                   ),
       .i_dat_a ( i_dat_a[HBITS +: HBITS] ),
       .i_dat_b ( i_dat_b[HBITS +: HBITS] ),
+      .i_val   ( i_val                   ),
+      .o_val   ( val                     ),
+      .i_ctl   ( i_ctl                   ),
+      .o_ctl   ( ctl                     ),
+      .i_rdy   ( i_rdy                   ),
+      .o_rdy   ( o_rdy                   ),
       .o_dat   ( m0                      )
     );
     
     karatsuba_ofman_mult # (
-      .BITS ( HBITS   ),
-      .LEVEL( LEVEL-1 )
+      .BITS     ( HBITS   ),
+      .CTL_BITS ( 1       ),
+      .LEVEL    ( LEVEL-1 )
     )
     karatsuba_ofman_mult_m2 (
       .i_clk   ( i_clk               ),
       .i_dat_a ( i_dat_a[0 +: HBITS] ),
       .i_dat_b ( i_dat_b[0 +: HBITS] ),
+      .i_val   ( i_val               ),
+      .o_val   (),
+      .i_ctl   ( 1'd0                ),
+      .o_ctl   (),
+      .i_rdy   ( i_rdy               ),
+      .o_rdy   (),      
       .o_dat   ( m2                  )
     );
     
     karatsuba_ofman_mult # (
-      .BITS ( HBITS   ),
-      .LEVEL( LEVEL-1 )
+      .BITS     ( HBITS   ),
+      .CTL_BITS ( 1       ),
+      .LEVEL    ( LEVEL-1 )
     )
     karatsuba_ofman_mult_m1 (
       .i_clk   ( i_clk ),
       .i_dat_a ( a0    ),
       .i_dat_b ( a1    ),
+      .i_val   ( i_val ),
+      .o_val   (),
+      .i_ctl   ( 1'd0  ),
+      .o_ctl   (),
+      .i_rdy   ( i_rdy ),
+      .o_rdy   (),            
       .o_dat   ( m1    )
     );
     
@@ -105,6 +139,8 @@ endgenerate
 
 always_ff @ (posedge i_clk) begin
   o_dat <= q;
+  o_val <= val;
+  o_ctl <= ctl;
 end
 
 endmodule

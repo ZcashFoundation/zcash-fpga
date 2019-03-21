@@ -16,15 +16,24 @@
 */
 `timescale 1ps/1ps
 
-module accum_mult_tb ();
+module secp256k1_point_mult_tb ();
 import common_pkg::*;
+import secp256k1_pkg::*;
 
 localparam CLK_PERIOD = 100;
 
 logic clk, rst;
 
-if_axi_stream #(.DAT_BYTS(66)) in_if(clk);
-if_axi_stream #(.DAT_BYTS(66)) out_if(clk);
+if_axi_stream #(.DAT_BYTS(256*3/8)) in_if(clk);
+if_axi_stream #(.DAT_BYTS(256*3/8)) out_if(clk);
+
+jb_point_t in_p, out_p;
+logic [255:0] k;
+
+always_comb begin
+  in_p = in_if.dat; 
+  out_if.dat = out_p;
+end
 
 initial begin
   rst = 0;
@@ -41,69 +50,69 @@ always_comb begin
   out_if.eop = 1;
   out_if.ctl = 0;
   out_if.mod = 0;
-  out_if.err = 0;
 end
 
 // Check for errors
 always_ff @ (posedge clk)
-  if (out_if.val && out_if.err)
+  if (out_if.val && out_if.err) begin
+    out_if.rdy = 1;
     $error(1, "%m %t ERROR: output .err asserted", $time);
+  end
 
-accum_mult # (
-  .BITS_A  ( 264 ),
-  .LEVEL_A ( 4   ),
-  .LEVEL_B ( 6   )
-) 
-accum_mult (
+
+secp256k1_point_mult secp256k1_point_mult (
   .i_clk ( clk ),
   .i_rst ( rst ),
-  .i_dat_a ( in_if.dat[0 +: 264]   ),
-  .i_dat_b ( in_if.dat[264 +: 264] ),
-  .i_val   ( in_if.val             ),
-  .o_rdy ( in_if.rdy ),
-  .o_dat ( out_if.dat ),
+  .i_p   ( in_if.dat  ),
+  .i_k   ( k          ),
+  .i_val ( in_if.val  ),
+  .o_rdy ( in_if.rdy  ),
+  .o_p   ( out_p      ),
+  .i_rdy ( out_if.rdy ),
   .o_val ( out_if.val ),
-  .i_rdy ( out_if.rdy )
+  .o_err ( out_if.err )
 );
 
-
-
-task test_loop();
+task test_0();
 begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
-  logic [263:0] in_a, in_b;
-  integer i, max;
-  get_dat = 0;
-  $display("Running test_loop...");
-  i = 0;
-  max = 10000;
+  logic [255:0] in_a, in_b;
+  jb_point_t p_in, p_exp, p_out;
+  $display("Running test_0...");
+  p_in = {z:1, x:2, y:3};
+  k = 100;
+  //p_exp = dbl_jb_point(p_in);
   
-  while (i < max) begin
-    in_a = random_vector(264/8);
-    in_b = random_vector(264/8);
-    expected = (in_a * in_b);
-    
-    fork
-      in_if.put_stream({in_b, in_a}, 528/8);
-      out_if.get_stream(get_dat, get_len);
-    join
-    
-    common_pkg::compare_and_print(get_dat, expected);
-    $display("test_loop PASSED loop %d/%d", i, max);
-    i = i + 1;
-  end
+  fork
+    in_if.put_stream(p_in, 256*3/8);
+    out_if.get_stream(get_dat, get_len);
+  join
   
-  $display("test_loop PASSED");
+  /*p_out = get_dat;
+  
+  if (p_exp != p_out) begin
+    $display("Expected:");
+    print_jb_point(p_exp);
+    $display("Was:");
+    print_jb_point(p_out);
+    $fatal(1, "%m %t ERROR: test_0 point was wrong", $time);
+  end */
+
+  $display("test_0 PASSED");
 end
 endtask;
+
+function compare_point();
+  
+endfunction
 
 initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
   
-  test_loop();
+  test_0();
 
   #1us $finish();
 end
