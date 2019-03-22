@@ -1,5 +1,5 @@
 /*
-  Calculates inversion mod P using binary gcd algorithm.
+  Calculates inversion mod p using binary gcd algorithm.
   
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -18,13 +18,13 @@
  */ 
 
 module bin_inv #(
-  parameter            BITS,
-  parameter [BITS-1:0] P
+  parameter BITS
 )(
   input                   i_clk,
   input                   i_rst,
   input [BITS-1:0]        i_dat,
   input                   i_val,
+  input [BITS-1:0]        i_p,
   output logic            o_rdy,
   output logic [BITS-1:0] o_dat,
   output logic            o_val,
@@ -32,6 +32,7 @@ module bin_inv #(
 );
   
 logic [BITS:0] x1, x2, u, v;
+logic [BITS-1:0] p_l;
 
 enum {IDLE,
       U_STATE,
@@ -48,6 +49,7 @@ always_ff @ (posedge i_clk) begin
     o_rdy <= 0;
     o_val <= 0;
     o_dat <= 0;
+    p_l <= 0;
     state <= IDLE;
   end else begin
     o_rdy <= 0;
@@ -58,7 +60,8 @@ always_ff @ (posedge i_clk) begin
         if (o_rdy && i_val) begin
           o_rdy <= 0;
           u <= i_dat;
-          v <= P;
+          v <= i_p;
+          p_l <= i_p;
           x1 <= 1;
           x2 <= 0;
           state <= U_STATE;
@@ -72,7 +75,7 @@ always_ff @ (posedge i_clk) begin
           if (x1 % 2 == 0) begin
             x1 <= x1/2;
           end else begin
-            x1 <= (x1 + P)/2;
+            x1 <= (x1 + p_l)/2;
           end
           if ((u/2) % 2 == 1) begin
             state <= V_STATE;
@@ -87,7 +90,7 @@ always_ff @ (posedge i_clk) begin
           if (x2 % 2 == 0) begin
             x2 <= x2/2;
           end else begin
-            x2 <= (x2 + P)/2;
+            x2 <= (x2 + p_l)/2;
           end
           if ((v/2 % 2) == 1) begin
             state <= UPDATE;
@@ -98,13 +101,13 @@ always_ff @ (posedge i_clk) begin
         state <= U_STATE;
         if (u >= v) begin
           u <= u - v;
-          x1 <= x1 + (x1 >= x2 ? 0 : P) - x2;
+          x1 <= x1 + (x1 >= x2 ? 0 : p_l) - x2;
           if (u - v == 1 || v == 1) begin
             state <= FINISHED;
           end 
         end else begin
           v <= v - u;
-          x2 <= x2 + (x2 >= x1 ? 0 : P) - x1;
+          x2 <= x2 + (x2 >= x1 ? 0 : p_l) - x1;
           if (v - u == 1 || u == 1) begin
             state <= FINISHED;
           end

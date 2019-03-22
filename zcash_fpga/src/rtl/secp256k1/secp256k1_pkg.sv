@@ -19,7 +19,6 @@
 
 package secp256k1_pkg;
   
-  // TODO might have to flip these
   parameter [255:0] p = 256'hFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_FFFFFC2F;
   parameter [255:0] a = 256'h0;
   parameter [255:0] b = 256'h7;
@@ -47,6 +46,8 @@ package secp256k1_pkg;
     logic [255:0] x, y, z;
   } jb_point_t;
   
+  jb_point_t G_p = {x: secp256k1_pkg::Gx, y: secp256k1_pkg::Gy, z:1};
+  
   typedef struct packed {
     logic [5:0] padding;
     logic X_INFINITY_POINT;
@@ -56,19 +57,34 @@ package secp256k1_pkg;
   
   function is_zero(jb_point_t p);
     is_zero = (p.x == 0 && p.y == 0 && p.z == 1);
+    return is_zero;
   endfunction
   
   // Function to double point in Jacobian coordinates (for comparison in testbench)
   // Here a is 0, and we also mod p the result
   function jb_point_t dbl_jb_point(jb_point_t p);
-    logic [1023:0] A, B, C, D;
-    A = (p.y*p.y) % p_eq;
-    B = (4*p.x*A) % p_eq;
-    C = (8*A*A) % p_eq;
-    D = (3*p.x*p.x) % p_eq;
-    dbl_jb_point.x = (D*D - 2*B) % p_eq;
-    dbl_jb_point.y = (D*(B-dbl_jb_point.x) - C) % p_eq;
-    dbl_jb_point.z = (2*p.y*p.z) % p_eq;
+    logic signed [512:0] I_X, I_Y, I_Z, A, B, C, D, X, Y, Z;
+    
+    I_X = p.x;
+    I_Y = p.y;
+    I_Z = p.z;
+    A = (I_Y*I_Y) % p_eq;
+    B = (((4*I_X) % p_eq)*A) % p_eq;
+    C = (((8*A) % p_eq)*A) % p_eq;
+    D = (((3*I_X)% p_eq)*I_X) % p_eq;
+    X = (D*D)% p_eq;
+    X = X + ((2*B) % p_eq > X ? p_eq : 0) - (2*B) % p_eq;
+        
+    Y = (D*((B + (X > B ? p_eq : 0)-X) % p_eq)) % p_eq; 
+    Y = Y + (C > Y ? p_eq : 0) - C;
+    Z = (((2*I_Y)% p_eq)*I_Z) % p_eq;
+    
+    dbl_jb_point = {x:X, y:Y, z:Z};
+    return dbl_jb_point;
+  endfunction
+  
+  function on_curve(jb_point_t p);
+    return (p.y*p.y - p.x*p.x*p.x - secp256k1_pkg::a*p.x*p.z*p.z*p.z*p.z - secp256k1_pkg::b*p.z*p.z*p.z*p.z*p.z*p.z);
   endfunction
   
   function print_jb_point(jb_point_t p);

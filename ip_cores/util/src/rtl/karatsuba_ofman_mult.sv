@@ -39,12 +39,21 @@ module karatsuba_ofman_mult # (
 
 localparam HBITS = BITS/2;
   
-logic [BITS-1:0] m0, m1, m2;
+logic [BITS-1:0] m0, m1, m2, dat_a, dat_b;
 logic [BITS*2-1:0] q;
 logic [HBITS-1:0] a0, a1;
 logic sign, sign_;
 logic val;
 logic [CTL_BITS-1:0] ctl;
+
+always_ff @ (posedge i_clk) begin
+  dat_a <= i_dat_a;
+  dat_b <= i_dat_b;
+  
+  o_dat <= q;
+  o_val <= val;
+  o_ctl <= ctl;
+end
 
 generate
   always_comb begin
@@ -136,11 +145,5 @@ generate
   
   end
 endgenerate
-
-always_ff @ (posedge i_clk) begin
-  o_dat <= q;
-  o_val <= val;
-  o_ctl <= ctl;
-end
 
 endmodule

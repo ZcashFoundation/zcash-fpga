@@ -50,13 +50,13 @@ always_ff @ (posedge clk)
     $error(1, "%m %t ERROR: output .err asserted", $time);
 
 bin_inv #(
-  .P    ( secp256k1_pkg::p_eq ),
-  .BITS ( 256                 )
+  .BITS ( 256 )
 )
 bin_inv (
   .i_clk( clk        ),
   .i_rst( rst        ),
   .i_dat( in_if.dat  ),
+  .i_p  ( secp256k1_pkg::p_eq ),
   .i_val( in_if.val  ),
   .o_rdy( in_if.rdy  ),
   .o_dat( out_if.dat ),

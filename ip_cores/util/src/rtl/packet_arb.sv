@@ -1,6 +1,8 @@
 /*
   Takes in multiple streams and round robins between them.
   
+  The last $clog2(NUM_IN) bits on ctl will be overwritten with the identifier for the channel.
+  
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
   This program is free software: you can redistribute it and/or modify
@@ -20,7 +22,8 @@
 module packet_arb # (
   parameter DAT_BYTS,
   parameter CTL_BITS,
-  parameter NUM_IN
+  parameter NUM_IN,
+  parameter PIPELINE = 1
 ) (
   input i_clk, i_rst,
 
@@ -42,17 +45,51 @@ logic [NUM_IN-1:0][CTL_BITS-1:0] ctl;
 generate
   genvar g;
   for (g = 0; g < NUM_IN; g++) begin: GEN
-    always_comb begin
-      i_axi[g].rdy = rdy[g];
-      val[g] = i_axi[g].val;
-      eop[g] = i_axi[g].eop;
-      sop[g] = i_axi[g].sop;
-      err[g] = i_axi[g].err;
-      dat[g] = i_axi[g].dat;
-      mod[g] = i_axi[g].mod;
-      ctl[g] = i_axi[g].ctl;
+  
+    // Optionally pipeline the input
+    if (PIPELINE == 0) begin: PIPELINE_GEN
+    
+      always_comb begin
+        i_axi[g].rdy = rdy[g];
+        val[g] = i_axi[g].val;
+        eop[g] = i_axi[g].eop;
+        sop[g] = i_axi[g].sop;
+        err[g] = i_axi[g].err;
+        dat[g] = i_axi[g].dat;
+        mod[g] = i_axi[g].mod;
+        ctl[g] = i_axi[g].ctl;
+        ctl[g][CTL_BITS-1 -: $clog2(NUM_IN)] = g;
+      end
+      
+    end else begin
+    
+      always_comb  i_axi[g].rdy = ~val[g] || (val[g] && rdy[g]);
+    
+      always_ff @ (posedge i_clk) begin
+        if (i_rst) begin
+          val[g] <= 0;
+          eop[g] <= 0;
+          sop[g] <= 0;
+          err[g] <= 0;
+          dat[g] <= 0;
+          mod[g] <= 0;
+          ctl[g] <= 0;
+        end else begin
+          if (~val[g] || (val[g] && rdy[g])) begin
+            val[g] <= i_axi[g].val;
+            eop[g] <= i_axi[g].eop;
+            sop[g] <= i_axi[g].sop;
+            err[g] <= i_axi[g].err;
+            dat[g] <= i_axi[g].dat;
+            mod[g] <= i_axi[g].mod;
+            ctl[g] <= i_axi[g].ctl;
+            ctl[g][CTL_BITS-1 -: $clog2(NUM_IN)] <= g;
+          end
+      end
+    end   
+    
     end
-  end 
+  end
 endgenerate
 
 always_comb begin
@@ -75,7 +112,7 @@ always_ff @ (posedge i_clk) begin
   end else begin
     if (~locked) begin
       idx <= get_next(idx);
-      if (val[get_next(idx)]) begin
+      if (val[get_next(idx)] && ~(eop[idx] && rdy[idx])) begin
         locked <= 1;
       end
     end else if (eop[idx] && val[idx] && rdy[idx]) begin

@@ -49,6 +49,8 @@ logic [255:0] r, w;
 logic [5:0] cnt; // Counter for parsing command inputs
 logic if_axi_mm_rd;
 
+logic [255:0] inv_p;
+
 always_comb begin
   header = if_cmd_rx.dat;
 end
@@ -69,6 +71,7 @@ always_ff @ (posedge i_clk) begin
     bin_inv_in_if.reset_source();
     bin_inv_out_if.rdy <= 0;
     secp256k1_ver <= 0;
+    inv_p <=  secp256k1_pkg::n;
   end else begin
   
     register_file_a.en <= 1;
@@ -80,6 +83,7 @@ always_ff @ (posedge i_clk) begin
     
     case(secp256k1_state)
       {IDLE}: begin
+        inv_p <=  secp256k1_pkg::n;
         secp256k1_ver <= 0;
         if_cmd_rx.rdy <= 1;
         header_l <= header;
@@ -190,12 +194,12 @@ bram #(
 // Calculate binary inverse mod n
 begin: BINARY_INVERSE_MOD_N
   bin_inv #(
-    .BITS ( 256              ),
-    .P    ( secp256k1_pkg::n )
+    .BITS ( 256 )
   )(
     .i_clk ( i_clk ),
     .i_rst ( i_rst) ,
     .i_dat ( bin_inv_in_if.dat ),
+    .i_p   ( inv_p             ),
     .i_val ( bin_inv_in_if.val ),
     .o_rdy ( bin_inv_in_if.rdy ),
     .o_dat ( bin_inv_out_if.dat ),
@@ -232,6 +236,21 @@ end
 // Modulo p reducer (shared with arbitrator)
 
 // Modulo n reducer (output from karatsuba multiplier)
+barret_mod #(
+  .IN_BITS  ( 512              ),
+  .OUT_BITS ( 256              ),
+  .P        ( secp256k1_pkg::n )
+) 
+barret_mod (
+  .i_clk ( i_clk      ),
+  .i_rst ( i_rst      ),
+  .i_dat ( in_if.dat  ),
+  .i_val ( in_if.val  ),
+  .o_rdy ( in_if.rdy  ),
+  .o_dat ( out_if.dat ),
+  .o_val ( out_if.val ),
+  .i_rdy ( out_if.rdy )
+);
 
 // 256 bit Karatsuba_ofman multiplier (shared with arbitrator)
 

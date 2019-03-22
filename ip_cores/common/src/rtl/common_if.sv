@@ -75,7 +75,7 @@ interface if_axi_stream # (
   endfunction
   
   // Task to apply signals from one task to another in a clocked process
-  task copy_if(if_t in);
+  task automatic copy_if(if_t in);
     dat <= in.dat;
     val <= in.val;
     sop <= in.sop;
@@ -86,7 +86,7 @@ interface if_axi_stream # (
   endtask
   
   // Same task but for comb
-  task copy_if_comb(if_t in);
+  task automatic copy_if_comb(if_t in);
     dat = in.dat;
     val = in.val;
     sop = in.sop;

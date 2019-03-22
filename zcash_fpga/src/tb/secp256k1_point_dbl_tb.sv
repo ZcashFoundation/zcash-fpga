@@ -127,7 +127,9 @@ begin
   logic [255:0] in_a, in_b;
   jb_point_t p_in, p_exp, p_out;
   $display("Running test_0...");
-  p_in = {z:1, x:2, y:3};
+  //p_in = {z:1, x:4, y:2};
+  //p_in = {z:10, x:64, y:23};
+  p_in = secp256k1_pkg::G_p;
   p_exp = dbl_jb_point(p_in);
   
   fork
