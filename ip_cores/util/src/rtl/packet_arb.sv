@@ -49,8 +49,8 @@ generate
     // Optionally pipeline the input
     if (PIPELINE == 0) begin: PIPELINE_GEN
     
+      always_comb i_axi[g].rdy = rdy[g];
       always_comb begin
-        i_axi[g].rdy = rdy[g];
         val[g] = i_axi[g].val;
         eop[g] = i_axi[g].eop;
         sop[g] = i_axi[g].sop;

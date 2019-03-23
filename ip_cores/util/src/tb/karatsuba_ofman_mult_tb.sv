@@ -69,6 +69,48 @@ karatsuba_ofman_mult (
   .o_dat  ( out_if.dat )
 );
 
+task test_pipeline();
+begin
+  
+  $display("Running test_pipeline...");
+  fork
+    begin
+      logic [255:0] in_a, in_b;
+      integer i = 1;
+      integer max = 10;
+      while (i < max) begin
+        in_a = i;
+        in_b = i;
+        //in_if.put_stream({in_b, in_a}, 512/8, i);
+        in_if.sop = 1;
+        in_if.eop = 1;
+        in_if.ctl = i;
+        in_if.dat = {in_a, in_b};
+        in_if.val = 1;
+        @(posedge in_if.i_clk);
+        i = i + 1;
+      end
+      in_if.val = 0;
+    end
+    begin
+      integer i = 1;
+      integer max = 10;
+      integer signed get_len;
+      logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
+      while (i < max) begin
+        expected = i*i;
+        out_if.get_stream(get_dat, get_len);
+        common_pkg::compare_and_print(get_dat, expected);
+        $display("test_pipeline PASSED loop %d/%d", i, max);
+        i = i + 1;
+      end
+    end
+  join    
+
+  $display("test_pipeline PASSED");
+end
+endtask;
+
 task test_loop();
 begin
   integer signed get_len;
@@ -104,6 +146,7 @@ initial begin
   in_if.val = 0;
   #(40*CLK_PERIOD);
   
+  test_pipeline();
   test_loop();
 
   #1us $finish();

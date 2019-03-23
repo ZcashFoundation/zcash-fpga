@@ -1,7 +1,7 @@
 /*
   Multiplication using Karatsuba-Ofman algorithm.
   
-  Multiple of these can be instantiated, each one takes 2 clocks cycles
+  Multiple of these can be instantiated, each one takes 3 clocks cycles
   per level. Fully pipelined so can accept a new input every clock.
   
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
@@ -42,17 +42,31 @@ localparam HBITS = BITS/2;
 logic [BITS-1:0] m0, m1, m2, dat_a, dat_b;
 logic [BITS*2-1:0] q;
 logic [HBITS-1:0] a0, a1;
-logic sign, sign_;
-logic val;
-logic [CTL_BITS-1:0] ctl;
+logic sign, sign_, sign_1;
+logic val, val_, val_1;
+logic [CTL_BITS-1:0] ctl, ctl_, ctl_1;
+logic [HBITS-1:0] a0_, a1_;
+logic [BITS-1:0] m0_, m1_, m2_;
 
 always_ff @ (posedge i_clk) begin
   dat_a <= i_dat_a;
   dat_b <= i_dat_b;
   
   o_dat <= q;
-  o_val <= val;
-  o_ctl <= ctl;
+  o_val <= val_1;
+  o_ctl <= ctl_1;
+  
+  val_ <= val;
+  val_1 <= val_;
+  ctl_ <= ctl;
+  ctl_1 <= ctl_;
+ 
+  a0_ <= a0;
+  a1_ <= a1;
+  
+  m0_ <= m0;
+  m1_ <= m1;
+  m2_ <= m2;
 end
 
 generate
@@ -61,27 +75,29 @@ generate
     a1 = i_dat_b[HBITS +: HBITS] > i_dat_b[0 +: HBITS] ? i_dat_b[HBITS +: HBITS] - i_dat_b[0 +: HBITS] : i_dat_b[0 +: HBITS] - i_dat_b[HBITS +: HBITS];
     sign_ = ((i_dat_a[0 +: HBITS] < i_dat_a[HBITS +: HBITS]) ^ 
         (i_dat_b[HBITS +: HBITS] < i_dat_b[0 +: HBITS]));
-    q = (m0 << BITS) + ((m0 + m2 + (sign == 1 ? -m1 : m1)) << HBITS) + m2;
+    q = (m0_ << BITS) + ((m0_ + m2_ + (sign == 1 ? -m1_ : m1_)) << HBITS) + m2_;
   end
     
   if (LEVEL == 1) begin: GEN_REC
+    
     always_comb begin
-      m0 = i_dat_a[HBITS +: HBITS] * i_dat_b[HBITS +: HBITS];
-      m2 = i_dat_a[0 +: HBITS] * i_dat_b[0 +: HBITS];    
-      m1 = (a0 * a1);
-      sign = sign_;
+      m0 = dat_a[HBITS +: HBITS] * dat_b[HBITS +: HBITS];
+      m2 = dat_a[0 +: HBITS] * dat_b[0 +: HBITS];    
+      m1 = (a0_ * a1_);
       o_rdy = i_rdy;
       val = i_val;
       ctl = i_ctl;
     end
+    always_ff @ (posedge i_clk) begin
+      sign <= sign_1;
+      sign_1 <= sign_;
+    end
     
-
   end else begin 
     // pipeline the other non-mult values x clock cycles and add them after multipliers
-    logic [LEVEL-2:0] sign_r;
-    
+    logic [LEVEL*3-1:0] sign_r;
     always_comb begin
-      sign = sign_r[LEVEL-2];
+      sign = sign_r[LEVEL*3-2];
     end
     
     always_ff @ (posedge i_clk) begin
@@ -95,8 +111,8 @@ generate
     )
     karatsuba_ofman_mult_m0 (
       .i_clk   ( i_clk                   ),
-      .i_dat_a ( i_dat_a[HBITS +: HBITS] ),
-      .i_dat_b ( i_dat_b[HBITS +: HBITS] ),
+      .i_dat_a ( dat_a[HBITS +: HBITS] ),
+      .i_dat_b ( dat_b[HBITS +: HBITS] ),
       .i_val   ( i_val                   ),
       .o_val   ( val                     ),
       .i_ctl   ( i_ctl                   ),
@@ -113,8 +129,8 @@ generate
     )
     karatsuba_ofman_mult_m2 (
       .i_clk   ( i_clk               ),
-      .i_dat_a ( i_dat_a[0 +: HBITS] ),
-      .i_dat_b ( i_dat_b[0 +: HBITS] ),
+      .i_dat_a ( dat_a[0 +: HBITS] ),
+      .i_dat_b ( dat_b[0 +: HBITS] ),
       .i_val   ( i_val               ),
       .o_val   (),
       .i_ctl   ( 1'd0                ),
@@ -131,8 +147,8 @@ generate
     )
     karatsuba_ofman_mult_m1 (
       .i_clk   ( i_clk ),
-      .i_dat_a ( a0    ),
-      .i_dat_b ( a1    ),
+      .i_dat_a ( a0_  ),
+      .i_dat_b ( a1_  ),
       .i_val   ( i_val ),
       .o_val   (),
       .i_ctl   ( 1'd0  ),

@@ -116,7 +116,11 @@ always_ff @ (posedge i_clk) begin
             p_add_done <= 1;
           end
           
-          p_dbl_in_val <= 1;
+          // Don't need to double on the final bit
+          if ((k_l >> 1) != 0)
+            p_dbl_in_val <= 1;
+          else
+            p_dbl_done <= 1;
             
           if (k_l == 0) begin
             state <= FINISHED;
@@ -189,7 +193,7 @@ packet_arb # (
   .DAT_BYTS ( 512/8 ),
   .CTL_BITS ( 8     ),
   .NUM_IN   ( 2     ),
-  .PIPELINE ( 1     )
+  .PIPELINE ( 0     )
 ) 
 packet_arb_mult (
   .i_clk ( i_clk ), 
@@ -202,7 +206,7 @@ packet_arb # (
   .DAT_BYTS ( 512/8 ),
   .CTL_BITS ( 8     ),
   .NUM_IN   ( 2     ),
-  .PIPELINE ( 1     )
+  .PIPELINE ( 0     )
 ) 
 packet_arb_mod (
   .i_clk ( i_clk ), 

@@ -65,6 +65,8 @@ package secp256k1_pkg;
   function jb_point_t dbl_jb_point(jb_point_t p);
     logic signed [512:0] I_X, I_Y, I_Z, A, B, C, D, X, Y, Z;
     
+    if (p.z == 0) return p;
+    
     I_X = p.x;
     I_Y = p.y;
     I_Z = p.z;
@@ -81,6 +83,51 @@ package secp256k1_pkg;
     
     dbl_jb_point = {x:X, y:Y, z:Z};
     return dbl_jb_point;
+  endfunction
+  
+  function jb_point_t add_jb_point(jb_point_t p1, p2);
+    logic signed [512:0] A, U1, U2, S1, S2, H, H3, R;
+    
+    if (p1.z == 0) return p2;
+    if (p2.z == 0) return p1;
+    
+    if (p1.y == p2.y && p1.x == p2.x)
+      return (dbl_jb_point(p1));
+      
+    U1 = p1.x*p2.z % p_eq;
+    U1 = U1*p2.z % p_eq;
+     
+    U2 = p2.x*p1.z % p_eq;
+    U2 = U2 *p1.z % p_eq;
+    S1 = p1.y *p2.z % p_eq;
+    S1 = (S1*p2.z % p_eq) *p2.z % p_eq;
+    S2 = p2.y * p1.z % p_eq;
+    S2 = (S2*p1.z  % p_eq) *p1.z % p_eq;
+          
+    H = U2 + (U1 > U2 ? p_eq : 0) -U1;  
+    R = S2 + (S1 > S2 ? p_eq : 0) -S1;
+    //$display("R = %x", R);
+    //$display("H = %x", H);
+    //$display("H^2 = %x", (H * H %p_eq ));
+    H3 = ((H * H %p_eq ) * H ) % p_eq;
+    A = (((2*U1 % p_eq) *H % p_eq) * H % p_eq);
+    
+    add_jb_point.z = ((H * p1.z % p_eq) * p2.z) % p_eq;
+    add_jb_point.x = R*R % p_eq;
+    
+    //$display("R^2 = %x", add_jb_point.x);
+    //$display("H^3 = %x", H3);
+    
+    add_jb_point.x = add_jb_point.x + (H3 > add_jb_point.x ? p_eq : 0) - H3;
+    add_jb_point.x = add_jb_point.x + (A > add_jb_point.x ? p_eq : 0) - A;
+    
+    A = (U1*H % p_eq) * H % p_eq;
+    A = A + (add_jb_point.x > A ? p_eq : 0) - add_jb_point.x;
+    A = A*R % p_eq;
+    add_jb_point.y = S1*H3 % p_eq;
+    
+    add_jb_point.y = A + (add_jb_point.y > A ? p_eq : 0) - add_jb_point.y;
+    
   endfunction
   
   function on_curve(jb_point_t p);
