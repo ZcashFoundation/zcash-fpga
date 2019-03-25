@@ -40,6 +40,10 @@ package secp256k1_pkg;
   parameter SIG_VER_R = 16;   // 256 bits
   parameter SIG_VER_Q = 20;   // 512 bits
   parameter SIG_VER_W = 28;   // 256 bits - Result of invert(s)
+  parameter SIG_VER_U1 = 32;  // 256 bits
+  parameter SIG_VER_U2 = 36;  // 256 bits
+  parameter SIG_VER_X = 40;   // Result of (u1.P + u2.Q) 256 * 3 bits as is in jb coords.
+  parameter SIG_VER_X_AFF = 52;   // 256 bits, SIG_VER_X result's X in affine coords.
   
   // Expected to be in Jacobian coordinates
   typedef struct packed {
@@ -49,7 +53,8 @@ package secp256k1_pkg;
   jb_point_t G_p = {x: secp256k1_pkg::Gx, y: secp256k1_pkg::Gy, z:1};
   
   typedef struct packed {
-    logic [5:0] padding;
+    logic [3:0] padding;
+    logic FAILED_SIG_VER;
     logic X_INFINITY_POINT;
     logic OUT_OF_RANGE_S;
     logic OUT_OF_RANGE_R;

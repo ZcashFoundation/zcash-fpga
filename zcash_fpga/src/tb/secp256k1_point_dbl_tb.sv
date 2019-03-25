@@ -93,6 +93,7 @@ secp256k1_mult_mod (
   .i_val ( mult_in_if.val ),
   .i_err ( mult_in_if.err ),
   .i_ctl ( mult_in_if.ctl ),
+  .i_cmd ( 1'd0           ),
   .o_rdy ( mult_in_if.rdy ),
   .o_dat ( mult_out_if.dat ),
   .i_rdy ( mult_out_if.rdy ),

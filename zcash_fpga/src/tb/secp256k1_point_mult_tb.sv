@@ -27,6 +27,12 @@ logic clk, rst;
 if_axi_stream #(.DAT_BYTS(256*3/8)) in_if(clk);
 if_axi_stream #(.DAT_BYTS(256*3/8)) out_if(clk);
 
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(8)) mult_in_if(clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(8)) mult_out_if(clk);
+
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(8)) mod_in_if(clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(8)) mod_out_if(clk);
+
 jb_point_t in_p, out_p;
 logic [255:0] k_in;
 
@@ -59,8 +65,19 @@ always_ff @ (posedge clk)
     $error(1, "%m %t ERROR: output .err asserted", $time);
   end
 
+always_comb begin
+  mult_out_if.sop = 1;
+  mult_out_if.eop = 1;
+  mult_out_if.mod = 0;
+  mod_out_if.sop = 1;
+  mod_out_if.eop = 1;
+  mod_out_if.mod = 0;  
+end
 
-secp256k1_point_mult secp256k1_point_mult (
+secp256k1_point_mult #(
+  .RESOURCE_SHARE ("YES")
+  )
+secp256k1_point_mult (
   .i_clk ( clk ),
   .i_rst ( rst ),
   .i_p   ( in_if.dat  ),
@@ -70,7 +87,50 @@ secp256k1_point_mult secp256k1_point_mult (
   .o_p   ( out_p      ),
   .i_rdy ( out_if.rdy ),
   .o_val ( out_if.val ),
-  .o_err ( out_if.err )
+  .o_err ( out_if.err ),
+  .o_mult_if ( mult_in_if ),
+  .i_mult_if ( mult_out_if ),
+  .o_mod_if ( mod_in_if ),
+  .i_mod_if ( mod_out_if )
+);
+
+secp256k1_mult_mod #(
+  .CTL_BITS ( 8 )
+)
+secp256k1_mult_mod (
+  .i_clk ( clk ),
+  .i_rst ( rst ),
+  .i_dat_a ( mult_in_if.dat[0 +: 256] ),
+  .i_dat_b ( mult_in_if.dat[256 +: 256] ),
+  .i_val ( mult_in_if.val ),
+  .i_err ( mult_in_if.err ),
+  .i_ctl ( mult_in_if.ctl ),
+  .i_cmd (1'd0            ),
+  .o_rdy ( mult_in_if.rdy ),
+  .o_dat ( mult_out_if.dat ),
+  .i_rdy ( mult_out_if.rdy ),
+  .o_val ( mult_out_if.val ),
+  .o_ctl ( mult_out_if.ctl ),
+  .o_err ( mult_out_if.err ) 
+);
+
+secp256k1_mod #(
+  .USE_MULT ( 0 ),
+  .CTL_BITS ( 8 )
+)
+secp256k1_mod (
+  .i_clk( clk       ),
+  .i_rst( rst       ),
+  .i_dat( mod_in_if.dat  ),
+  .i_val( mod_in_if.val  ),
+  .i_err( mod_in_if.err  ),
+  .i_ctl( mod_in_if.ctl  ),
+  .o_rdy( mod_in_if.rdy  ),
+  .o_dat( mod_out_if.dat ),
+  .o_ctl( mod_out_if.ctl ),
+  .o_err( mod_out_if.err ),
+  .i_rdy( mod_out_if.rdy ),
+  .o_val( mod_out_if.val )
 );
 
 // Test a point

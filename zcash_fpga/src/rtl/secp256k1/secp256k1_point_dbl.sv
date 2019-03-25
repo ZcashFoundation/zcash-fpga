@@ -71,9 +71,9 @@ always_comb begin
   o_mult_if.eop = 1;
   o_mod_if.sop = 1;
   o_mod_if.eop = 1;
-  o_mod_if.err = 1;
+  o_mod_if.err = 0;
   o_mod_if.mod = 0;
-  o_mult_if.err = 1;
+  o_mult_if.err = 0;
   o_mult_if.mod = 0;
 end
 
@@ -84,7 +84,9 @@ always_ff @ (posedge i_clk) begin
     o_rdy <= 0;
     o_p <= 0;
     o_mult_if.val <= 0;
+    o_mult_if.ctl <= 0;
     o_mod_if.val <= 0;
+    o_mod_if.ctl <= 0;
     o_mult_if.dat <= 0;
     o_mod_if.dat <= 0;
     i_mult_if.rdy <= 0;

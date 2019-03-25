@@ -34,10 +34,10 @@ module secp256k1_point_add
   output logic   o_err,
   // Interface to 256bit multiplier (mod p)
   if_axi_stream.source o_mult_if,
-  if_axi_stream.source i_mult_if,
+  if_axi_stream.sink   i_mult_if,
   // Interface to only mod reduction block
   if_axi_stream.source o_mod_if,
-  if_axi_stream.source i_mod_if
+  if_axi_stream.sink   i_mod_if
 );
 
 /*
@@ -114,6 +114,8 @@ always_ff @ (posedge i_clk) begin
     o_mod_if.dat <= 0;
     i_mult_if.rdy <= 0;
     i_mod_if.rdy <= 0;
+    o_mod_if.ctl <= 0;
+    o_mult_if.ctl <= 0;
     eq_val <= 0;
     state <= IDLE;
     eq_wait <= 0;

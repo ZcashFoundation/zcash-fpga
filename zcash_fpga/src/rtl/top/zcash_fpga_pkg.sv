@@ -23,9 +23,13 @@ package zcash_fpga_pkg;
   import equihash_pkg::cblockheader_sol_t;
   import equihash_pkg::N;
   import equihash_pkg::K;
+  import secp256k1_pkg::secp256k1_ver_t;
   
   parameter FPGA_VERSION = 32'h01_00_00;  //v1.0.0
-  localparam [63:0] FPGA_CMD_CAP = {{62'd0},
+  parameter bit ENB_VERIFY_SECP256K1_SIG = 1;
+  
+  localparam [63:0] FPGA_CMD_CAP = {{61'd0},
+                                     ENB_VERIFY_SECP256K1_SIG,
                                     (equihash_pkg::N == 144 && equihash_pkg::K == 5),       // N = 144, K = 5 for VERIFY_EQUIHASH command
                                     (equihash_pkg::N == 200 && equihash_pkg::K == 9)};      // N = 200, K = 9 for VERIFY_EQUIHASH command
   
@@ -39,10 +43,11 @@ package zcash_fpga_pkg;
     VERIFY_SECP256K1_SIG  = 'h0000_01_01,
     
     // Replies from the FPGA
-    RESET_FPGA_RPL      = 'h80_00_00_00,
-    FPGA_STATUS_RPL     = 'h80_00_00_01,
-    FPGA_IGNORE_RPL     = 'h80_00_00_02,
-    VERIFY_EQUIHASH_RPL = 'h80_00_01_00
+    RESET_FPGA_RPL            = 'h80_00_00_00,
+    FPGA_STATUS_RPL           = 'h80_00_00_01,
+    FPGA_IGNORE_RPL           = 'h80_00_00_02,
+    VERIFY_EQUIHASH_RPL       = 'h80_00_01_00,
+    VERIFY_SECP256K1_SIG_RPL  = 'h80_00_01_01
   } command_t;
   
   // Data sent to the FPGA must start with a header aligned to
@@ -89,6 +94,22 @@ package zcash_fpga_pkg;
     header_t       hdr;
   } verify_equihash_rpl_t;
   
+  typedef struct packed {
+    logic [255:0]      Qy;
+    logic [255:0]      Qx;
+    logic [255:0]      hash;
+    logic [255:0]      s;
+    logic [255:0]      r;
+    logic [63:0]       index;
+    header_t           hdr;
+  } verify_secp256k1_sig_t;
+    
+  typedef struct packed {
+    secp256k1_ver_t    bm;
+    logic [63:0]       index;
+    header_t           hdr;
+  } verify_secp256k1_sig_rpl_t;
+  
   // We have a function for building each type of reply from the FPGA
   function fpga_reset_rpl_t get_fpga_reset_rpl();
     get_fpga_reset_rpl.hdr = '{cmd:RESET_FPGA_RPL, len:$bits(fpga_reset_rpl_t)/8};    
@@ -108,10 +129,16 @@ package zcash_fpga_pkg;
     get_fpga_status_rpl.fpga_state = fpga_state;
   endfunction
   
-  function verify_equihash_rpl_t get_verify_equihash_rpl(input equihash_bm_t mask, logic [63:0] equihash_index);
+  function verify_equihash_rpl_t get_verify_equihash_rpl(input equihash_bm_t mask, logic [63:0] index);
     get_verify_equihash_rpl.hdr = '{cmd:VERIFY_EQUIHASH_RPL, len:$bits(verify_equihash_rpl_t)/8};
-    get_verify_equihash_rpl.index = equihash_index;
+    get_verify_equihash_rpl.index = index;
     get_verify_equihash_rpl.bm = mask;
+  endfunction
+  
+  function verify_secp256k1_sig_rpl_t verify_secp256k1_sig_rpl(input secp256k1_ver_t mask, logic [63:0] index);
+    verify_secp256k1_sig_rpl.hdr = '{cmd:VERIFY_SECP256K1_SIG_RPL, len:$bits(verify_secp256k1_sig_rpl_t)/8};
+    verify_secp256k1_sig_rpl.index = index;
+    verify_secp256k1_sig_rpl.bm = mask;
   endfunction
 
   
