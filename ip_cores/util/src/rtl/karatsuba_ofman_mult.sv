@@ -26,6 +26,7 @@ module karatsuba_ofman_mult # (
   parameter LEVEL = 1
 ) (
   input                       i_clk,
+  input                       i_rst,
   input [BITS-1:0]            i_dat_a,
   input [BITS-1:0]            i_dat_b,
   input                       i_val,
@@ -49,24 +50,33 @@ logic [HBITS-1:0] a0_, a1_;
 logic [BITS-1:0] m0_, m1_, m2_;
 
 always_ff @ (posedge i_clk) begin
-  dat_a <= i_dat_a;
-  dat_b <= i_dat_b;
-  
-  o_dat <= q;
-  o_val <= val_1;
-  o_ctl <= ctl_1;
-  
-  val_ <= val;
-  val_1 <= val_;
-  ctl_ <= ctl;
-  ctl_1 <= ctl_;
- 
-  a0_ <= a0;
-  a1_ <= a1;
-  
-  m0_ <= m0;
-  m1_ <= m1;
-  m2_ <= m2;
+  if (i_rst) begin
+    o_val <= 0;
+    val_1 <= 0;
+    val_ <= 0;
+  end else begin
+    if(~o_val || (o_val && i_rdy)) begin
+      o_val <= val_1;
+      val_1 <= val_;
+      val_ <= val;
+    end
+  end
+end
+
+always_ff @ (posedge i_clk) begin
+  if(~o_val || (o_val && i_rdy)) begin
+    o_dat <= q;
+    o_ctl <= ctl_1;
+    ctl_1 <= ctl_;
+    a0_ <= a0;
+    a1_ <= a1;
+    m0_ <= m0;
+    m1_ <= m1;
+    m2_ <= m2;
+    dat_a <= i_dat_a;
+    dat_b <= i_dat_b;
+    ctl_ <= ctl;
+  end
 end
 
 generate
@@ -89,8 +99,10 @@ generate
       ctl = i_ctl;
     end
     always_ff @ (posedge i_clk) begin
-      sign <= sign_1;
-      sign_1 <= sign_;
+      if(~o_val || (o_val && i_rdy)) begin
+        sign <= sign_1;
+        sign_1 <= sign_;
+      end
     end
     
   end else begin 
@@ -101,7 +113,9 @@ generate
     end
     
     always_ff @ (posedge i_clk) begin
-      sign_r <= {sign_r, sign_};
+      if(~o_val || (o_val && i_rdy)) begin
+        sign_r <= {sign_r, sign_};
+      end
     end
     
     karatsuba_ofman_mult # (
@@ -111,6 +125,7 @@ generate
     )
     karatsuba_ofman_mult_m0 (
       .i_clk   ( i_clk                   ),
+      .i_rst   ( i_rst                  ),
       .i_dat_a ( dat_a[HBITS +: HBITS] ),
       .i_dat_b ( dat_b[HBITS +: HBITS] ),
       .i_val   ( i_val                   ),
@@ -129,6 +144,7 @@ generate
     )
     karatsuba_ofman_mult_m2 (
       .i_clk   ( i_clk               ),
+      .i_rst   ( i_rst                ),
       .i_dat_a ( dat_a[0 +: HBITS] ),
       .i_dat_b ( dat_b[0 +: HBITS] ),
       .i_val   ( i_val               ),
@@ -147,6 +163,7 @@ generate
     )
     karatsuba_ofman_mult_m1 (
       .i_clk   ( i_clk ),
+      .i_rst   ( i_rst ),
       .i_dat_a ( a0_  ),
       .i_dat_b ( a1_  ),
       .i_val   ( i_val ),

@@ -21,19 +21,24 @@
 
 module barret_mod #(
   parameter                OUT_BITS = 256,
+  parameter                CTL_BITS = 8,
   parameter                IN_BITS = 512,
   parameter [OUT_BITS-1:0] P = 256'hFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_BAAEDCE6_AF48A03B_BFD25E8C_D0364141,
   parameter                K = $clog2(P),
-  parameter                MULTIPLIER = "ACCUM_MULT" // [ACCUM_MULT || KARATSUBA]
+  parameter                MULTIPLIER = "EXTERNAL" // [ACCUM_MULT || KARATSUBA || EXTERNAL]
 )(
   input                       i_clk,
   input                       i_rst,
   input [IN_BITS-1:0]         i_dat,
   input                       i_val,
+  input [CTL_BITS-1:0]        i_ctl,
+  output logic [CTL_BITS-1:0] o_ctl,
   output logic                o_rdy,
   output logic [OUT_BITS-1:0] o_dat,
   output logic                o_val,
-  input                       i_rdy
+  input                       i_rdy,
+  if_axi_stream.source        o_mult_if,
+  if_axi_stream.sink          i_mult_if
 );
 
 localparam                   MAX_IN_BITS = 2*K;
@@ -62,6 +67,7 @@ always_ff @ (posedge i_clk) begin
     c4 <= 0;
     mult_in_if.reset_source();
     mult_out_if.rdy <= 1;
+    o_ctl <= 0;
   end else begin
     mult_out_if.rdy <= 1;
     case (state)
@@ -73,6 +79,7 @@ always_ff @ (posedge i_clk) begin
           o_rdy <= 0;
           state <= WAIT_MULT;
           mult_in_if.val <= 1;
+          o_ctl <= i_ctl;
           mult_in_if.dat[0 +: OUT_BITS+1] <= i_dat >> (K-1);
           mult_in_if.dat[OUT_BITS+1 +: OUT_BITS+1] <= U;
           prev_state <= S0;
@@ -125,8 +132,8 @@ generate
   if (MULTIPLIER == "ACCUM_MULT") begin: MULTIPLIER_GEN
     accum_mult # (
       .BITS_A  ( OUT_BITS +8 ),
-      .LEVEL_A ( 6           ), // 32 bit multiply
-      .LEVEL_B ( 4           )
+      .LEVEL_A ( 12          ),
+      .LEVEL_B ( 8           )
     ) 
     accum_mult (
       .i_clk ( i_clk ),
@@ -166,7 +173,27 @@ generate
         val <= {val, mult_in_if.val};
       end  
     end
-  end else 
+  end else if (MULTIPLIER == "EXTERNAL") begin
+    always_comb begin
+      o_mult_if.val = mult_in_if.val;
+      o_mult_if.dat = mult_in_if.dat;
+      o_mult_if.sop = mult_in_if.sop;
+      o_mult_if.eop = mult_in_if.eop;
+      o_mult_if.err = mult_in_if.err;
+      o_mult_if.mod = mult_in_if.mod;
+      o_mult_if.ctl = mult_in_if.ctl;
+      mult_in_if.rdy = o_mult_if.rdy;
+      
+      mult_out_if.val = i_mult_if.val;
+      mult_out_if.dat = i_mult_if.dat;
+      mult_out_if.sop = i_mult_if.sop;
+      mult_out_if.eop = i_mult_if.eop;
+      mult_out_if.err = i_mult_if.err;
+      mult_out_if.mod = i_mult_if.mod;
+      mult_out_if.ctl = i_mult_if.ctl;
+      i_mult_if.rdy = mult_out_if.rdy;
+    end
+  end else
     $fatal(1, "%m ERROR: Unknown multiplier type [%s] in barret_mod.sv", MULTIPLIER);
 endgenerate
 initial assert (IN_BITS <= MAX_IN_BITS) else $fatal(1, "%m ERROR: IN_BITS[%d] > MAX_IN_BITS[%d] in barret_mod", IN_BITS, MAX_IN_BITS);

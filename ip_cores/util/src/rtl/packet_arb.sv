@@ -23,6 +23,7 @@ module packet_arb # (
   parameter DAT_BYTS,
   parameter CTL_BITS,
   parameter NUM_IN,
+  parameter OVR_WRT_BIT = CTL_BITS - $clog2(NUM_IN), // What bits in ctl are overwritten with channel id
   parameter PIPELINE = 1
 ) (
   input i_clk, i_rst,
@@ -58,7 +59,7 @@ generate
         dat[g] = i_axi[g].dat;
         mod[g] = i_axi[g].mod;
         ctl[g] = i_axi[g].ctl;
-        ctl[g][CTL_BITS-1 -: $clog2(NUM_IN)] = g;
+        ctl[g][OVR_WRT_BIT +: $clog2(NUM_IN)] = g;
       end
       
     end else begin
@@ -83,7 +84,7 @@ generate
             dat[g] <= i_axi[g].dat;
             mod[g] <= i_axi[g].mod;
             ctl[g] <= i_axi[g].ctl;
-            ctl[g][CTL_BITS-1 -: $clog2(NUM_IN)] <= g;
+            ctl[g][OVR_WRT_BIT +: $clog2(NUM_IN)] <= g;
           end
       end
     end   

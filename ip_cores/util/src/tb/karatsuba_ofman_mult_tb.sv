@@ -57,6 +57,7 @@ karatsuba_ofman_mult # (
 )
 karatsuba_ofman_mult (
   .i_clk  ( clk                   ),
+  .i_rst  ( rst                   ),
   .i_dat_a( in_if.dat[0 +: 256]   ),
   .i_dat_b( in_if.dat[256 +: 256] ),
   .i_val  ( in_if.val  ),
