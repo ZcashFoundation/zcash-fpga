@@ -49,7 +49,7 @@ always_ff @ (posedge clk)
   if (out_if.val && out_if.err)
     $error(1, "%m %t ERROR: output .err asserted", $time);
 
-localparam LEVEL = 2;
+localparam LEVEL = 1;
 karatsuba_ofman_mult # (
   .BITS     ( 256   ),
   .CTL_BITS ( 8     ),

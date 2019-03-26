@@ -43,31 +43,35 @@ localparam HBITS = BITS/2;
 logic [BITS-1:0] m0, m1, m2, dat_a, dat_b;
 logic [BITS*2-1:0] q;
 logic [HBITS-1:0] a0, a1;
-logic sign, sign_, sign_1;
-logic val, val_, val_1;
-logic [CTL_BITS-1:0] ctl, ctl_, ctl_1;
+logic sign_;
 logic [HBITS-1:0] a0_, a1_;
 logic [BITS-1:0] m0_, m1_, m2_;
 
+logic [LEVEL*3-1:0] val, sign;
+logic [LEVEL*3-1:0][CTL_BITS-1:0] ctl;
+
+always_comb begin
+  o_val = val[LEVEL*3-1];
+  o_ctl = ctl[LEVEL*3-1]; 
+  if (LEVEL == 1)
+    o_rdy = ~o_val || (o_val && i_rdy);
+  else
+    o_rdy = i_rdy;
+end
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
-    o_val <= 0;
-    val_1 <= 0;
-    val_ <= 0;
+    val <= 0;
   end else begin
-    if(~o_val || (o_val && i_rdy)) begin
-      o_val <= val_1;
-      val_1 <= val_;
-      val_ <= val;
+    if(o_rdy) begin
+      val <= {val, i_val};
     end
   end
 end
 
 always_ff @ (posedge i_clk) begin
-  if(~o_val || (o_val && i_rdy)) begin
+  if(o_rdy) begin
     o_dat <= q;
-    o_ctl <= ctl_1;
-    ctl_1 <= ctl_;
+    ctl <= {ctl, i_ctl};
     a0_ <= a0;
     a1_ <= a1;
     m0_ <= m0;
@@ -75,7 +79,7 @@ always_ff @ (posedge i_clk) begin
     m2_ <= m2;
     dat_a <= i_dat_a;
     dat_b <= i_dat_b;
-    ctl_ <= ctl;
+    sign <= {sign, sign_};
   end
 end
 
@@ -83,40 +87,20 @@ generate
   always_comb begin
     a0 = i_dat_a[0 +: HBITS] > i_dat_a[HBITS +: HBITS] ? i_dat_a[0 +: HBITS] - i_dat_a[HBITS +: HBITS] : i_dat_a[HBITS +: HBITS] - i_dat_a[0 +: HBITS];
     a1 = i_dat_b[HBITS +: HBITS] > i_dat_b[0 +: HBITS] ? i_dat_b[HBITS +: HBITS] - i_dat_b[0 +: HBITS] : i_dat_b[0 +: HBITS] - i_dat_b[HBITS +: HBITS];
-    sign_ = ((i_dat_a[0 +: HBITS] < i_dat_a[HBITS +: HBITS]) ^ 
-        (i_dat_b[HBITS +: HBITS] < i_dat_b[0 +: HBITS]));
-    q = (m0_ << BITS) + ((m0_ + m2_ + (sign == 1 ? -m1_ : m1_)) << HBITS) + m2_;
+    sign_ = ((dat_a[0 +: HBITS] < dat_a[HBITS +: HBITS]) ^ 
+        (dat_b[HBITS +: HBITS] < dat_b[0 +: HBITS]));
+    q = (m0_ << BITS) + ((m0_ + m2_ + (sign[3*(LEVEL-1)] == 1 ? -m1_ : m1_)) << HBITS) + m2_;
   end
     
   if (LEVEL == 1) begin: GEN_REC
-    
+  
     always_comb begin
       m0 = dat_a[HBITS +: HBITS] * dat_b[HBITS +: HBITS];
       m2 = dat_a[0 +: HBITS] * dat_b[0 +: HBITS];    
       m1 = (a0_ * a1_);
-      o_rdy = i_rdy;
-      val = i_val;
-      ctl = i_ctl;
-    end
-    always_ff @ (posedge i_clk) begin
-      if(~o_val || (o_val && i_rdy)) begin
-        sign <= sign_1;
-        sign_1 <= sign_;
-      end
     end
     
   end else begin 
-    // pipeline the other non-mult values x clock cycles and add them after multipliers
-    logic [LEVEL*3-1:0] sign_r;
-    always_comb begin
-      sign = sign_r[LEVEL*3-2];
-    end
-    
-    always_ff @ (posedge i_clk) begin
-      if(~o_val || (o_val && i_rdy)) begin
-        sign_r <= {sign_r, sign_};
-      end
-    end
     
     karatsuba_ofman_mult # (
       .BITS     ( HBITS    ),
@@ -124,55 +108,55 @@ generate
       .LEVEL    ( LEVEL-1  )
     )
     karatsuba_ofman_mult_m0 (
-      .i_clk   ( i_clk                   ),
-      .i_rst   ( i_rst                  ),
+      .i_clk   ( i_clk                 ),
+      .i_rst   ( i_rst                 ),
       .i_dat_a ( dat_a[HBITS +: HBITS] ),
       .i_dat_b ( dat_b[HBITS +: HBITS] ),
-      .i_val   ( i_val                   ),
-      .o_val   ( val                     ),
-      .i_ctl   ( i_ctl                   ),
-      .o_ctl   ( ctl                     ),
-      .i_rdy   ( i_rdy                   ),
-      .o_rdy   ( o_rdy                   ),
-      .o_dat   ( m0                      )
+      .i_val   ( val[0]                ),
+      .o_val   (                       ),
+      .i_ctl   ( ctl[0]                ),
+      .o_ctl   (                       ),
+      .i_rdy   ( o_rdy                 ),
+      .o_rdy   (                       ),
+      .o_dat   ( m0                    )
     );
     
     karatsuba_ofman_mult # (
       .BITS     ( HBITS   ),
-      .CTL_BITS ( 1       ),
+      .CTL_BITS ( CTL_BITS       ),
       .LEVEL    ( LEVEL-1 )
     )
     karatsuba_ofman_mult_m2 (
-      .i_clk   ( i_clk               ),
-      .i_rst   ( i_rst                ),
+      .i_clk   ( i_clk             ),
+      .i_rst   ( i_rst             ),
       .i_dat_a ( dat_a[0 +: HBITS] ),
       .i_dat_b ( dat_b[0 +: HBITS] ),
-      .i_val   ( i_val               ),
+      .i_val   ( val[0]            ),
       .o_val   (),
-      .i_ctl   ( 1'd0                ),
+      .i_ctl   ( ctl[0]            ),
       .o_ctl   (),
-      .i_rdy   ( i_rdy               ),
+      .i_rdy   ( o_rdy             ),
       .o_rdy   (),      
-      .o_dat   ( m2                  )
+      .o_dat   ( m2                )
     );
     
     karatsuba_ofman_mult # (
       .BITS     ( HBITS   ),
-      .CTL_BITS ( 1       ),
+      .CTL_BITS ( CTL_BITS       ),
       .LEVEL    ( LEVEL-1 )
     )
     karatsuba_ofman_mult_m1 (
-      .i_clk   ( i_clk ),
-      .i_rst   ( i_rst ),
-      .i_dat_a ( a0_  ),
-      .i_dat_b ( a1_  ),
-      .i_val   ( i_val ),
+      .i_clk   ( i_clk  ),
+      .i_rst   ( i_rst  ),
+      .i_dat_a ( a0_    ),
+      .i_dat_b ( a1_    ),
+      .i_val   ( val[0] ),
       .o_val   (),
-      .i_ctl   ( 1'd0  ),
+      .i_ctl   ( ctl[0] ),
       .o_ctl   (),
-      .i_rdy   ( i_rdy ),
+      .i_rdy   ( o_rdy  ),
       .o_rdy   (),            
-      .o_dat   ( m1    )
+      .o_dat   ( m1     )
     );
     
   

@@ -1,6 +1,7 @@
 module secp256k1_top #(
   parameter DAT_BYTS = 8,
-  parameter DAT_BITS = DAT_BYTS*8
+  parameter DAT_BITS = DAT_BYTS*8,
+  parameter DO_AFFINE_CHECK = 0
 )(
   input          i_clk,
   input          i_rst,
@@ -42,7 +43,8 @@ typedef enum {IDLE,
               CALC_S_INV,
               CALC_U1_U2,
               CALC_X,
-              CALC_X_JACOB,
+              CALC_X_AFFINE,
+              CHECK_IN_JB,
               UPDATE_RAM_VARIABLES,
               IGNORE,
               FINISHED} secp256k1_state_t;
@@ -51,9 +53,9 @@ secp256k1_state_t secp256k1_state;
 header_t header, header_l;
 secp256k1_ver_t secp256k1_ver;
 // Other temporary values - could use RAM insead?
-logic [255:0] e, r, w, u1, u2;
+logic [255:0]  r, u2;
 logic [63:0] index;
-logic w_val, u1_val, u2_val;
+logic u2_val;
 
 localparam MAX_BYT_MSG = 64; // Max bytes in a reply message
 
@@ -75,14 +77,9 @@ always_ff @ (posedge i_clk) begin
     if_cmd_rx.rdy <= 0;
     cnt <= 0;
     register_file_a.reset_source();
-    w <= 0;
-    w_val <= 0;
     r <= 0;
-    u1 <= 0;
-    u1_val <= 0;
     u2 <= 0;
     u2_val <= 0;
-    e <= 0;
     bin_inv_in_if.reset_source();
     bin_inv_out_if.rdy <= 0;
     secp256k1_ver <= 0;
@@ -122,6 +119,7 @@ always_ff @ (posedge i_clk) begin
     
     if (pt_mult0_in_val && pt_mult0_in_rdy)
       pt_mult0_in_val <= 0;
+      
     if (pt_mult1_in_val && pt_mult1_in_rdy)
       pt_mult1_in_val <= 0;
       
@@ -130,17 +128,23 @@ always_ff @ (posedge i_clk) begin
       
     if (pt_mult0_in_p2_val && pt_mult0_in_rdy)
       pt_mult0_in_p2_val <= 0;
+      
+    if (mult_in_if[2].val && mult_in_if[2].rdy)
+      mult_in_if[2].val <= 0;
           
     case(secp256k1_state)
       {IDLE}: begin
         inv_p <=  secp256k1_pkg::n;
-        w_val <= 0;
-        u1_val <= 0;
         u2_val <= 0;
         secp256k1_ver <= 0;
         if_cmd_rx.rdy <= 1;
         header_l <= header;
         cnt <= 0;
+        
+        pt_mult1_in_p.z <= 1;
+        pt_mult1_in_p.x <= secp256k1_pkg::Gx;
+        pt_mult1_in_p.y <= secp256k1_pkg::Gy;
+              
         if (if_cmd_rx.val && if_cmd_rx.rdy) begin
           case(header.cmd)
             {VERIFY_SECP256K1_SIG}: begin
@@ -178,7 +182,7 @@ always_ff @ (posedge i_clk) begin
         
         case(cnt) inside
           [0:3]: begin
-            register_file_a.a <= SIG_VER_S + (cnt % 4);
+            register_file_a.a <= SIG_VER_S/8 + (cnt);
             register_file_a.d <= if_cmd_rx.dat;
             // Can start calculating the inverse here
             bin_inv_in_if.dat[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
@@ -187,23 +191,23 @@ always_ff @ (posedge i_clk) begin
             end
           end
           [4:7]: begin
-            register_file_a.a <= SIG_VER_R + (cnt % 4);
+            register_file_a.a <= SIG_VER_R/8 + (cnt - 4);
             r[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat; // TODO remove
             register_file_a.d <= if_cmd_rx.dat;
             mult_in_if[2].dat[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
           end
           [8:11]: begin
-            e[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
-            register_file_a.a <= SIG_VER_HASH + (cnt % 4);
+            pt_mult0_in_k[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
+            register_file_a.a <= SIG_VER_HASH/8 + (cnt - 8);
             register_file_a.d <= if_cmd_rx.dat;
           end
           [12:19]: begin
-            register_file_a.a <= SIG_VER_Q + (cnt % 8);
-            pt_mult1_in_p.z <= 1;
-            if (cnt % 8 < 4) begin
-              pt_mult1_in_p.x[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
+            register_file_a.a <= SIG_VER_Q/8 + (cnt - 12);
+            pt_mult0_in_p.z <= 1;
+            if ((cnt-12) < 4) begin
+              pt_mult0_in_p.x[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
             end else begin
-              pt_mult1_in_p.y[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
+              pt_mult0_in_p.y[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
             end
             register_file_a.d <= if_cmd_rx.dat;
           end
@@ -215,8 +219,7 @@ always_ff @ (posedge i_clk) begin
         if (mult_in_if[2].dat >= secp256k1_pkg::n) secp256k1_ver.OUT_OF_RANGE_R <= 1;
         if (bin_inv_out_if.val && bin_inv_out_if.rdy) begin
           bin_inv_out_if.rdy <= 0;
-          w <= bin_inv_out_if.dat;
-          w_val <= 1;
+          bin_inv_in_if.dat <= bin_inv_out_if.dat;
           // Start calculating U2
           mult_in_if[2].ctl <= 1;  // mod n
           mult_in_if[2].dat[256 +: 256] <= bin_inv_out_if.dat;
@@ -232,7 +235,7 @@ always_ff @ (posedge i_clk) begin
           cnt[1:0] <= 2'b01;
           mult_in_if[2].val <= 0;
           // Calculate U1
-          mult_in_if[2].dat[0 +: 256] <= e;
+          mult_in_if[2].dat[0 +: 256] <= pt_mult0_in_k;
           mult_in_if[2].val <= 1;
           if (cnt[1:0] == 2'b01) begin
             mult_in_if[2].val <= 0;
@@ -242,18 +245,13 @@ always_ff @ (posedge i_clk) begin
         // TODO load into RAM
         
         if (mult_out_if[2].val && mult_out_if[2].rdy) begin
-          case(cnt[1])
+          case(cnt[2])
             {1'd0}: begin
               pt_mult0_in_k <= mult_out_if[2].dat;
               // TODO write this to RAM
-              u1 <= mult_out_if[2].dat;
               pt_mult0_in_k <= mult_out_if[2].dat;
-              pt_mult0_in_p.z <= 1;
-              pt_mult0_in_p.x <= secp256k1_pkg::Gx;
-              pt_mult0_in_p.y <= secp256k1_pkg::Gy;
               pt_mult0_in_val <= 1;
-              u1_val <= 1;
-              cnt[1] <= 1;
+              cnt[2] <= 1;
             end
             {1'd1}: begin
               pt_mult1_in_k <= mult_out_if[2].dat;
@@ -297,14 +295,21 @@ always_ff @ (posedge i_clk) begin
           cnt <= 0;
           // Just store our value temp
           pt_mult0_in_p2 <= pt_mult0_out_p;
-          secp256k1_state <= CALC_X_JACOB;
-          mult_in_if[2].val <= 1;
-          mult_in_if[2].dat <= {pt_mult0_out_p.z, pt_mult0_out_p.z};
-          mult_in_if[2].ctl <= 0;  // mod p
+          if (DO_AFFINE_CHECK) begin
+            secp256k1_state <= CALC_X_AFFINE;
+            mult_in_if[2].val <= 1;
+            mult_in_if[2].dat <= {pt_mult0_out_p.z, pt_mult0_out_p.z};
+            mult_in_if[2].ctl <= 0;  // mod p
+          end else begin
+            secp256k1_state <= CHECK_IN_JB;
+            mult_in_if[2].val <= 1;
+            mult_in_if[2].dat <= {pt_mult0_out_p.z, pt_mult0_out_p.z};
+            mult_in_if[2].ctl <= 0;  // mod p
+          end
           // Here we either do a final inverstion to get the original .x value or we can do special checks
         end
       end
-      {CALC_X_JACOB}: begin
+      {CALC_X_AFFINE}: begin
         case(cnt)
           0: begin
             if (mult_out_if[2].rdy && mult_out_if[2].val) begin 
@@ -346,6 +351,49 @@ always_ff @ (posedge i_clk) begin
           end
         endcase
       end
+        // This state does the verification checks avoiding the final inversion
+      {CHECK_IN_JB}: begin
+        case(cnt)
+          0: begin
+            if (mult_out_if[2].rdy && mult_out_if[2].val) begin
+              pt_mult0_in_p2.z <= mult_out_if[2].dat;
+              mult_in_if[2].val <= 1;
+              mult_in_if[2].dat <= {r, mult_out_if[2].dat};
+              mult_in_if[2].ctl <= 0;  // mod p
+              cnt <= 1;
+            end
+          end
+          1: begin
+            if (mult_out_if[2].rdy && mult_out_if[2].val) begin
+              r <= r + secp256k1_pkg::n;
+              if (mult_out_if[2].dat == pt_mult0_in_p2.x) begin
+                cnt <= 3;
+              end else if (r + secp256k1_pkg::n >= secp256k1_pkg::p_eq) begin
+                cnt <= 3;
+                secp256k1_ver.FAILED_SIG_VER <= 1;
+              end else begin
+                // Need to do one more check
+                mult_in_if[2].dat <= {r, pt_mult0_in_p2.z};
+                mult_in_if[2].ctl <= 0;  // mod p
+                mult_in_if[2].val <= 1;
+                cnt <= 2;
+              end
+            end
+          end
+          2: begin
+            if (mult_out_if[2].rdy && mult_out_if[2].val) begin
+              if(mult_out_if[2].dat != pt_mult0_in_p2.x)
+                secp256k1_ver.FAILED_SIG_VER <= 1;
+              cnt <= 3;
+            end
+          end
+          3: begin
+            cnt <= $bits(verify_secp256k1_sig_rpl_t)/8;
+            msg <= verify_secp256k1_sig_rpl(secp256k1_ver, index);
+            secp256k1_state <= FINISHED;
+          end
+        endcase
+      end
       {UPDATE_RAM_VARIABLES}: begin
         // Here we write all our calculated variables to RAM
       end
@@ -362,21 +410,32 @@ always_ff @ (posedge i_clk) begin
       end
     endcase
     
+    // We use this to write to the RAM as results are valid
+    
   end
 end
 
+logic if_axi_mm_rd_;
+
+always_comb begin
+  register_file_b.a = if_axi_mm.addr/8;
+end
 
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     if_axi_mm.reset_sink();
-    register_file_b.reset_source();
+    register_file_b.en <= 1;
+    register_file_b.re <= 1;
+    register_file_b.we <= 0;
+    register_file_b.d <= 0;
+    if_axi_mm_rd_ <= 0;
   end else begin
+    if_axi_mm_rd_ <= if_axi_mm_rd;
     if_axi_mm.rd_dat_val <= 0;         
     register_file_b.en <= 1;
     register_file_b.re <= 1;
-    register_file_b.a <= if_axi_mm.addr/8;
     if_axi_mm_rd <= if_axi_mm.rd;
-    if (if_axi_mm_rd) begin
+    if (if_axi_mm_rd_) begin
       if_axi_mm.rd_dat_val <= 1;
       if_axi_mm.rd_dat <= register_file_b.q;    
     end
@@ -458,7 +517,7 @@ packet_arb # (
   .CTL_BITS    ( 8       ),
   .NUM_IN      ( 3       ),
   .OVR_WRT_BIT ( ARB_BIT ),
-  .PIPELINE    ( 1       )
+  .PIPELINE    ( 0       )
 ) 
 packet_arb_mult (
   .i_clk ( i_clk ), 

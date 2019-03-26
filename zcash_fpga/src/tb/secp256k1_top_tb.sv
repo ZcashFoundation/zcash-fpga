@@ -21,7 +21,7 @@ import common_pkg::*;
 import secp256k1_pkg::*;
 import zcash_fpga_pkg::*;
 
-localparam CLK_PERIOD = 1000;
+localparam CLK_PERIOD = 5000;
 
 logic clk, rst;
 
@@ -61,6 +61,7 @@ begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
   integer start_time, finish_time;
+  logic [63:0] mm_data;
   logic fail = 0;
   verify_secp256k1_sig_t verify_secp256k1_sig;
   verify_secp256k1_sig_rpl_t verify_secp256k1_sig_rpl;
@@ -88,6 +89,12 @@ begin
   fail |= (verify_secp256k1_sig_rpl.bm != 0);
   fail |= (verify_secp256k1_sig_rpl.index != k);
   assert (~fail) else $fatal(1, "%m %t ERROR: test failed :\n%p", $time, verify_secp256k1_sig_rpl);
+  
+  // Also try reading some RAM values
+  mm_if.get_data(mm_data, SIG_VER_HASH);
+  
+  fail |= mm_data != hash[0 +: 64];
+  assert (~fail) else $fatal(1, "%m %t ERROR: mm_if data read back wrong hash", $time);
 
   $display("test #%d PASSED in %d clocks", integer'(k), (finish_time-start_time)/CLK_PERIOD);
 end
@@ -100,12 +107,17 @@ initial begin
   mm_if.reset_source();
   #(40*CLK_PERIOD);
 
-  test(1, 256'h4c7dbc46486ad9569442d69b558db99a2612c4f003e6631b593942f531e67fd4,
-          256'h808a2c66c5b90fa1477d7820fc57a8b7574cdcb8bd829bdfcf98aa9c41fde3b4,
-          256'h7d4a15dda75c683f002305c2d6ebeebf6c6590f48e128497f118f43250f9924f,
-          256'hdbe7be814625d52029f94f956147df9347b56e6b5f1cb70bf5d6069ecd8405dd,
-          256'h3feab712653c82df859affc1c287a5353cbe7ca59b83d6d55d97fc04f243c19f);
+  test(1, 256'h4c7dbc46486ad9569442d69b558db99a2612c4f003e6631b593942f531e67fd4,  // message hash
+          256'h1375af664ef2b74079687956fd9042e4e547d57c4438f1fc439cbfcb4c9ba8b,  // r
+          256'hde0f72e442f7b5e8e7d53274bf8f97f0674f4f63af582554dbecbb4aa9d5cbcb,  // s
+          256'h808a2c66c5b90fa1477d7820fc57a8b7574cdcb8bd829bdfcf98aa9c41fde3b4,  //Qx
+          256'heed249ffde6e46d784cb53b4df8c9662313c1ce8012da56cb061f12e55a32249); //Qy
 
+  test(2, 256'haca448f8093e33286c7d284569feae5f65ae7fa2ea5ce9c46acaad408da61e1f,  // message hash
+          256'hbce4a3be622e3f919f97b03b45e3f32ccdf3dd6bcce40657d8f9fc973ae7b29,  // r
+          256'h6abcd5e40fcee8bca6b506228a2dcae67daa5d743e684c4d3fb1cb77e43b48fe,  // s
+          256'hb661c143ffbbad5acfe16d427767cdc57fb2e4c019a4753ba68cd02c29e4a153,  //Qx
+          256'h6e1fb00fdb9ddd39b55596bfb559bc395f220ae51e46dbe4e4df92d1a5599726); //Qy
 
   #1us $finish();
 end

@@ -134,15 +134,14 @@ secp256k1_mod (
 );
 
 // Test a point
-task test(input logic [255:0] k, jb_point_t p_exp);
+task test(input logic [255:0] k, jb_point_t p_exp, p_in = secp256k1_pkg::G_p);
 begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
   logic [255:0] in_a, in_b;
   integer start_time, finish_time;
-  jb_point_t p_in, p_out;
+  jb_point_t  p_out;
   $display("Running test_0...");
-  p_in = secp256k1_pkg::G_p;
   k_in = k;
   start_time = $time;
   fork
@@ -152,7 +151,6 @@ begin
   finish_time = $time;
   
   p_out = get_dat;
-  
   if (p_exp != p_out) begin
     $display("Expected:");
     print_jb_point(p_exp);
@@ -170,7 +168,7 @@ initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
-
+/*
   test(1, {x:256'h79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798,
            y:256'h483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8,
            z:256'h1});
@@ -186,11 +184,19 @@ initial begin
   test(4, {x:256'h9bae2d5bac61e6ea5de635bca754b2564b7d78c45277cad67e45c4cbbea6e706,
            y:256'h34fb8147eed1c0fbe29ead4d6c472eb4ef7b2191fde09e494b2a9845fe3f605e,
            z:256'hc327b5d2636b32f27b051e4742b1bbd5324432c1000bfedca4368a29f6654152});
-           
+
   test(1514155, {x:256'h759267d17957f567381462db6e240b75c9f6016091a7427cfbef33c398964a9d,
                  y:256'hd81ce7034647587a9b0ea5b52ac08c91f5cfae30f4eba2ade7fa68856fc0d691,
                  z:256'h7c9d27fb2de7927c982792630a0c86f411f2de60e8df44c5e9caff976658009c});
-
+*/
+  test(256'hbad45c59dcd6d81c6a96b46a678cb893c53decc8e57465bd84efa78676ccc64a,
+          {x:256'he7e2b526cd2822c69ea688586501db564f28430319cdeb95cb38feb2c77fdfc3,
+           y:256'h6dda26c3c991cfab33a12ed7b56a0afa17d375d8fa5cabe2d1d143bb21cab887,
+           z:256'h2f8a851f9aec0f095a31472456a91cca12dd21da865e5a83e5d1b1085835c36c},
+           {x:256'h808a2c66c5b90fa1477d7820fc57a8b7574cdcb8bd829bdfcf98aa9c41fde3b4,  // Not multiplying by generator
+           y:256'heed249ffde6e46d784cb53b4df8c9662313c1ce8012da56cb061f12e55a32249,
+           z:256'h1});        
+           
   #1us $finish();
 end
 endmodule

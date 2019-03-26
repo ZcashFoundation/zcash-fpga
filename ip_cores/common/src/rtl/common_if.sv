@@ -180,6 +180,32 @@ interface if_axi_mm # (
     rd_dat_val <= 0;
     wait_rq <= 0;
   endtask
+  
+  task automatic put_data(input logic [D_BITS-1:0] data, [A_BITS-1:0] addr_in);
+    reset_source();
+    @(posedge i_clk);
+    wr = 1;
+    wr_dat = data;
+    addr = addr_in;
+    @(posedge i_clk); // Go to next clock edge
+    while (wait_rq) @(posedge i_clk); // If not rdy then wait here
+    reset_source();
+  endtask
+  
+  task automatic get_data(ref logic [D_BITS-1:0] data, input logic [A_BITS-1:0] addr_in);
+    reset_source();
+    @(posedge i_clk);
+    rd = 1;
+    addr = addr_in;
+    @(posedge i_clk); // Go to next clock edge
+    if (!wait_rq) rd = 0;
+    while (!rd_dat_val) begin 
+      if (!wait_rq) rd = 0;
+      @(posedge i_clk);
+    end
+    data = rd_dat;
+    reset_source();
+  endtask  
     
 endinterface
 

@@ -132,8 +132,8 @@ generate
   if (MULTIPLIER == "ACCUM_MULT") begin: MULTIPLIER_GEN
     accum_mult # (
       .BITS_A  ( OUT_BITS +8 ),
-      .LEVEL_A ( 12          ),
-      .LEVEL_B ( 8           )
+      .LEVEL_A ( 6          ),
+      .LEVEL_B ( 4          )
     ) 
     accum_mult (
       .i_clk ( i_clk ),
