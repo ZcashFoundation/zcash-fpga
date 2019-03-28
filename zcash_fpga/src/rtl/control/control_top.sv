@@ -35,9 +35,13 @@ module control_top
   if_axi_stream.source tx_if,
   
   // Used when verifying equihash soltion
-  if_axi_stream.source o_equihash_axi,
-  input equihash_bm_t i_equihash_mask,
-  input               i_equihash_mask_val
+  if_axi_stream.source o_equihash_if,
+  input equihash_bm_t  i_equihash_mask,
+  input                i_equihash_mask_val,
+  
+  // Driving secp256k1 core
+  if_axi_stream.source o_secp256k1_if,
+  if_axi_stream.sink   i_secp256k1_if
 );
 
 localparam IN_DAT_BITS = IN_DAT_BYTS*8;
@@ -70,8 +74,9 @@ typ0_msg_state_t typ0_msg_state;
 
 typedef enum {TYP1_IDLE = 0,
       TYP1_VERIFY_EQUIHASH = 1,
-      TYP1_SEND_IGNORE = 2,
-      TYP1_IGNORE = 3} typ1_msg_state_t;
+      TYP1_VERIFY_SECP256K1 = 2,
+      TYP1_SEND_IGNORE = 3,
+      TYP1_IGNORE = 4} typ1_msg_state_t;
       
 typ1_msg_state_t typ1_msg_state;
 
@@ -83,7 +88,7 @@ logic [$clog2(MAX_BYT_MSG) -1:0] typ0_wrd_cnt, typ1_wrd_cnt;
 logic [MAX_BYT_MSG*8 -1:0] typ0_msg, typ1_msg;
 logic [63:0] equihash_index;
 logic equihash_index_val, rx_typ1_if_rdy;
-logic sop_l;
+logic sop_l, eop_l;
 logic eop_typ0_l, eop_typ1_l;
 
 fpga_state_t fpga_state;
@@ -143,12 +148,11 @@ always_ff @ (posedge i_clk_core) begin
       end
       TYP0_RESET_FPGA: begin
         rx_typ0_if.rdy <= 0;  
-        if (reset_cnt == 0)
-          o_usr_rst <= 0;
-        else
+        if (reset_cnt != 0)
           reset_cnt <= reset_cnt - 1;
-        
-        if (~o_usr_rst) begin
+        if (reset_cnt >> 4 == 0)
+          o_usr_rst <= 0;
+        if (reset_cnt == 0) begin
           send_typ0_message($bits(fpga_reset_rpl_t)/8);
         end
       end
@@ -186,9 +190,13 @@ endtask
 always_comb begin
   case(typ1_msg_state)
     TYP1_IDLE:       rx_typ1_if.rdy = rx_typ1_if_rdy;
-    VERIFY_EQUIHASH: rx_typ1_if.rdy = rx_typ1_if_rdy && o_equihash_axi.rdy;
+    VERIFY_EQUIHASH: rx_typ1_if.rdy = rx_typ1_if_rdy && o_equihash_if.rdy;
     default:         rx_typ1_if.rdy = rx_typ1_if_rdy;
   endcase
+end
+
+always_comb begin
+  i_secp256k1_if.rdy = (typ1_msg_state == TYP1_VERIFY_SECP256K1) && tx_arb_in_if[1].rdy;
 end
 // Logic for processing msg_type == 1 messages
 always_ff @ (posedge i_clk_core) begin
@@ -197,7 +205,7 @@ always_ff @ (posedge i_clk_core) begin
     typ1_msg_state <= TYP1_IDLE;
     header1_l <= 0;
     tx_arb_in_if[1].reset_source();
-    o_equihash_axi.reset_source();
+    o_equihash_if.reset_source();
     typ1_wrd_cnt <= 0;
     equihash_index <= 0;
     verify_equihash_rpl_val <= 0;
@@ -205,8 +213,9 @@ always_ff @ (posedge i_clk_core) begin
     sop_l <= 0;
     eop_typ1_l <= 0;
     typ1_msg <= 0;
+    o_secp256k1_if.reset_source();
+    eop_l <= 0;
   end else begin
-    // TODO add IGNORE type here
     case (typ1_msg_state)
       TYP1_IDLE: begin
         rx_typ1_if_rdy <= 1;
@@ -221,6 +230,23 @@ always_ff @ (posedge i_clk_core) begin
               rx_typ1_if_rdy <= 1;
               typ1_wrd_cnt <= $bits(verify_equihash_rpl_t)/8;
               typ1_msg_state <= TYP1_VERIFY_EQUIHASH;
+              if (~ENB_VERIFY_EQUIHASH) begin
+                typ1_msg <= get_fpga_ignore_rpl(header1);
+                typ1_wrd_cnt <= $bits(fpga_ignore_rpl_t)/8;
+                eop_typ1_l <= rx_typ1_if.eop;
+                typ1_msg_state <= TYP1_SEND_IGNORE;
+              end
+            end
+            VERIFY_SECP256K1_SIG: begin
+              rx_typ1_if_rdy <= o_secp256k1_if.rdy;
+              o_secp256k1_if.copy_if(rx_typ1_if.to_struct());
+              typ1_msg_state <= TYP1_VERIFY_SECP256K1;
+              if (~ENB_VERIFY_SECP256K1_SIG) begin
+                typ1_msg <= get_fpga_ignore_rpl(header1);
+                typ1_wrd_cnt <= $bits(fpga_ignore_rpl_t)/8;
+                eop_typ1_l <= rx_typ1_if.eop;
+                typ1_msg_state <= TYP1_SEND_IGNORE;
+              end
             end
             default: begin
               typ1_msg <= get_fpga_ignore_rpl(header1);
@@ -242,13 +268,13 @@ always_ff @ (posedge i_clk_core) begin
           end
         end else begin         
           // First load block data (this might be bypassed if loading from memory)  
-          if (~o_equihash_axi.val || (o_equihash_axi.rdy && o_equihash_axi.val)) begin
-            o_equihash_axi.copy_if(rx_typ1_if.to_struct());
+          if (~o_equihash_if.val || (o_equihash_if.rdy && o_equihash_if.val)) begin
+            o_equihash_if.copy_if(rx_typ1_if.to_struct());
             // First cycle has .sop set
-            o_equihash_axi.sop <= ~sop_l;
-            if (o_equihash_axi.val) begin
+            o_equihash_if.sop <= ~sop_l;
+            if (o_equihash_if.val) begin
               sop_l <= 1;
-              o_equihash_axi.sop <= 0;
+              o_equihash_if.sop <= 0;
             end
           end
         end
@@ -264,6 +290,27 @@ always_ff @ (posedge i_clk_core) begin
           send_typ1_message($bits(verify_equihash_rpl_t)/8);
         end
       end
+      
+      // The command header is sent through to output
+      TYP1_VERIFY_SECP256K1: begin
+        rx_typ1_if_rdy <= o_secp256k1_if.rdy;
+        if (~eop_l && ~o_secp256k1_if.val || (o_secp256k1_if.rdy && o_secp256k1_if.val)) begin
+          o_secp256k1_if.copy_if(rx_typ1_if.to_struct());
+          eop_l <= rx_typ1_if.eop && rx_typ1_if.val;
+          if (rx_typ1_if.eop && rx_typ1_if.val)
+            rx_typ1_if_rdy <= 0;
+        end
+        
+        if (~tx_arb_in_if[1].val || (tx_arb_in_if[1].rdy && tx_arb_in_if[1].val)) begin
+          tx_arb_in_if[1].copy_if(i_secp256k1_if.to_struct()); 
+        end
+        
+        if (tx_arb_in_if[1].val && tx_arb_in_if[1].rdy && tx_arb_in_if[1].eop) begin
+          typ1_msg_state <= TYP1_IDLE;
+        end
+          
+      end
+      
       TYP1_SEND_IGNORE: begin
         send_typ1_message($bits(fpga_ignore_rpl_t)/8, eop_typ1_l ? TYP1_IDLE : TYP1_IGNORE);
       end
@@ -279,7 +326,7 @@ end
 // Task to help build reply messages. Assume no message will be more than MAX_BYT_MSG bytes
 task send_typ1_message(input logic [$clog2(MAX_BYT_MSG)-1:0] msg_size,
                        input typ1_msg_state_t nxt_state = TYP1_IDLE);
-  rx_typ1_if.rdy <= 0;
+  rx_typ1_if_rdy <= 0;
   if (~tx_arb_in_if[1].val || (tx_arb_in_if[1].rdy && tx_arb_in_if[1].val)) begin
     tx_arb_in_if[1].dat <= typ1_msg;
     tx_arb_in_if[1].val <= 1;

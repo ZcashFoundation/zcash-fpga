@@ -174,7 +174,7 @@ always_ff @ (posedge i_clk) begin
         if (if_cmd_rx.val && if_cmd_rx.rdy) begin
           register_file_a.we <= 1;
           cnt <= cnt + 1;
-          if (cnt == 19) begin
+          if (cnt == 19 && if_cmd_rx.val && if_cmd_rx.rdy) begin
             secp256k1_state <= CALC_S_INV;
             bin_inv_out_if.rdy <= 1;
           end
@@ -186,7 +186,7 @@ always_ff @ (posedge i_clk) begin
             register_file_a.d <= if_cmd_rx.dat;
             // Can start calculating the inverse here
             bin_inv_in_if.dat[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
-            if (cnt == 3) begin
+            if (cnt == 3 && if_cmd_rx.val && if_cmd_rx.rdy) begin
               bin_inv_in_if.val <= 1;
             end
           end

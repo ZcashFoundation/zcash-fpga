@@ -81,12 +81,12 @@ end
 
 initial begin
   clk = 0;
-  forever #10ns clk = ~clk;
+  forever #2.5ns clk = ~clk;
 end
 
 initial begin
   clk_300 = 0;
-  forever #3ns clk_300 = ~clk_300;
+  forever #1.666ns clk_300 = ~clk_300;
 end
 
 file_to_axi #(
@@ -168,7 +168,7 @@ endtask
 initial begin
  #20us; // Let internal memories reset
   
- test_block_346_error();
+ //test_block_346_error();
  test_block_346();
  
 

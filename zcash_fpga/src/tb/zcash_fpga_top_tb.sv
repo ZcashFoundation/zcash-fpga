@@ -20,6 +20,7 @@
 module zcash_fpga_top_tb();
 
 import zcash_fpga_pkg::*;
+import secp256k1_pkg::*;
 import equihash_pkg::*;
 import common_pkg::*;
 
@@ -27,9 +28,9 @@ logic clk_if, rst_if;
 logic clk_300, rst_300;
 logic clk_200, rst_200;
 
-localparam CLK200_PERIOD = 600;
-localparam CLK300_PERIOD = 400;
-localparam IF_CLK_PERIOD = 1000;
+localparam CLK200_PERIOD = 5000;
+localparam CLK300_PERIOD = 3333;
+localparam IF_CLK_PERIOD = 10000;
 
 parameter DAT_BYTS = 8;
 parameter IF_DAT_BYTS = 4;
@@ -49,7 +50,7 @@ end
 
 initial begin
   clk_300 = 0;
-  forever #CLK300_PERIOD clk_300 = ~clk_300;
+  forever #(CLK300_PERIOD/2) clk_300 = ~clk_300;
 end
 
 initial begin
@@ -59,7 +60,7 @@ end
 
 initial begin
   clk_200 = 0;
-  forever #CLK200_PERIOD clk_200 = ~clk_200;
+  forever #(CLK200_PERIOD/2) clk_200 = ~clk_200;
 end
 
 initial begin
@@ -69,7 +70,7 @@ end
 
 initial begin
   clk_if = 0;
-  forever #IF_CLK_PERIOD clk_if = ~clk_if;
+  forever #(IF_CLK_PERIOD/2) clk_if = ~clk_if;
 end
 
 // Need one for each test so we can multiplex the input
@@ -218,6 +219,45 @@ begin
 end
 endtask
 
+task test_block_secp256k1();
+begin
+  integer signed get_len;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
+  integer start_time, finish_time;
+  logic [63:0] mm_data;
+  logic fail = 0;
+  verify_secp256k1_sig_t verify_secp256k1_sig;
+  verify_secp256k1_sig_rpl_t verify_secp256k1_sig_rpl;
+          
+  $display("Running test_block_secp256k1...");
+  verify_secp256k1_sig.hdr.cmd = VERIFY_SECP256K1_SIG;
+  verify_secp256k1_sig.hdr.len = $bits(verify_secp256k1_sig_t)/8;
+  verify_secp256k1_sig.index = 1;
+  verify_secp256k1_sig.hash = 256'h4c7dbc46486ad9569442d69b558db99a2612c4f003e6631b593942f531e67fd4;
+  verify_secp256k1_sig.r = 256'h1375af664ef2b74079687956fd9042e4e547d57c4438f1fc439cbfcb4c9ba8b;
+  verify_secp256k1_sig.s = 256'hde0f72e442f7b5e8e7d53274bf8f97f0674f4f63af582554dbecbb4aa9d5cbcb;
+  verify_secp256k1_sig.Qx = 256'h808a2c66c5b90fa1477d7820fc57a8b7574cdcb8bd829bdfcf98aa9c41fde3b4;
+  verify_secp256k1_sig.Qy = 256'heed249ffde6e46d784cb53b4df8c9662313c1ce8012da56cb061f12e55a32249;
+ 
+  start_time = $time;
+  fork
+    tx_if.put_stream(verify_secp256k1_sig, $bits(verify_secp256k1_sig)/8);
+    rx_if.get_stream(get_dat, get_len);
+  join
+  finish_time = $time;
+  
+  verify_secp256k1_sig_rpl = get_dat;
+  
+  fail |= verify_secp256k1_sig_rpl.hdr.cmd != VERIFY_SECP256K1_SIG_RPL;
+  fail |= (verify_secp256k1_sig_rpl.bm != 0);
+  fail |= (verify_secp256k1_sig_rpl.index != verify_secp256k1_sig.index);
+  assert (~fail) else $fatal(1, "%m %t ERROR: test_block_secp256k1 failed :\n%p", $time, verify_secp256k1_sig_rpl);
+  
+
+  $display("test_block_secp256k1 PASSED");
+end
+endtask;
+
 // Main testbench calls
 initial begin
   rx_if.rdy = 0;
@@ -225,6 +265,7 @@ initial begin
   
   test_ignored_message();
   test_block_346_equihash();
+  test_block_secp256k1();
   
   #1us $finish();
 

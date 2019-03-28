@@ -40,6 +40,10 @@ logic rst_core0, rst_core1, rst_if, usr_rst, usr_rst_r;
 
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS)) equihash_axi(i_clk_core0);
 
+if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS)) secp256k1_out_if(i_clk_core0);
+if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS)) secp256k1_in_if(i_clk_core0);
+if_axi_mm secp256k1_mm_if(i_clk_core0);
+
 equihash_bm_t equihash_mask;
 logic         equihash_mask_val;
   
@@ -87,24 +91,57 @@ control_top (
   .o_usr_rst ( usr_rst ),
   .rx_if ( rx_if ),
   .tx_if ( tx_if ),
-  .o_equihash_axi      ( equihash_axi      ),
+  .o_equihash_if       ( equihash_axi      ),
   .i_equihash_mask     ( equihash_mask     ),
-  .i_equihash_mask_val ( equihash_mask_val )
+  .i_equihash_mask_val ( equihash_mask_val ),
+  .o_secp256k1_if ( secp256k1_out_if ),
+  .i_secp256k1_if ( secp256k1_in_if  )
 );
 
 
 // This block is used to verify a equihash solution
-equihash_verif_top #(
-  .DAT_BYTS( CORE_DAT_BYTS )
-)
-equihash_verif_top (
-  .i_clk ( i_clk_core0 ),
-  .i_rst ( rst_core0   ),
-  .i_clk_300 ( i_clk_core1 ), // Faster clock
-  .i_rst_300 ( rst_core1   ), 
-  .i_axi      ( equihash_axi      ),
-  .o_mask     ( equihash_mask     ),
-  .o_mask_val ( equihash_mask_val )
-);  
+generate if (ENB_VERIFY_EQUIHASH == 1) begin
+  equihash_verif_top #(
+    .DAT_BYTS( CORE_DAT_BYTS )
+  )
+  equihash_verif_top (
+    .i_clk ( i_clk_core0 ),
+    .i_rst ( rst_core0   ),
+    .i_clk_300 ( i_clk_core1 ), // Faster clock
+    .i_rst_300 ( rst_core1   ), 
+    .i_axi      ( equihash_axi      ),
+    .o_mask     ( equihash_mask     ),
+    .o_mask_val ( equihash_mask_val )
+  );
+end else begin
+  always_comb begin
+    equihash_mask = 0;
+    equihash_mask_val = 0;
+    equihash_axi.rdy = 1;
+  end
+end
+endgenerate
+
+// This block is the ECCDSA block for curve secp256k1
+generate if (ENB_VERIFY_SECP256K1_SIG == 1) begin
+  always_comb begin
+   secp256k1_mm_if.reset_source();
+  end
+  secp256k1_top secp256k1_top (
+    .i_clk      ( i_clk_core0 ),
+    .i_rst      ( rst_core0   ),
+    .if_cmd_rx  ( secp256k1_out_if ),
+    .if_cmd_tx  ( secp256k1_in_if  ),
+    .if_axi_mm  ( secp256k1_mm_if  )
+  );
+end else begin
+  always_comb begin
+    secp256k1_out_if.rdy = 1;
+    secp256k1_in_if.reset_source();
+    secp256k1_mm_if.reset_sink();
+  end
+end
+endgenerate
+
 
 endmodule

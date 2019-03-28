@@ -26,12 +26,15 @@ package zcash_fpga_pkg;
   import secp256k1_pkg::secp256k1_ver_t;
   
   parameter FPGA_VERSION = 32'h01_00_00;  //v1.0.0
+  
+  // What features are enabled in this build
   parameter bit ENB_VERIFY_SECP256K1_SIG = 1;
+  parameter bit ENB_VERIFY_EQUIHASH = 1;
   
   localparam [63:0] FPGA_CMD_CAP = {{61'd0},
                                      ENB_VERIFY_SECP256K1_SIG,
-                                    (equihash_pkg::N == 144 && equihash_pkg::K == 5),       // N = 144, K = 5 for VERIFY_EQUIHASH command
-                                    (equihash_pkg::N == 200 && equihash_pkg::K == 9)};      // N = 200, K = 9 for VERIFY_EQUIHASH command
+                                    (ENB_VERIFY_EQUIHASH && equihash_pkg::N == 144 && equihash_pkg::K == 5),       // N = 144, K = 5 for VERIFY_EQUIHASH command
+                                    (ENB_VERIFY_EQUIHASH && equihash_pkg::N == 200 && equihash_pkg::K == 9)};      // N = 200, K = 9 for VERIFY_EQUIHASH command
   
   // These are all the command types the FPGA supports
   // Reply messages from the FPGA to host all have the last
@@ -62,8 +65,8 @@ package zcash_fpga_pkg;
   } fpga_reset_rpl_t;
   
   typedef struct packed {
-    header_t     hdr;
     logic [63:0] ignore_hdr;
+    header_t     hdr;
   } fpga_ignore_rpl_t;
   
   // These are registers we use for debug
