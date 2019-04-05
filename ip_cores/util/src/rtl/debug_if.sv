@@ -20,7 +20,7 @@
 module debug_if #(
   parameter DAT_BYTS,
   parameter DAT_BITS = DAT_BYTS*8,
-  parameter MOD_BITS = $clog2(DAT_BYTS),
+  parameter MOD_BITS = DAT_BYTS == 1 ? 1 :$clog2(DAT_BYTS),
   parameter CTL_BITS
 ) (
   if_axi_stream i_if
@@ -35,15 +35,15 @@ module debug_if #(
 (* mark_debug = "true" *) logic [DAT_BITS-1:0] dat;
 (* mark_debug = "true" *) logic [MOD_BITS-1:0] mod;
 
-always_comb begin
-  rdy = i_if.rdy;
-  val = i_if.val;
-  err = i_if.err;
-  sop = i_if.sop;
-  eop = i_if.eop;
-  ctl = i_if.ctl;
-  dat = i_if.dat;
-  mod = i_if.mod;
+always_ff @ (posedge i_if.i_clk) begin
+  rdy <= i_if.rdy;
+  val <= i_if.val;
+  err <= i_if.err;
+  sop <= i_if.sop;
+  eop <= i_if.eop;
+  ctl <= i_if.ctl;
+  dat <= i_if.dat;
+  mod <= i_if.mod;
 end
 
 endmodule
