@@ -27,7 +27,7 @@ localparam CORE_CLK_PERIOD = 600;
 localparam UART_CLK_PERIOD = 1000;
 
 localparam CORE_BYTS = 8;
-localparam UART_BYTS = 4;  // Use real value TODO
+localparam UART_BYTS = 1; 
 
 logic core_clk, core_rst, uart_clk, uart_rst, usr_rst;
 
@@ -35,6 +35,9 @@ equihash_bm_t equihash_mask;
 logic equihash_mask_val;
 
 if_axi_stream #(.DAT_BYTS(CORE_BYTS)) equihash_axi(core_clk);
+
+if_axi_stream #(.DAT_BYTS(CORE_BYTS)) secp256k1_tx_if(core_clk);
+if_axi_stream #(.DAT_BYTS(CORE_BYTS)) secp256k1_rx_if(core_clk);
 
 if_axi_stream #(.DAT_BYTS(UART_BYTS)) uart_rx_if (uart_clk);
 if_axi_stream #(.DAT_BYTS(UART_BYTS)) uart_tx_if (uart_clk);
@@ -59,20 +62,28 @@ initial begin
   forever #UART_CLK_PERIOD uart_clk = ~uart_clk;
 end
 
+always_comb begin
+  secp256k1_tx_if.reset_source();
+  secp256k1_tx_if.rdy = 1;
+end
+
 control_top #(
   .IN_DAT_BYTS(UART_BYTS)
 )
 DUT (
   .i_clk_core ( core_clk   ),
   .i_rst_core ( core_rst   ),
+  .i_rst_core_perm (core_rst),
   .o_usr_rst  ( usr_rst    ),
   .i_clk_if   ( uart_clk   ),
   .i_rst_if   ( uart_rst   ),
   .rx_if      ( uart_tx_if ),
   .tx_if      ( uart_rx_if ),
-  .o_equihash_axi ( equihash_axi ),
+  .o_equihash_if ( equihash_axi ),
   .i_equihash_mask ( equihash_mask ),
-  .i_equihash_mask_val ( equihash_mask_val )
+  .i_equihash_mask_val ( equihash_mask_val ),
+  .o_secp256k1_if( secp256k1_tx_if ),
+  .i_secp256k1_if( secp256k1_tx_if )
 );
 
 // This is a tests sending a request for FPGA status
@@ -89,7 +100,7 @@ begin
  
   fork
     uart_tx_if.put_stream(header, $bits(header)/8);
-    uart_rx_if.get_stream(get_dat, get_len);
+    uart_rx_if.get_stream(get_dat, get_len, 0);
   join
   
   fpga_status_rpl = get_dat;
@@ -99,8 +110,8 @@ begin
   fail |= fpga_status_rpl.hdr.len != get_len;
   fail |= fpga_status_rpl.version != FPGA_VERSION;
   fail |= fpga_status_rpl.build_host != "test";
-  fail |= fpga_status_rpl.build_date != "20180311";
-  fail |= fpga_status_rpl.fpga_state != 0;
+  fail |= fpga_status_rpl.build_date != "20180311"; 
+  fail |= fpga_status_rpl.fpga_state != 0; 
   
   assert (~fail) else $fatal(1, "%m %t ERROR: test_status_message status reply was wrong:\n%p", $time, fpga_status_rpl);
   

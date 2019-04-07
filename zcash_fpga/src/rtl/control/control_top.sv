@@ -64,6 +64,11 @@ if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_typ1_if (i_clk_core);
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) tx_arb_in_if [2] (i_clk_core);
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) tx_int_if (i_clk_core);
 
+
+debug_if #(.DAT_BYTS (CORE_DAT_BYTS), .CTL_BITS (1)) debug_if_rx (.i_if(rx_int_if));
+debug_if #(.DAT_BYTS (CORE_DAT_BYTS), .CTL_BITS (1)) debug_if_tx (.i_if(tx_int_if));
+
+
 typedef enum {TYP0_IDLE = 0,
       TYP0_SEND_STATUS = 1,
       TYP0_RESET_FPGA = 2,
