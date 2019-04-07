@@ -63,10 +63,13 @@ generate if (SHIFT_DOWN) begin
     end else begin
 
       o_axi_int.rdy <= 0;
+      
+      if (o_axi_b.val && o_axi_b.rdy) o_axi_b.val <= 0;
 
       if (~o_axi_b.val || (o_axi_b.val && o_axi_b.rdy)) begin
 
-        if (o_axi_int.val) begin
+        if (o_axi_int.val && ~o_axi_int.rdy) begin
+        
 
           if (~sop_l) begin
             o_axi_b.ctl <= o_axi_int.ctl;
@@ -76,6 +79,8 @@ generate if (SHIFT_DOWN) begin
           o_axi_b.dat <= o_axi_int.dat[byt_cnt*8 +: OUT_DAT_BITS];
           o_axi_b.sop <= ~sop_l;
           o_axi_b.val <= 1;
+          o_axi_b.eop <= 0;
+   
 
           byt_cnt <= byt_cnt + OUT_DAT_BYTS;
 
