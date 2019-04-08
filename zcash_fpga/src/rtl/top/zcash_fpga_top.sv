@@ -36,7 +36,7 @@ module zcash_fpga_top
   if_axi_stream.source tx_if
 );
 
-logic rst_core0, rst_core1, rst_if, usr_rst, usr_rst_r;
+logic rst_core0, usr_rst_core1, rst_core1, rst_if, usr_rst_if, usr_rst, usr_rst_r;
 
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS)) equihash_axi(i_clk_core0);
 
@@ -53,29 +53,23 @@ always_ff @ (posedge i_clk_core0) begin
 end
 
 // Synchronize resets
-(* DONT_TOUCH = "yes" *)
-synchronizer  #(
-  .DAT_BITS ( 1 ),
-  .NUM_CLKS ( 3 )
-)
-core_rst1_sync (
+synchronizer  #(.DAT_BITS ( 1 ), .NUM_CLKS ( 3 )) core_rst1_sync (
   .i_clk_a ( i_clk_core0 ),
   .i_clk_b ( i_clk_core1 ),
-  .i_dat_a ( usr_rst_r || i_rst_core1 ),
-  .o_dat_b ( rst_core1 )
+  .i_dat_a ( usr_rst_r   ),
+  .o_dat_b ( usr_rst_core1 )
 );
 
-(* DONT_TOUCH = "yes" *)
-synchronizer  #(
-  .DAT_BITS ( 1 ),
-  .NUM_CLKS ( 3 )
-)
-if_rst_sync (
+always_ff @ (posedge i_clk_core1) rst_core1 <= i_rst_core1 || usr_rst_core1;
+
+synchronizer  #(.DAT_BITS ( 1 ), .NUM_CLKS ( 3 )) if_rst_sync (
   .i_clk_a ( i_clk_core0 ),
   .i_clk_b ( i_clk_if   ),
-  .i_dat_a ( usr_rst_r || i_rst_if ),
-  .o_dat_b ( rst_if )
+  .i_dat_a ( usr_rst_r  ),
+  .o_dat_b ( usr_rst_if )
 );
+
+always_ff @ (posedge i_clk_if) rst_if <= i_rst_if || usr_rst_if;
 
 // This block takes in the interface signals and interfaces with other blocks
 control_top #(
@@ -100,48 +94,31 @@ control_top (
 
 
 // This block is used to verify a equihash solution
-generate if (ENB_VERIFY_EQUIHASH == 1) begin
-  equihash_verif_top #(
-    .DAT_BYTS( CORE_DAT_BYTS )
-  )
-  equihash_verif_top (
-    .i_clk ( i_clk_core0 ),
-    .i_rst ( rst_core0   ),
-    .i_clk_300 ( i_clk_core1 ), // Faster clock
-    .i_rst_300 ( rst_core1   ), 
-    .i_axi      ( equihash_axi      ),
-    .o_mask     ( equihash_mask     ),
-    .o_mask_val ( equihash_mask_val )
-  );
-end else begin
-  always_comb begin
-    equihash_mask = 0;
-    equihash_mask_val = 0;
-    equihash_axi.rdy = 1;
-  end
-end
-endgenerate
+equihash_verif_top #(
+  .DAT_BYTS( CORE_DAT_BYTS )
+)
+equihash_verif_top (
+  .i_clk ( i_clk_core0 ),
+  .i_rst ( rst_core0 || ENB_VERIFY_EQUIHASH == 0 ),
+  .i_clk_300 ( i_clk_core1 ), // Faster clock
+  .i_rst_300 ( rst_core1 || ENB_VERIFY_EQUIHASH == 0 ), 
+  .i_axi      ( equihash_axi      ),
+  .o_mask     ( equihash_mask     ),
+  .o_mask_val ( equihash_mask_val )
+);
+
 
 // This block is the ECCDSA block for curve secp256k1
-generate if (ENB_VERIFY_SECP256K1_SIG == 1) begin
-  always_comb begin
-   secp256k1_mm_if.reset_source();
-  end
-  secp256k1_top secp256k1_top (
-    .i_clk      ( i_clk_core0 ),
-    .i_rst      ( rst_core0   ),
-    .if_cmd_rx  ( secp256k1_out_if ),
-    .if_cmd_tx  ( secp256k1_in_if  ),
-    .if_axi_mm  ( secp256k1_mm_if  )
-  );
-end else begin
-  always_comb begin
-    secp256k1_out_if.rdy = 1;
-    secp256k1_in_if.reset_source();
-    secp256k1_mm_if.reset_sink();
-  end
+always_comb begin
+ secp256k1_mm_if.reset_source();
 end
-endgenerate
+secp256k1_top secp256k1_top (
+  .i_clk      ( i_clk_core0 ),
+  .i_rst      ( rst_core0 || ENB_VERIFY_SECP256K1_SIG == 0 ),
+  .if_cmd_rx  ( secp256k1_out_if ),
+  .if_cmd_tx  ( secp256k1_in_if  ),
+  .if_axi_mm  ( secp256k1_mm_if  )
+);
 
 
 endmodule
