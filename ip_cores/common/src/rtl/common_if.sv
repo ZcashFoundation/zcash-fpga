@@ -128,12 +128,14 @@ interface if_axi_stream # (
   // Task used in simulation to get data from a sink interface
   task automatic get_stream(ref logic [common_pkg::MAX_SIM_BYTS*8-1:0] data, ref integer signed len, input integer unsigned bp = 50);
     logic sop_l = 0;
+    logic done = 0;
     rdy = ($random % 100) >= bp;
     len = 0;
     data = 0;
     @(negedge i_clk);
     
     while (1) begin
+      @(posedge i_clk);
       if (val && rdy) begin
         sop_l = sop_l || sop;
         if (!sop_l) begin
@@ -142,14 +144,19 @@ interface if_axi_stream # (
         end
         data[len*8 +: DAT_BITS] = dat;
         len = len + (eop ? (mod == 0 ? DAT_BYTS : mod) : DAT_BYTS);
-        if (eop) break;
+        if (eop) begin
+          done = 1;
+          break;
+        end
       end
-      @(negedge i_clk);
-      rdy = ($random % 100) >= bp;
+      if (~done) begin
+        @(negedge i_clk);
+        rdy = ($random % 100) >= bp;
+      end
     end
-    @(posedge i_clk);
+    //@(negedge i_clk);
     
-    rdy = 1;
+    rdy = 0;
   endtask
   
 endinterface

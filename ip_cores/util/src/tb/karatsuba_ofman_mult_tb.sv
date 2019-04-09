@@ -23,9 +23,10 @@ import secp256k1_pkg::*;
 localparam CLK_PERIOD = 100;
 
 logic clk, rst;
+localparam IN_BITS = 256+16;
 
-if_axi_stream #(.DAT_BYTS(512/8), .CTL_BITS(8)) in_if(clk);
-if_axi_stream #(.DAT_BYTS(512/8), .CTL_BITS(8)) out_if(clk);
+if_axi_stream #(.DAT_BYTS(IN_BITS*2/8), .CTL_BITS(8)) in_if(clk);
+if_axi_stream #(.DAT_BYTS(IN_BITS*2/8), .CTL_BITS(8)) out_if(clk);
 
 initial begin
   rst = 0;
@@ -49,17 +50,18 @@ always_ff @ (posedge clk)
   if (out_if.val && out_if.err)
     $error(1, "%m %t ERROR: output .err asserted", $time);
 
-localparam LEVEL = 1;
+localparam LEVEL = 2;
+
 karatsuba_ofman_mult # (
-  .BITS     ( 256   ),
+  .BITS     ( IN_BITS  ),
   .CTL_BITS ( 8     ),
   .LEVEL    ( LEVEL )
 )
 karatsuba_ofman_mult (
-  .i_clk  ( clk                   ),
-  .i_rst  ( rst                   ),
-  .i_dat_a( in_if.dat[0 +: 256]   ),
-  .i_dat_b( in_if.dat[256 +: 256] ),
+  .i_clk  ( clk                           ),
+  .i_rst  ( rst                           ),
+  .i_dat_a( in_if.dat[0 +: IN_BITS]       ),
+  .i_dat_b( in_if.dat[IN_BITS +: IN_BITS] ),
   .i_val  ( in_if.val  ),
   .o_val  ( out_if.val ),
   .i_ctl  ( in_if.ctl  ),
@@ -76,13 +78,12 @@ begin
   $display("Running test_pipeline...");
   fork
     begin
-      logic [255:0] in_a, in_b;
+      logic [IN_BITS-1:0] in_a, in_b;
       integer i = 1;
       integer max = 10;
       while (i < max) begin
         in_a = i;
         in_b = i;
-        //in_if.put_stream({in_b, in_a}, 512/8, i);
         in_if.sop = 1;
         in_if.eop = 1;
         in_if.ctl = i;
@@ -100,15 +101,16 @@ begin
       logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
       while (i < max) begin
         expected = i*i;
-        out_if.get_stream(get_dat, get_len);
+        out_if.get_stream(get_dat, get_len, 0);
         common_pkg::compare_and_print(get_dat, expected);
         $display("test_pipeline PASSED loop %d/%d", i, max);
         i = i + 1;
       end
     end
-  join    
+  join
+  in_if.reset_source();
 
-  $display("test_pipeline PASSED");
+  $display("test_pipeline PASSED %t", $time);
 end
 endtask;
 
@@ -116,20 +118,21 @@ task test_loop();
 begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
-  logic [255:0] in_a, in_b;
+  logic [IN_BITS-1:0] in_a, in_b;
   integer i, max;
   
   $display("Running test_loop...");
   i = 0;
   max = 10000;
   
+  #100ns;
+  
   while (i < max) begin
-    in_a = random_vector(256/8);
-    in_b = random_vector(256/8);
+    in_a = random_vector(IN_BITS/8);
+    in_b = random_vector(IN_BITS/8);
     expected = (in_a * in_b);
-    
     fork
-      in_if.put_stream({in_b, in_a}, 512/8, i);
+      in_if.put_stream({in_b, in_a}, IN_BITS*2/8, i);
       out_if.get_stream(get_dat, get_len);
     join
   
@@ -144,10 +147,11 @@ endtask;
 
 initial begin
   out_if.rdy = 0;
-  in_if.val = 0;
+  in_if.reset_source();
   #(40*CLK_PERIOD);
   
   test_pipeline();
+  #(40*CLK_PERIOD);
   test_loop();
 
   #1us $finish();

@@ -53,6 +53,7 @@ secp256k1_mult_mod secp256k1_mult_mod (
   .i_clk( clk         ),
   .i_rst( rst         ),
   .i_cmd( in_if.ctl   ),
+  .i_ctl ( 8'd0       ),
   .i_dat_a( in_if.dat[0 +: 256]   ),
   .i_dat_b( in_if.dat[256 +: 256] ),  
   .i_val( in_if.val   ),
@@ -83,7 +84,7 @@ begin
     expected = (in_a * in_b) % (type_ctl == 0 ? p_eq : secp256k1_pkg::n);
     fork
       in_if.put_stream({in_b, in_a}, 512/8, type_ctl);
-      out_if.get_stream(get_dat, get_len);
+      out_if.get_stream(get_dat, get_len, 0);
     join
   
     common_pkg::compare_and_print(get_dat, expected);
@@ -141,9 +142,7 @@ endtask;
 
 initial begin
   out_if.rdy = 0;
-  in_if.ctl = 0;
-  in_if.err = 0;
-  in_if.val = 0;
+  in_if.reset_source();
   #(40*CLK_PERIOD);
   
   test_pipeline();

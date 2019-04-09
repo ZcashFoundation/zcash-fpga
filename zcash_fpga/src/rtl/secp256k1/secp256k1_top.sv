@@ -1,7 +1,8 @@
 module secp256k1_top #(
   parameter DAT_BYTS = 8,
   parameter DAT_BITS = DAT_BYTS*8,
-  parameter DO_AFFINE_CHECK = 0
+  parameter DO_AFFINE_CHECK = 0,
+  parameter USE_ENDOMORPH = 0
 )(
   input          i_clk,
   input          i_rst,
@@ -9,7 +10,7 @@ module secp256k1_top #(
   if_axi_stream.sink if_cmd_rx,
   if_axi_stream.source if_cmd_tx,
   // Memory map interface for debug
-  if_axi_mm.sink if_axi_mm        
+  if_axi_mm.sink if_axi_mm
 );
 
 import secp256k1_pkg::*;
@@ -33,7 +34,7 @@ jb_point_t pt_mult0_in_p, pt_mult0_out_p, pt_mult1_in_p, pt_mult1_out_p, pt_X0, 
 logic [255:0] pt_mult0_in_k, pt_mult1_in_k;
 logic pt_mult0_in_val, pt_mult0_in_rdy, pt_mult0_out_rdy, pt_mult0_out_val, pt_mult0_out_err, pt_mult0_in_p2_val;
 logic pt_mult1_in_val, pt_mult1_in_rdy, pt_mult1_out_rdy, pt_mult1_out_val, pt_mult1_out_err;
- 
+
 // Can avoid final inverstion converting from projected coord by some check in c++ code
 
 // Controlling state machine
@@ -42,6 +43,8 @@ typedef enum {IDLE,
               VERIFY_SECP256K1_SIG_PARSE,
               CALC_S_INV,
               CALC_U1_U2,
+              CALC_ENDOMORPH_K,
+
               CALC_X,
               CALC_X_AFFINE,
               CHECK_IN_JB,
@@ -84,11 +87,11 @@ always_ff @ (posedge i_clk) begin
     bin_inv_out_if.rdy <= 0;
     secp256k1_ver <= 0;
     inv_p <=  secp256k1_pkg::n;
-    
+
     pt_X <= 0;
     pt_X0 <= 0;
     pt_X1 <= 0;
-    
+
     pt_mult0_in_p <= 0;
     pt_mult1_in_p <= 0;
     pt_mult0_in_k <= 0;
@@ -98,40 +101,40 @@ always_ff @ (posedge i_clk) begin
     pt_mult1_in_val <= 0;
     pt_mult1_out_rdy <= 0;
     pt_mult0_in_p2_val <= 0;
-    
+
     mult_out_if[2].rdy <= 0;
     mult_in_if[2].reset_source();
-    
+
     index <= 0;
-    
+
   end else begin
-  
+
     register_file_a.en <= 1;
     register_file_a.we <= 0;
     register_file_a.re <= 1;
     mult_out_if[2].rdy <= 1;
     mult_in_if[2].sop <= 1;
     mult_in_if[2].eop <= 1;
-    
-    
+
+
     pt_mult0_out_rdy <= 1;
     pt_mult1_out_rdy <= 1;
-    
+
     if (pt_mult0_in_val && pt_mult0_in_rdy)
       pt_mult0_in_val <= 0;
-      
+
     if (pt_mult1_in_val && pt_mult1_in_rdy)
       pt_mult1_in_val <= 0;
-      
+
     if (bin_inv_in_if.val && bin_inv_in_if.rdy)
       bin_inv_in_if.val <= 0;
-      
+
     if (pt_mult0_in_p2_val && pt_mult0_in_rdy)
       pt_mult0_in_p2_val <= 0;
-      
+
     if (mult_in_if[2].val && mult_in_if[2].rdy)
       mult_in_if[2].val <= 0;
-          
+
     case(secp256k1_state)
       {IDLE}: begin
         inv_p <=  secp256k1_pkg::n;
@@ -140,11 +143,11 @@ always_ff @ (posedge i_clk) begin
         if_cmd_rx.rdy <= 1;
         header_l <= header;
         cnt <= 0;
-        
+
         pt_mult1_in_p.z <= 1;
         pt_mult1_in_p.x <= secp256k1_pkg::Gx;
         pt_mult1_in_p.y <= secp256k1_pkg::Gy;
-              
+
         if (if_cmd_rx.val && if_cmd_rx.rdy) begin
           case(header.cmd)
             {VERIFY_SECP256K1_SIG}: begin
@@ -178,8 +181,8 @@ always_ff @ (posedge i_clk) begin
             secp256k1_state <= CALC_S_INV;
             bin_inv_out_if.rdy <= 1;
           end
-        end  
-        
+        end
+
         case(cnt) inside
           [0:3]: begin
             register_file_a.a <= SIG_VER_S/8 + (cnt);
@@ -243,7 +246,7 @@ always_ff @ (posedge i_clk) begin
         end
         // Check for result
         // TODO load into RAM
-        
+
         if (mult_out_if[2].val && mult_out_if[2].rdy) begin
           case(cnt[2])
             {1'd0}: begin
@@ -279,14 +282,14 @@ always_ff @ (posedge i_clk) begin
           pt_mult0_in_p2 <= pt_mult1_out_p;
           cnt[1] <= 1;
         end
-        
+
         // Do the final point add
         if (cnt[2:0] == 3'b011) begin
             // TODO the final add  /checks
             pt_mult0_in_p2_val <= 1;
             cnt[2:0] <= 3'b100;
         end
-        
+
         // Do the final inversion back to jacobian coords of the X, so need inverse of Z^2
         if (cnt[2:0] == 3'b100 && pt_mult0_out_rdy && pt_mult0_out_val) begin
           // Check for infinity
@@ -312,13 +315,13 @@ always_ff @ (posedge i_clk) begin
       {CALC_X_AFFINE}: begin
         case(cnt)
           0: begin
-            if (mult_out_if[2].rdy && mult_out_if[2].val) begin 
+            if (mult_out_if[2].rdy && mult_out_if[2].val) begin
               bin_inv_in_if.dat <= mult_out_if[2].dat;
               inv_p <=  secp256k1_pkg::p_eq;
               bin_inv_in_if.val <= 1;
               bin_inv_out_if.rdy <= 1;
             end
-            
+
             // Need to do final multiplication
             if (bin_inv_out_if.val && bin_inv_out_if.rdy) begin
               mult_in_if[2].val <= 1;
@@ -329,7 +332,7 @@ always_ff @ (posedge i_clk) begin
           end
           {1}: begin
             // Do one more multiplication but mod n
-            if (mult_out_if[2].rdy && mult_out_if[2].val) begin 
+            if (mult_out_if[2].rdy && mult_out_if[2].val) begin
               mult_in_if[2].val <= 1;
               mult_in_if[2].dat <= {256'd1, mult_out_if[2].dat};
               mult_in_if[2].ctl <= 1;  // mod n
@@ -337,7 +340,7 @@ always_ff @ (posedge i_clk) begin
             end
           end
           {2}: begin
-            if (mult_out_if[2].rdy && mult_out_if[2].val) begin 
+            if (mult_out_if[2].rdy && mult_out_if[2].val) begin
               if (mult_out_if[2].dat != r) begin
                 secp256k1_ver.FAILED_SIG_VER <= 1;
               end
@@ -397,7 +400,7 @@ always_ff @ (posedge i_clk) begin
       {UPDATE_RAM_VARIABLES}: begin
         // Here we write all our calculated variables to RAM
       end
-      
+
       {FINISHED}: begin
         // TODO send message back
         send_message($bits(verify_secp256k1_sig_rpl_t)/8);
@@ -409,9 +412,9 @@ always_ff @ (posedge i_clk) begin
           secp256k1_state <= IDLE;
       end
     endcase
-    
+
     // We use this to write to the RAM as results are valid
-    
+
   end
 end
 
@@ -431,13 +434,13 @@ always_ff @ (posedge i_clk) begin
     if_axi_mm_rd_ <= 0;
   end else begin
     if_axi_mm_rd_ <= if_axi_mm_rd;
-    if_axi_mm.rd_dat_val <= 0;         
+    if_axi_mm.rd_dat_val <= 0;
     register_file_b.en <= 1;
     register_file_b.re <= 1;
     if_axi_mm_rd <= if_axi_mm.rd;
     if (if_axi_mm_rd_) begin
       if_axi_mm.rd_dat_val <= 1;
-      if_axi_mm.rd_dat <= register_file_b.q;    
+      if_axi_mm.rd_dat <= register_file_b.q;
     end
   end
 end
@@ -518,11 +521,11 @@ packet_arb # (
   .NUM_IN      ( 3       ),
   .OVR_WRT_BIT ( ARB_BIT ),
   .PIPELINE    ( 0       )
-) 
+)
 packet_arb_mult (
-  .i_clk ( i_clk ), 
+  .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( mult_in_if[2:0] ), 
+  .i_axi ( mult_in_if[2:0] ),
   .o_axi ( mult_in_if[3]   )
 );
 
@@ -532,27 +535,27 @@ packet_arb # (
   .NUM_IN      ( 2       ),
   .OVR_WRT_BIT ( ARB_BIT ),
   .PIPELINE    ( 0       )
-) 
+)
 packet_arb_mod (
-  .i_clk ( i_clk ), 
+  .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( mod_in_if[1:0] ), 
+  .i_axi ( mod_in_if[1:0] ),
   .o_axi ( mod_in_if[2]   )
 );
 
-always_comb begin 
+always_comb begin
   mod_out_if[0].copy_if_comb(mod_out_if[2].to_struct());
   mod_out_if[1].copy_if_comb(mod_out_if[2].to_struct());
-  
+
   mod_out_if[0].ctl = mod_out_if[2].ctl;
   mod_out_if[1].ctl = mod_out_if[2].ctl;
   mod_out_if[0].ctl[ARB_BIT] = 0;
   mod_out_if[1].ctl[ARB_BIT] = 0;
-  
+
   mod_out_if[1].val = mod_out_if[2].val && mod_out_if[2].ctl[ARB_BIT] == 1;
   mod_out_if[0].val = mod_out_if[2].val && mod_out_if[2].ctl[ARB_BIT] == 0;
   mod_out_if[2].rdy = mod_out_if[2].ctl[ARB_BIT] == 0 ? mod_out_if[0].rdy : mod_out_if[1].rdy;
-  
+
   mod_out_if[2].sop = 1;
   mod_out_if[2].eop = 1;
   mod_out_if[2].mod = 0;
@@ -562,25 +565,25 @@ always_comb begin
   mult_out_if[0].copy_if_comb(mult_out_if[3].to_struct());
   mult_out_if[1].copy_if_comb(mult_out_if[3].to_struct());
   mult_out_if[2].copy_if_comb(mult_out_if[3].to_struct());
-  
+
   mult_out_if[0].ctl = mult_out_if[3].ctl;
   mult_out_if[1].ctl = mult_out_if[3].ctl;
   mult_out_if[2].ctl = mult_out_if[3].ctl;
   mult_out_if[0].ctl[ARB_BIT +: 2] = 0;
   mult_out_if[1].ctl[ARB_BIT +: 2] = 0;
   mult_out_if[2].ctl[ARB_BIT +: 2] = 0;
-  
+
   mult_out_if[1].val = mult_out_if[3].val && mult_out_if[3].ctl[ARB_BIT +: 2] == 1;
   mult_out_if[0].val = mult_out_if[3].val && mult_out_if[3].ctl[ARB_BIT +: 2] == 0;
   mult_out_if[2].val = mult_out_if[3].val && mult_out_if[3].ctl[ARB_BIT +: 2] == 2;
-  
+
   if (mult_out_if[3].ctl[ARB_BIT +: 2] == 0)
     mult_out_if[3].rdy = mult_out_if[0].rdy;
   else if (mult_out_if[3].ctl[ARB_BIT +: 2] == 1)
     mult_out_if[3].rdy = mult_out_if[1].rdy;
   else
     mult_out_if[3].rdy = mult_out_if[2].rdy;
-  
+
   mult_out_if[3].sop = 1;
   mult_out_if[3].eop = 1;
   mult_out_if[3].mod = 0;
@@ -646,5 +649,5 @@ task send_message(input logic [$clog2(MAX_BYT_MSG)-1:0] msg_size);
     end
   end
 endtask
-  
+
 endmodule
