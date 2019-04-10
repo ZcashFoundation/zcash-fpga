@@ -1,16 +1,16 @@
 /*
   This performs a 256 bit multiplication followed by optional modulus
   operation. Modulus is either n or p depending on ctl.
-  
-  Using Karatsuba-Ofman multiplication, where the factor of splitting 
+
+  Using Karatsuba-Ofman multiplication, where the factor of splitting
   is parameterized.
-  
+
   Each level in Karatsuba-Ofman multiplication adds 3 clock cycle.
   The modulus reduction takes 3 clock cycles.
-  
+
   The barret reduction requires a 257 bit multiplication, so we multiplex
   the multiplier.
- 
+
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
   This program is free software: you can redistribute it and/or modify
@@ -36,7 +36,7 @@ module secp256k1_mult_mod #(
   input [255:0]        i_dat_b,
   input [CTL_BITS-1:0] i_ctl,
   input                i_val,
-  input                i_cmd,  // 0 = mod p, 1 = mod n
+  input [1:0]          i_cmd,  // 0 = mod p, 1 = mod n, 2 = 256 bit shift mod p (needed for endomorphism)
   input                i_err,
   output logic         o_rdy,
   // output
@@ -46,13 +46,13 @@ module secp256k1_mult_mod #(
   output logic                o_val,
   output logic                o_err
 );
-  
+
 import secp256k1_pkg::*;
 import common_pkg::*;
 
 localparam KARATSUBA_LEVEL = 2;
 
-if_axi_stream #(.DAT_BITS(512+2), .CTL_BITS(CTL_BITS+1)) int_if(i_clk);
+if_axi_stream #(.DAT_BITS(512+2), .CTL_BITS(CTL_BITS+2)) int_if(i_clk);
 if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(CTL_BITS)) out_mod_p_if(i_clk);
 if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(CTL_BITS)) out_mod_n_if(i_clk);
 
@@ -64,16 +64,10 @@ logic [KARATSUBA_LEVEL-1:0] err;
 logic [256+8-1:0] dat_a, dat_b;
 logic o_rdy_int, i_val_int;
 
-/*
-always_ff @ (posedge i_clk) begin
-  in_brt_mult_if.val <= out_brt_mult_if.val;
-  in_brt_mult_if.dat <= out_brt_mult_if.dat[0 +: 257] * out_brt_mult_if.dat[257 +: 257];
-end*/
-
 karatsuba_ofman_mult # (
   .BITS     ( 256 + 8         ),
   .LEVEL    ( KARATSUBA_LEVEL ),
-  .CTL_BITS ( CTL_BITS + 1    )
+  .CTL_BITS ( CTL_BITS + 2    )
 )
 karatsuba_ofman_mult (
   .i_clk  ( i_clk          ),
@@ -88,7 +82,7 @@ karatsuba_ofman_mult (
   .i_rdy  ( int_if.rdy     ),
   .o_ctl  ( int_if.ctl     )
 );
-  
+
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     err <= 0;
@@ -114,15 +108,18 @@ always_ff @ (posedge i_clk) begin
     wait_barret_r <= 0;
   end else begin
     // We have to wait for pipeline to clear on output of multiplier
-    wait_barret_r <= {wait_barret_r, wait_barret};
-    if (i_val && o_rdy && i_cmd == 1'd1) begin
+    if (int_if.rdy) begin
+      wait_barret_r <= {wait_barret_r, wait_barret};
+    end
+
+    if (i_val && o_rdy && i_cmd == 2'd1) begin
       wait_barret <= 1;
     end
     if (out_mod_n_if.val && out_mod_n_if.rdy) begin
       wait_barret <= 0;
       wait_barret_r <= 0;
     end
-    
+
   end
 end
 
@@ -131,9 +128,9 @@ always_comb begin
   out_mod_p_if.rdy = i_rdy;
   out_mod_n_if.rdy = i_rdy;
   out_mod_n_if.err = 0;
-  
+
   o_rdy = o_rdy_int && ~wait_barret;
-  
+
   in_brt_mult_if.sop = 0;
   in_brt_mult_if.eop = 0;
   in_brt_mult_if.err = 0;
@@ -141,7 +138,7 @@ always_comb begin
   in_brt_mult_if.ctl = 0;
   in_brt_mult_if.val = int_if.val;
   in_brt_mult_if.dat = int_if.dat;
-  
+
   // Prevent new input
   if (wait_barret) begin
     out_brt_mult_if.rdy = o_rdy_int;
@@ -155,7 +152,7 @@ always_comb begin
     i_val_int = i_val;
     in_brt_mult_if.val = 0;
   end
-  
+
   // Take over multiplier output after pipeline is clear
   if (wait_barret_r[KARATSUBA_LEVEL*3-1]) begin
     in_brt_mult_if.val = int_if.val;
@@ -163,14 +160,14 @@ always_comb begin
   end else begin
     in_brt_mult_if.val = 0;
     out_brt_mult_if.rdy = 0;
-    int_if.rdy = int_if.ctl[CTL_BITS] == 0 ? int_if_rdy_p : int_if_rdy_n;
+    int_if.rdy = (int_if.ctl[CTL_BITS +: 2] == 2'd0 || int_if.ctl[CTL_BITS +: 2] == 2'd2) ? int_if_rdy_p : int_if_rdy_n;
   end
-  
+
   o_dat = out_mod_p_if.val ? out_mod_p_if.dat : out_mod_n_if.dat;
   o_ctl = out_mod_p_if.val ? out_mod_p_if.ctl : out_mod_n_if.ctl;
   o_err = out_mod_p_if.val ? out_mod_p_if.err : out_mod_n_if.err;
   o_val = out_mod_p_if.val ? out_mod_p_if.val : out_mod_n_if.val;
-  
+
 end
 
 secp256k1_mod #(
@@ -180,8 +177,8 @@ secp256k1_mod #(
 secp256k1_mod (
   .i_clk( i_clk       ),
   .i_rst( i_rst       ),
-  .i_dat( int_if.dat  ),
-  .i_val( int_if.val && int_if.ctl[CTL_BITS] == 0 && ~wait_barret_r[KARATSUBA_LEVEL*3-1]),
+  .i_dat( int_if.ctl[CTL_BITS +: 2] == 2'd0 ? int_if.dat : {256'd0, int_if.dat[256 +: 256]} ),
+  .i_val( int_if.val && (int_if.ctl[CTL_BITS +: 2] == 2'd0 || int_if.ctl[CTL_BITS +: 2] == 2'd2) && ~wait_barret_r[KARATSUBA_LEVEL*3-1]),
   .i_ctl( int_if.ctl[CTL_BITS-1:0]  ),
   .i_err( int_if.err  ),
   .o_rdy( int_if_rdy_p  ),
@@ -198,12 +195,12 @@ barret_mod #(
   .CTL_BITS  ( CTL_BITS         ),
   .P         ( secp256k1_pkg::n ),
   .MULTIPLIER( "EXTERNAL"       )
-) 
+)
 barret_mod (
   .i_clk ( i_clk      ),
   .i_rst ( i_rst      ),
   .i_dat ( int_if.dat  ),
-  .i_val ( int_if.val && int_if.ctl[CTL_BITS] == 1 && ~wait_barret_r[KARATSUBA_LEVEL*3-1]),
+  .i_val ( int_if.val && int_if.ctl[CTL_BITS  +: 2] == 2'd1 && ~wait_barret_r[KARATSUBA_LEVEL*3-1]),
   .i_ctl ( int_if.ctl[CTL_BITS-1:0]    ),
   .o_rdy ( int_if_rdy_n  ),
   .o_ctl ( out_mod_n_if.ctl ),

@@ -129,13 +129,14 @@ interface if_axi_stream # (
   task automatic get_stream(ref logic [common_pkg::MAX_SIM_BYTS*8-1:0] data, ref integer signed len, input integer unsigned bp = 50);
     logic sop_l = 0;
     logic done = 0;
-    rdy = ($random % 100) >= bp;
+    logic rdy_l;
+    rdy = ($urandom % 100) >= bp;
     len = 0;
     data = 0;
-    @(negedge i_clk);
+    rdy_l = rdy;
+    @(posedge i_clk);
     
     while (1) begin
-      @(posedge i_clk);
       if (val && rdy) begin
         sop_l = sop_l || sop;
         if (!sop_l) begin
@@ -149,14 +150,14 @@ interface if_axi_stream # (
           break;
         end
       end
-      if (~done) begin
-        @(negedge i_clk);
+      if (~done) begin     
         rdy = ($random % 100) >= bp;
+        @(posedge i_clk);
       end
     end
     //@(negedge i_clk);
     
-    rdy = 0;
+    rdy = rdy_l;
   endtask
   
 endinterface

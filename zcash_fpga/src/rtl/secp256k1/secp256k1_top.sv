@@ -25,10 +25,10 @@ if_axi_stream #(.DAT_BYTS(256/8)) bin_inv_in_if(i_clk);
 if_axi_stream #(.DAT_BYTS(256/8)) bin_inv_out_if(i_clk);
 
 // [0] is connection from/to point_mult0 block, [1] is add point_mult1 block, 2 is this state machine, [3] is arbitrated value
-if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(8)) mult_in_if [3:0] (i_clk);
-if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(8)) mult_out_if [3:0] (i_clk);
-if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(8)) mod_in_if [2:0] (i_clk);
-if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(8)) mod_out_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mult_in_if [3:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mult_out_if [3:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mod_in_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mod_out_if [2:0] (i_clk);
 
 jb_point_t pt_mult0_in_p, pt_mult0_out_p, pt_mult1_in_p, pt_mult1_out_p, pt_X0, pt_X1, pt_X, pt_mult0_in_p2;
 logic [255:0] pt_mult0_in_k, pt_mult1_in_k;
@@ -43,8 +43,6 @@ typedef enum {IDLE,
               VERIFY_SECP256K1_SIG_PARSE,
               CALC_S_INV,
               CALC_U1_U2,
-              CALC_ENDOMORPH_K,
-
               CALC_X,
               CALC_X_AFFINE,
               CHECK_IN_JB,
@@ -224,7 +222,7 @@ always_ff @ (posedge i_clk) begin
           bin_inv_out_if.rdy <= 0;
           bin_inv_in_if.dat <= bin_inv_out_if.dat;
           // Start calculating U2
-          mult_in_if[2].ctl <= 1;  // mod n
+          mult_in_if[2].ctl[7:6] <= 1;  // mod n
           mult_in_if[2].dat[256 +: 256] <= bin_inv_out_if.dat;
           mult_in_if[2].val <= 1;
           secp256k1_state <= CALC_U1_U2;
@@ -302,12 +300,12 @@ always_ff @ (posedge i_clk) begin
             secp256k1_state <= CALC_X_AFFINE;
             mult_in_if[2].val <= 1;
             mult_in_if[2].dat <= {pt_mult0_out_p.z, pt_mult0_out_p.z};
-            mult_in_if[2].ctl <= 0;  // mod p
+            mult_in_if[2].ctl[7:6] <= 0;  // mod p
           end else begin
             secp256k1_state <= CHECK_IN_JB;
             mult_in_if[2].val <= 1;
             mult_in_if[2].dat <= {pt_mult0_out_p.z, pt_mult0_out_p.z};
-            mult_in_if[2].ctl <= 0;  // mod p
+            mult_in_if[2].ctl[7:6] <= 0;  // mod p
           end
           // Here we either do a final inverstion to get the original .x value or we can do special checks
         end
@@ -326,7 +324,7 @@ always_ff @ (posedge i_clk) begin
             if (bin_inv_out_if.val && bin_inv_out_if.rdy) begin
               mult_in_if[2].val <= 1;
               mult_in_if[2].dat <= {bin_inv_out_if.dat, pt_mult0_in_p2.x};
-              mult_in_if[2].ctl <= 0;  // mod p
+              mult_in_if[2].ctl[7:6] <= 0;  // mod p
               cnt <= 1;
             end
           end
@@ -335,7 +333,7 @@ always_ff @ (posedge i_clk) begin
             if (mult_out_if[2].rdy && mult_out_if[2].val) begin
               mult_in_if[2].val <= 1;
               mult_in_if[2].dat <= {256'd1, mult_out_if[2].dat};
-              mult_in_if[2].ctl <= 1;  // mod n
+              mult_in_if[2].ctl[7:6] <= 1;  // mod n
               cnt <= 2;
             end
           end
@@ -362,7 +360,7 @@ always_ff @ (posedge i_clk) begin
               pt_mult0_in_p2.z <= mult_out_if[2].dat;
               mult_in_if[2].val <= 1;
               mult_in_if[2].dat <= {r, mult_out_if[2].dat};
-              mult_in_if[2].ctl <= 0;  // mod p
+              mult_in_if[2].ctl[7:6] <= 0;  // mod p
               cnt <= 1;
             end
           end
@@ -377,7 +375,7 @@ always_ff @ (posedge i_clk) begin
               end else begin
                 // Need to do one more check
                 mult_in_if[2].dat <= {r, pt_mult0_in_p2.z};
-                mult_in_if[2].ctl <= 0;  // mod p
+                mult_in_if[2].ctl[7:6] <= 0;  // mod p
                 mult_in_if[2].val <= 1;
                 cnt <= 2;
               end
@@ -473,11 +471,12 @@ bin_inv (
 
 
 localparam RESOURCE_SHARE = "YES";
-localparam ARB_BIT = 6;
+localparam ARB_BIT = 12;
+localparam MULT_CTL_BIT = 6; // 2 bits
 
 // Shared multiplier with cmd to control modulo p or modulo n
 secp256k1_mult_mod #(
-  .CTL_BITS ( 8 )
+  .CTL_BITS ( 16 )
 )
 secp256k1_mult_mod (
   .i_clk ( i_clk ),
@@ -487,7 +486,7 @@ secp256k1_mult_mod (
   .i_val ( mult_in_if[3].val ),
   .i_err ( mult_in_if[3].err ),
   .i_ctl ( mult_in_if[3].ctl ),
-  .i_cmd ( mult_in_if[3].ctl[ARB_BIT +: 2] == 2 ? mult_in_if[3].ctl[0] : 1'd0 ),
+  .i_cmd ( mult_in_if[3].ctl[MULT_CTL_BIT +: 2] ),
   .o_rdy ( mult_in_if[3].rdy ),
   .o_dat ( mult_out_if[3].dat ),
   .i_rdy ( mult_out_if[3].rdy ),
@@ -497,8 +496,8 @@ secp256k1_mult_mod (
 );
 
 secp256k1_mod #(
-  .USE_MULT ( 0 ),
-  .CTL_BITS ( 8 )
+  .USE_MULT ( 0  ),
+  .CTL_BITS ( 16 )
 )
 secp256k1_mod (
   .i_clk( i_clk ),
@@ -517,7 +516,7 @@ secp256k1_mod (
 
 packet_arb # (
   .DAT_BYTS    ( 512/8   ),
-  .CTL_BITS    ( 8       ),
+  .CTL_BITS    ( 16      ),
   .NUM_IN      ( 3       ),
   .OVR_WRT_BIT ( ARB_BIT ),
   .PIPELINE    ( 0       )
@@ -531,7 +530,7 @@ packet_arb_mult (
 
 packet_arb # (
   .DAT_BYTS    ( 512/8   ),
-  .CTL_BITS    ( 8       ),
+  .CTL_BITS    ( 16      ),
   .NUM_IN      ( 2       ),
   .OVR_WRT_BIT ( ARB_BIT ),
   .PIPELINE    ( 0       )

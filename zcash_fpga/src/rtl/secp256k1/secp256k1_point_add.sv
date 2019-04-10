@@ -125,6 +125,8 @@ always_ff @ (posedge i_clk) begin
     A <= 0;
     C <= 0;
   end else begin
+  
+    o_mult_if.ctl[7:6] <= 0; // All operations are mod p
 
     if (o_mult_if.rdy) o_mult_if.val <= 0;
     if (o_mod_if.rdy) o_mod_if.val <= 0;
@@ -180,8 +182,8 @@ always_ff @ (posedge i_clk) begin
         
         // Check any results from multiplier
         if (i_mult_if.val && i_mult_if.rdy) begin
-          eq_val[i_mult_if.ctl] <= 1;
-          case(i_mult_if.ctl) inside
+          eq_val[i_mult_if.ctl[5:0]] <= 1;
+          case(i_mult_if.ctl[5:0]) inside
             0: A <= i_mult_if.dat;
             1: i_p1_l.x <= i_mult_if.dat;
             2: C <= i_mult_if.dat;
@@ -323,7 +325,7 @@ task multiply(input int unsigned ctl, input logic [255:0] a, b);
     o_mult_if.val <= 1;
     o_mult_if.dat[0 +: 256] <= a;
     o_mult_if.dat[256 +: 256] <= b;
-    o_mult_if.ctl <= ctl;
+    o_mult_if.ctl[5:0] <= ctl;
     eq_wait[ctl] <= 1;
   end
 endtask

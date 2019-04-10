@@ -1,7 +1,7 @@
 /*
   This performs point multiplication. We use the standard double
   and add algorithm.
- 
+
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
   This program is free software: you can redistribute it and/or modify
@@ -40,17 +40,17 @@ module secp256k1_point_mult
   // Interface to only mod reduction block (if RESOURCE_SHARE == "YES")
   if_axi_stream.source o_mod_if,
   if_axi_stream.sink   i_mod_if,
-  
+
   // We provide another input so that the final point addition can be done
   input jb_point_t i_p2,
   input            i_p2_val
 );
 
 // [0] is connection from/to dbl block, [1] is add block, [2] is arbitrated value
-if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(8)) mult_in_if [2:0] (i_clk);
-if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(8)) mult_out_if [2:0] (i_clk);
-if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(8)) mod_in_if [2:0] (i_clk);
-if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(8)) mod_out_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mult_in_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mult_out_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mod_in_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mod_out_if [2:0] (i_clk);
 
 logic [255:0] k_l;
 jb_point_t p_n, p_q, p_dbl, p_add;
@@ -106,7 +106,7 @@ always_ff @ (posedge i_clk) begin
             p_add_in_val <= 1;
           end
         end
-        
+
       end
       {DOUBLE_ADD}: begin
         p_dbl_in_val <= (p_dbl_in_val && p_dbl_in_rdy) ? 0 : p_dbl_in_val;
@@ -123,7 +123,7 @@ always_ff @ (posedge i_clk) begin
           p_add_done <= 1;
           p_q <= p_add;
         end
-        
+
         // Update variables and issue new commands
         if (p_add_done && p_dbl_done) begin
           p_add_done <= 0;
@@ -140,27 +140,27 @@ always_ff @ (posedge i_clk) begin
           end else begin
             p_add_done <= 1;
           end
-          
+
           // Don't need to double on the final bit
           if ((k_l >> 1) != 0)
             p_dbl_in_val <= 1;
           else
             p_dbl_done <= 1;
-            
+
           if (k_l == 0) begin
             state <= FINISHED;
             o_p <= p_add;
             o_val <= 1;
             p_dbl_in_val <= 0;
             p_add_in_val <= 0;
-          end  
+          end
         end
 
       end
       {ADD_ONLY}: begin
         p_dbl_in_val <= (p_dbl_in_val && p_dbl_in_rdy) ? 0 : p_dbl_in_val;
         p_add_in_val <= (p_add_in_val && p_add_in_rdy) ? 0 : p_add_in_val;
-        
+
         if (p_dbl_out_val && p_dbl_out_rdy) begin
           state <= FINISHED;
           o_p <= p_dbl;
@@ -170,23 +170,23 @@ always_ff @ (posedge i_clk) begin
           state <= FINISHED;
           o_p <= p_add;
           o_val <= 1;
-        end                
+        end
       end
       {FINISHED}: begin
         if (i_rdy && o_val) begin
           o_val <= 0;
           state <= IDLE;
         end
-      end      
+      end
     endcase
-    
+
     if (p_dbl_out_err || p_add_out_err) begin
       o_err <= 1;
       o_val <= 1;
       state <= FINISHED;
-    end  
-    
-  end  
+    end
+
+  end
 end
 
 secp256k1_point_dbl secp256k1_point_dbl(
@@ -229,48 +229,48 @@ secp256k1_point_add secp256k1_point_add(
 );
 
 // We add arbitrators to these to share with the point add module
-localparam ARB_BIT = 5;
+localparam ARB_BIT = 8;
 packet_arb # (
   .DAT_BYTS    ( 512/8   ),
-  .CTL_BITS    ( 8       ),
+  .CTL_BITS    ( 16      ),
   .NUM_IN      ( 2       ),
   .OVR_WRT_BIT ( ARB_BIT ),
   .PIPELINE    ( 0       )
-) 
+)
 packet_arb_mult (
-  .i_clk ( i_clk ), 
+  .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( mult_in_if[1:0] ), 
+  .i_axi ( mult_in_if[1:0] ),
   .o_axi ( mult_in_if[2]   )
 );
 
 packet_arb # (
   .DAT_BYTS    ( 512/8   ),
-  .CTL_BITS    ( 8       ),
+  .CTL_BITS    ( 16      ),
   .NUM_IN      ( 2       ),
   .OVR_WRT_BIT ( ARB_BIT ),
   .PIPELINE    ( 0       )
-) 
+)
 packet_arb_mod (
-  .i_clk ( i_clk ), 
+  .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( mod_in_if[1:0] ), 
+  .i_axi ( mod_in_if[1:0] ),
   .o_axi ( mod_in_if[2]   )
 );
 
-always_comb begin 
+always_comb begin
   mod_out_if[0].copy_if_comb(mod_out_if[2].to_struct());
   mod_out_if[1].copy_if_comb(mod_out_if[2].to_struct());
-  
+
   mod_out_if[0].ctl = mod_out_if[2].ctl;
   mod_out_if[1].ctl = mod_out_if[2].ctl;
   mod_out_if[0].ctl[ARB_BIT] = 0;
   mod_out_if[1].ctl[ARB_BIT] = 0;
-  
+
   mod_out_if[1].val = mod_out_if[2].val && mod_out_if[2].ctl[ARB_BIT] == 1;
   mod_out_if[0].val = mod_out_if[2].val && mod_out_if[2].ctl[ARB_BIT] == 0;
   mod_out_if[2].rdy = mod_out_if[2].ctl[ARB_BIT] == 0 ? mod_out_if[0].rdy : mod_out_if[1].rdy;
-  
+
   mod_out_if[2].sop = 1;
   mod_out_if[2].eop = 1;
   mod_out_if[2].mod = 0;
@@ -279,22 +279,22 @@ end
 always_comb begin
   mult_out_if[0].copy_if_comb(mult_out_if[2].to_struct());
   mult_out_if[1].copy_if_comb(mult_out_if[2].to_struct());
-  
+
   mult_out_if[0].ctl = mult_out_if[2].ctl;
   mult_out_if[1].ctl = mult_out_if[2].ctl;
   mult_out_if[0].ctl[ARB_BIT] = 0;
   mult_out_if[1].ctl[ARB_BIT] = 0;
-  
+
   mult_out_if[1].val = mult_out_if[2].val && mult_out_if[2].ctl[ARB_BIT] == 1;
   mult_out_if[0].val = mult_out_if[2].val && mult_out_if[2].ctl[ARB_BIT] == 0;
   mult_out_if[2].rdy = mult_out_if[2].ctl[ARB_BIT] == 0 ? mult_out_if[0].rdy : mult_out_if[1].rdy;
-  
+
   mult_out_if[2].sop = 1;
   mult_out_if[2].eop = 1;
   mult_out_if[2].mod = 0;
 end
 
-generate 
+generate
   if (RESOURCE_SHARE == "YES") begin: RESOURCE_GEN
     always_comb begin
       o_mult_if.val = mult_in_if[2].val;
@@ -305,7 +305,7 @@ generate
       o_mult_if.sop = 1;
       o_mult_if.eop = 1;
       mult_in_if[2].rdy = o_mult_if.rdy;
-      
+
       o_mod_if.val = mod_in_if[2].val;
       o_mod_if.dat = mod_in_if[2].dat;
       o_mod_if.ctl = mod_in_if[2].ctl;
@@ -314,12 +314,12 @@ generate
       o_mod_if.sop = 1;
       o_mod_if.eop = 1;
       mod_in_if[2].rdy = o_mod_if.rdy;
-      
+
       i_mult_if.rdy = mult_out_if[2].rdy;
       mult_out_if[2].val = i_mult_if.val;
       mult_out_if[2].dat = i_mult_if.dat;
       mult_out_if[2].ctl = i_mult_if.ctl;
-                  
+
       i_mod_if.rdy = mod_out_if[2].rdy;
       mod_out_if[2].val = i_mod_if.val;
       mod_out_if[2].dat = i_mod_if.dat;
@@ -333,7 +333,7 @@ generate
       i_mod_if.rdy = 0;
     end
     secp256k1_mult_mod #(
-      .CTL_BITS ( 8 )
+      .CTL_BITS ( 16 )
     )
     secp256k1_mult_mod (
       .i_clk ( i_clk ),
@@ -349,12 +349,12 @@ generate
       .i_rdy ( mult_out_if[2].rdy ),
       .o_val ( mult_out_if[2].val ),
       .o_ctl ( mult_out_if[2].ctl ),
-      .o_err ( mult_out_if[2].err ) 
+      .o_err ( mult_out_if[2].err )
     );
-    
+
     secp256k1_mod #(
       .USE_MULT ( 0 ),
-      .CTL_BITS ( 8 )
+      .CTL_BITS ( 16 )
     )
     secp256k1_mod (
       .i_clk( i_clk     ),

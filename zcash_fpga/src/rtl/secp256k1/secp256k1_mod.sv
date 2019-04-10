@@ -90,7 +90,7 @@ always_ff @ (posedge i_clk) begin
       val <= val << 1;
       ctl <= {ctl, i_ctl};
       err <= err << 1;
-      val[0] <= i_val;
+      val[0] <= i_val && o_rdy;
       err[0] <= i_err;
   
       o_dat <= res1 >= p_eq ? res1 - p_eq : res1;
