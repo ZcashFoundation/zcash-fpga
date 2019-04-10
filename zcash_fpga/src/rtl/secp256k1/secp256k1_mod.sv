@@ -55,7 +55,7 @@ generate
       c = (1 << 32) + (1 << 9) + (1 << 8) + (1 << 7) + (1 << 6) + (1 << 4) + 1;
     end
     always_ff @ (posedge i_clk) begin
-      if (~o_val || (o_val && i_rdy)) begin
+      if (~o_val || (i_rdy && o_val)) begin
         res0 <= i_dat[511:256]*c + i_dat[255:0];
         res1 <= res0[511:256]*c + res0[255:0];
       end
@@ -67,7 +67,7 @@ generate
       res1_ = (res0[511:256] << 32) + (res0[511:256] << 9) + (res0[511:256] << 8) + (res0[511:256] << 7) + (res0[511:256] << 6) + (res0[511:256] << 4) + res0[511:256]+ res0[255:0];
     end
     always_ff @ (posedge i_clk) begin
-      if (~o_val || (o_val && i_rdy)) begin
+      if (~o_val || (i_rdy && o_val)) begin
         res0 <= res0_;
         res1 <= res1_;
       end
@@ -85,16 +85,15 @@ always_ff @ (posedge i_clk) begin
     ctl <= 0;
     o_err <= 0;
   end else begin
-    //o_val <= 0;
-    if (~o_val || (o_val && i_rdy)) begin
+    if (~o_val || (i_rdy && o_val)) begin
       val <= val << 1;
       ctl <= {ctl, i_ctl};
       err <= err << 1;
       val[0] <= i_val && o_rdy;
       err[0] <= i_err;
+      o_dat <= res1[255:0];
   
-      o_dat <= res1 >= p_eq ? res1 - p_eq : res1;
-      o_err <= err[1] || (res1 >= 2*p_eq);
+      o_err <= err[1] || res1 >= p_eq;
       o_val <= val[1];
       o_ctl <= ctl[1];
     end

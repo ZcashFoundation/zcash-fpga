@@ -44,6 +44,7 @@ module barret_mod #(
 localparam                   MAX_IN_BITS = 2*K;
 localparam [MAX_IN_BITS:0]   U = (1 << (2*K)) / P;
 localparam [MAX_IN_BITS-1:0] P_ = P;
+logic [2:0][CTL_BITS-1:0] ctl_r;
 
 if_axi_stream #(.DAT_BITS(2*(OUT_BITS+2))) mult_in_if(i_clk);
 if_axi_stream #(.DAT_BITS(2*(OUT_BITS+2))) mult_out_if(i_clk);
@@ -68,6 +69,7 @@ always_ff @ (posedge i_clk) begin
     mult_in_if.reset_source();
     mult_out_if.rdy <= 1;
     o_ctl <= 0;
+    ctl_r <= 0;
   end else begin
     mult_out_if.rdy <= 1;
     case (state)
@@ -79,7 +81,7 @@ always_ff @ (posedge i_clk) begin
           o_rdy <= 0;
           state <= WAIT_MULT;
           mult_in_if.val <= 1;
-          o_ctl <= i_ctl;
+          ctl_r[0] <= i_ctl;
           mult_in_if.dat[0 +: OUT_BITS+1] <= i_dat >> (K-1);
           mult_in_if.dat[OUT_BITS+1 +: OUT_BITS+1] <= U;
           prev_state <= S0;
@@ -89,6 +91,7 @@ always_ff @ (posedge i_clk) begin
       {S0}: begin
         c3 <= c2 >> (K + 1);
         state <= S1;
+        ctl_r[1] <= ctl_r[0];
       end
       {S1}: begin
         mult_in_if.val <= 1;
@@ -96,6 +99,7 @@ always_ff @ (posedge i_clk) begin
         mult_in_if.dat[OUT_BITS+1 +: OUT_BITS+1] <= P;
         state <= WAIT_MULT;
         prev_state <= S2;
+        ctl_r[2] <= ctl_r[1];
       end
       {S2}: begin
         if (c4 >= P_) begin
@@ -104,6 +108,7 @@ always_ff @ (posedge i_clk) begin
           state <= FINISHED;
           o_dat <= c4;
           o_val <= 1;
+          o_ctl <= ctl_r[2];
         end
       end
       {FINISHED}: begin
