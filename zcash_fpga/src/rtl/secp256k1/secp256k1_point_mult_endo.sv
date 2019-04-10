@@ -156,16 +156,16 @@ always_ff @ (posedge i_clk) begin
         if (o_val1 && o_val2) begin
           i_rdy1 <= 1;
           i_rdy2 <= 1;
-          p2_k1 <= p_o1;
-          p_k1 <= p_o2;
+          p_k1 <= p_o1;
+          p2_k1 <= p_o2;
           p2_k1_val <= 1;
           state <= COMBINE_K_PROD;
           i_rdy_decom <= 1;
-          if (k2_decom[255]) begin
-            p_k1.y <= secp256k1_pkg::p_eq - p_o2.y;
-          end
           if (k1_decom[255]) begin
-            p2_k1.y <= secp256k1_pkg::p_eq - p_o1.y;
+            p_k1.y <= secp256k1_pkg::p_eq - p_o1.y;
+          end
+          if (k2_decom[255]) begin
+            p2_k1.y <= secp256k1_pkg::p_eq - p_o2.y;
           end
         end
 

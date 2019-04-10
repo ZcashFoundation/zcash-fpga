@@ -1,8 +1,6 @@
-module secp256k1_top #(
-  parameter DAT_BYTS = 8,
-  parameter DAT_BITS = DAT_BYTS*8,
-  parameter DO_AFFINE_CHECK = 0,
-  parameter USE_ENDOMORPH = 0
+module secp256k1_top import secp256k1_pkg::*; #(
+  parameter DO_AFFINE_CHECK = secp256k1_pkg::DO_AFFINE_CHECK,
+  parameter USE_ENDOMORPH = secp256k1_pkg::USE_ENDOMORPH
 )(
   input          i_clk,
   input          i_rst,
@@ -13,7 +11,8 @@ module secp256k1_top #(
   if_axi_mm.sink if_axi_mm
 );
 
-import secp256k1_pkg::*;
+localparam DAT_BYTS = 8;
+localparam DAT_BITS = DAT_BYTS*8;
 import zcash_fpga_pkg::*;
 
 // Register map is used for storing command data
@@ -296,7 +295,7 @@ always_ff @ (posedge i_clk) begin
           cnt <= 0;
           // Just store our value temp
           pt_mult0_in_p2 <= pt_mult0_out_p;
-          if (DO_AFFINE_CHECK) begin
+          if (DO_AFFINE_CHECK == "YES") begin
             secp256k1_state <= CALC_X_AFFINE;
             mult_in_if[2].val <= 1;
             mult_in_if[2].dat <= {pt_mult0_out_p.z, pt_mult0_out_p.z};
@@ -469,8 +468,6 @@ bin_inv (
   .i_rdy ( bin_inv_out_if.rdy )
 );
 
-
-localparam RESOURCE_SHARE = "YES";
 localparam ARB_BIT = 12;
 localparam MULT_CTL_BIT = 6; // 2 bits
 
@@ -588,50 +585,91 @@ always_comb begin
   mult_out_if[3].mod = 0;
 end
 
-secp256k1_point_mult #(
-  .RESOURCE_SHARE ( RESOURCE_SHARE )
-)
-secp256k1_point_mult0 (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_p   ( pt_mult0_in_p    ),
-  .i_k   ( pt_mult0_in_k    ),
-  .i_val ( pt_mult0_in_val  ),
-  .o_rdy ( pt_mult0_in_rdy  ),
-  .o_p   ( pt_mult0_out_p   ),
-  .i_rdy ( pt_mult0_out_rdy ),
-  .o_val ( pt_mult0_out_val ),
-  .o_err ( pt_mult0_out_err ),
-  .o_mult_if ( mult_in_if[0]  ),
-  .i_mult_if ( mult_out_if[0] ),
-  .o_mod_if ( mod_in_if[0]    ),
-  .i_mod_if ( mod_out_if[0]   ),
-  .i_p2     ( pt_mult0_in_p2  ),
-  .i_p2_val ( pt_mult0_in_p2_val )
-);
+generate if (USE_ENDOMORPH == "NO") begin
+  secp256k1_point_mult #(
+    .RESOURCE_SHARE ( "YES" )
+  )
+  secp256k1_point_mult0 (
+    .i_clk ( i_clk ),
+    .i_rst ( i_rst ),
+    .i_p   ( pt_mult0_in_p    ),
+    .i_k   ( pt_mult0_in_k    ),
+    .i_val ( pt_mult0_in_val  ),
+    .o_rdy ( pt_mult0_in_rdy  ),
+    .o_p   ( pt_mult0_out_p   ),
+    .i_rdy ( pt_mult0_out_rdy ),
+    .o_val ( pt_mult0_out_val ),
+    .o_err ( pt_mult0_out_err ),
+    .o_mult_if ( mult_in_if[0]  ),
+    .i_mult_if ( mult_out_if[0] ),
+    .o_mod_if ( mod_in_if[0]    ),
+    .i_mod_if ( mod_out_if[0]   ),
+    .i_p2     ( pt_mult0_in_p2  ),
+    .i_p2_val ( pt_mult0_in_p2_val )
+  );
+  
+  secp256k1_point_mult #(
+    .RESOURCE_SHARE ( "YES" )
+  )
+  secp256k1_point_mult1 (
+    .i_clk ( i_clk ),
+    .i_rst ( i_rst ),
+    .i_p   ( pt_mult1_in_p    ),
+    .i_k   ( pt_mult1_in_k    ),
+    .i_val ( pt_mult1_in_val  ),
+    .o_rdy ( pt_mult1_in_rdy  ),
+    .o_p   ( pt_mult1_out_p   ),
+    .i_rdy ( pt_mult1_out_rdy ),
+    .o_val ( pt_mult1_out_val ),
+    .o_err ( pt_mult1_out_err ),
+    .o_mult_if ( mult_in_if[1]  ),
+    .i_mult_if ( mult_out_if[1] ),
+    .o_mod_if ( mod_in_if[1]    ),
+    .i_mod_if ( mod_out_if[1]   ),
+    .i_p2     ( '0   ),
+    .i_p2_val ( 1'b0 )
+  );
+end else begin
+  secp256k1_point_mult_endo 
+  secp256k1_point_mult_endo0 (
+    .i_clk ( i_clk ),
+    .i_rst ( i_rst ),
+    .i_p   ( pt_mult0_in_p    ),
+    .i_k   ( pt_mult0_in_k    ),
+    .i_val ( pt_mult0_in_val  ),
+    .o_rdy ( pt_mult0_in_rdy  ),
+    .o_p   ( pt_mult0_out_p   ),
+    .i_rdy ( pt_mult0_out_rdy ),
+    .o_val ( pt_mult0_out_val ),
+    .o_err ( pt_mult0_out_err ),
+    .o_mult_if ( mult_in_if[0]  ),
+    .i_mult_if ( mult_out_if[0] ),
+    .o_mod_if ( mod_in_if[0]    ),
+    .i_mod_if ( mod_out_if[0]   ),
+    .i_p2     ( pt_mult0_in_p2  ),
+    .i_p2_val ( pt_mult0_in_p2_val )
+  );
 
-secp256k1_point_mult #(
-  .RESOURCE_SHARE ( RESOURCE_SHARE )
-)
-secp256k1_point_mult1 (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_p   ( pt_mult1_in_p    ),
-  .i_k   ( pt_mult1_in_k    ),
-  .i_val ( pt_mult1_in_val  ),
-  .o_rdy ( pt_mult1_in_rdy  ),
-  .o_p   ( pt_mult1_out_p   ),
-  .i_rdy ( pt_mult1_out_rdy ),
-  .o_val ( pt_mult1_out_val ),
-  .o_err ( pt_mult1_out_err ),
-  .o_mult_if ( mult_in_if[1]  ),
-  .i_mult_if ( mult_out_if[1] ),
-  .o_mod_if ( mod_in_if[1]    ),
-  .i_mod_if ( mod_out_if[1]   ),
-  .i_p2     ( '0   ),
-  .i_p2_val ( 1'b0 )
-);
-
+  secp256k1_point_mult_endo 
+  secp256k1_point_mult_endo1 (
+    .i_clk ( i_clk ),
+    .i_rst ( i_rst ),
+    .i_p   ( pt_mult1_in_p    ),
+    .i_k   ( pt_mult1_in_k    ),
+    .i_val ( pt_mult1_in_val  ),
+    .o_rdy ( pt_mult1_in_rdy  ),
+    .o_p   ( pt_mult1_out_p   ),
+    .i_rdy ( pt_mult1_out_rdy ),
+    .o_val ( pt_mult1_out_val ),
+    .o_err ( pt_mult1_out_err ),
+    .o_mult_if ( mult_in_if[1]  ),
+    .i_mult_if ( mult_out_if[1] ),
+    .o_mod_if ( mod_in_if[1]    ),
+    .i_mod_if ( mod_out_if[1]   ),
+    .i_p2     ( '0   ),
+    .i_p2_val ( 1'b0 )
+  );
+end endgenerate
 // Task to help build reply messages. Assume no message will be more than MAX_BYT_MSG bytes
 task send_message(input logic [$clog2(MAX_BYT_MSG)-1:0] msg_size);
   if (~if_cmd_tx.val || (if_cmd_tx.rdy && if_cmd_tx.val)) begin

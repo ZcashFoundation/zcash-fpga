@@ -39,6 +39,11 @@ package secp256k1_pkg;
 
   parameter [255:0] p_eq =  (1 << 256) - (1 << 32) - (1 << 9) - (1 << 8) - (1 << 7) - (1 << 6) - (1 << 4) - 1;
 
+  parameter DO_AFFINE_CHECK = "NO"; // Setting this to YES will convert the final result back to affine coordinates to check signature
+                                    // Requires an inversion and so is slower than doing the check in jacobson coordinates
+  parameter USE_ENDOMORPH = "YES";   // Use the secp256k1 endomorphism to reduce the key bit size. Improves throughput by 2x but uses
+                                    // more FPGA logic
+
   // Use register map for debug, holds information on current operation
   parameter REGISTER_SIZE = 64;
   // The mapping to index

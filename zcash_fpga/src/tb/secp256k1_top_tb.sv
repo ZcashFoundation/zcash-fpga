@@ -22,6 +22,7 @@ import secp256k1_pkg::*;
 import zcash_fpga_pkg::*;
 
 localparam CLK_PERIOD = 5000;
+localparam USE_ENDOMORPH = "NO";
 
 logic clk, rst;
 
@@ -42,8 +43,7 @@ end
 
 // Check for errors
 always_ff @ (posedge clk)
-  if (out_if.val && out_if.err) begin
-    out_if.rdy = 1;
+  if (out_if.val && out_if.err) begin;
     $error(1, "%m %t ERROR: output .err asserted", $time);
   end
 

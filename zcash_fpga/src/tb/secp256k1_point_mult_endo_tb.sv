@@ -16,7 +16,7 @@
 */
 `timescale 1ps/1ps
 
-module secp256k1_point_mult_tb ();
+module secp256k1_point_mult_endo_tb ();
 import common_pkg::*;
 import secp256k1_pkg::*;
 
@@ -33,7 +33,6 @@ if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mult_out_if(clk);
 if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mod_in_if(clk);
 if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mod_out_if(clk);
 
-jb_point_t in_p, out_p;
 logic [255:0] k_in;
 
 
@@ -70,11 +69,7 @@ always_comb begin
   mod_out_if.mod = 0;
 end
 
-
-  secp256k1_point_mult #(
-    .RESOURCE_SHARE ("YES")
-  )
-  secp256k1_point_mult (
+  secp256k1_point_mult_endo secp256k1_point_mult_endo (
     .i_clk ( clk ),
     .i_rst ( rst ),
     .i_p   ( in_if.dat  ),
@@ -85,14 +80,13 @@ end
     .i_rdy ( out_if.rdy ),
     .o_val ( out_if.val ),
     .o_err ( out_if.err ),
-     .o_mult_if ( mult_in_if ),
+    .o_mult_if ( mult_in_if ),
     .i_mult_if ( mult_out_if ),
     .o_mod_if ( mod_in_if ),
     .i_mod_if ( mod_out_if ),
     .i_p2_val (0),
     .i_p2 (0 )
   );
-
 
 secp256k1_mult_mod #(
   .CTL_BITS ( 16 )
@@ -146,7 +140,7 @@ begin
   start_time = $time;
   fork
     in_if.put_stream(p_in, 256*3/8);
-    out_if.get_stream(get_dat, get_len);
+    out_if.get_stream(get_dat, get_len, 0);
   join
   finish_time = $time;
 
@@ -169,59 +163,23 @@ initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
-
-  test(0,
-       1, {x:256'h79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798,
-       y:256'h483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8,
-       z:256'h1},
-       {x:secp256k1_pkg::Gx, y:secp256k1_pkg::Gy, z:256'h1});
-
-  test(1,
-       2, {x:256'h7d152c041ea8e1dc2191843d1fa9db55b68f88fef695e2c791d40444b365afc2,
-       y:256'h56915849f52cc8f76f5fd7e4bf60db4a43bf633e1b1383f85fe89164bfadcbdb,
-       z:256'h9075b4ee4d4788cabb49f7f81c221151fa2f68914d0aa833388fa11ff621a970},
-       {x:secp256k1_pkg::Gx, y:secp256k1_pkg::Gy, z:256'h1});
-
-  test(3,
-       3, {x:256'hca90ef9b06d7eb51d650e9145e3083cbd8df8759168862036f97a358f089848,
-       y:256'h435afe76017b8d55d04ff8a98dd60b2ba7eb6f87f6b28182ca4493d7165dd127,
-       z:256'h9242fa9c0b9f23a3bfea6a0eb6dbcfcbc4853fe9a25ee948105dc66a2a9b5baa},
-       {x:secp256k1_pkg::Gx, y:secp256k1_pkg::Gy, z:256'h1});
-
-  test(4, 
-       4, {x:256'h9bae2d5bac61e6ea5de635bca754b2564b7d78c45277cad67e45c4cbbea6e706,
-       y:256'h34fb8147eed1c0fbe29ead4d6c472eb4ef7b2191fde09e494b2a9845fe3f605e,
-       z:256'hc327b5d2636b32f27b051e4742b1bbd5324432c1000bfedca4368a29f6654152},
-       {x:secp256k1_pkg::Gx, y:secp256k1_pkg::Gy, z:256'h1});
-           
-  test(5, 
-       256'd55241786844846723798409522554861295376012334658573106804016642051374977891741,
-       {x:256'd114452044609218547356220974436632746395277736533029276044444520652934189718100,
-       y:256'd105574650075160330358790852048157558974413633249451800413065016023266456843289,
-       z:256'd114502749188206279151476081115998896219274334632701318332065731739168923561257},
-       {x:secp256k1_pkg::Gx, y:secp256k1_pkg::Gy, z:256'h1});
-                    
-  test(6, 
+          
+  // k1 is positive, k2 is negative here
+  test(0, 
        256'd36644297199723006697238902796853752627288044630575801382304802161070535512204,
-       {x:256'd19559730912111231547572828279398263948482589709742643847415187021767406006262,
-       y:256'd56669196538343662577389952407416094360513459515269228018156259621856885572646,
-       z:256'd93622651521811893405023705294943233553232134901881469090144140953361623198206},
+       {x:256'd45213033352668070164952185425578516070995776451206690854440958351598421068498,
+       y:256'd85642664275538481518837161207205935282875677695988033260377207212529188560350,
+       z:256'd46619474838719077565729441946941961955107434058466874326193136242340363932614},
        {x:secp256k1_pkg::Gx, y:secp256k1_pkg::Gy, z:256'h1});                               
 
-  test(7,
-       1514155, {x:256'h759267d17957f567381462db6e240b75c9f6016091a7427cfbef33c398964a9d,
-       y:256'hd81ce7034647587a9b0ea5b52ac08c91f5cfae30f4eba2ade7fa68856fc0d691,
-       z:256'h7c9d27fb2de7927c982792630a0c86f411f2de60e8df44c5e9caff976658009c},
+// k1 and k2 is positive
+  test(1, 
+       256'd55241786844846723798409522554861295376012334658573106804016642051374977891741,
+       {x:256'd76090149308608015449280928223196394375371085422355638787623027177573248394427,
+       y:256'd52052533613727108316308539229264312767646640577338787268425139698990399010025,
+       z:256'd114906227987603512981917844669318868106181860518720331222560351511921461319286},
        {x:secp256k1_pkg::Gx, y:secp256k1_pkg::Gy, z:256'h1});
 
-  test(8,
-       256'hbad45c59dcd6d81c6a96b46a678cb893c53decc8e57465bd84efa78676ccc64a,
-       {x:256'he7e2b526cd2822c69ea688586501db564f28430319cdeb95cb38feb2c77fdfc3,
-        y:256'h6dda26c3c991cfab33a12ed7b56a0afa17d375d8fa5cabe2d1d143bb21cab887,
-        z:256'h2f8a851f9aec0f095a31472456a91cca12dd21da865e5a83e5d1b1085835c36c},
-        {x:256'h808a2c66c5b90fa1477d7820fc57a8b7574cdcb8bd829bdfcf98aa9c41fde3b4,  // Not multiplying by generator
-        y:256'heed249ffde6e46d784cb53b4df8c9662313c1ce8012da56cb061f12e55a32249,
-        z:256'h1});
 
   #1us $finish();
 end

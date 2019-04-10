@@ -130,10 +130,10 @@ interface if_axi_stream # (
     logic sop_l = 0;
     logic done = 0;
     logic rdy_l;
-    rdy = ($urandom % 100) >= bp;
     len = 0;
     data = 0;
     rdy_l = rdy;
+    rdy = ($urandom % 100) >= bp;
     @(posedge i_clk);
     
     while (1) begin
