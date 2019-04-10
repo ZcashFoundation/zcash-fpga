@@ -17,7 +17,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-module secp256k1_point_add3
+module secp256k1_point_add
   import secp256k1_pkg::*;
 #(
 )(
