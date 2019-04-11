@@ -265,7 +265,7 @@ initial begin
   tx_if.val = 0;
   #20us; // Let internal memories reset
 
-  //test_ignored_message();
+  test_ignored_message();
   
   if (zcash_fpga_pkg::ENB_VERIFY_EQUIHASH == 1)
     test_block_346_equihash();
