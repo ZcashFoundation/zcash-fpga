@@ -69,10 +69,10 @@ class zcash_fpga:
         if res is not None and (self.struct.unpack('<I', res[4:8])[0] != self.fpga_msg_type_dict['VERIFY_SECP256K1_SIG_RPL']):
             print("ERROR: Reply type was not VERIFY_SECP256K1_SIG_RPL")
             return False
-        if (self.struct.unpack('<I', res[8:16])[0] != index):
+        if (self.struct.unpack('<Q', res[8:16])[0] != index):
             print("ERROR: Index did not match")
             return False
-        if (self.struct.unpack('<I', res[16:17])[0] != 0):
+        if (self.struct.unpack('<B', res[16:17])[0] != 0):
             print("ERROR: Result bitmask was non-zero")
             return False
         print("INFO: Secp256k1 signature verified correctly")
