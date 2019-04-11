@@ -46,20 +46,27 @@ class zcash_fpga:
 
     def get_reply(self):    
         res = self.s.read(1024)
-        self.print_reply(res)
-        return res
+        if len(res) > 0:
+            self.print_reply(res)
+            return res
+        else:
+            print ("INFO: No reply received")
+            return None
  
     def secp256k1_verify_sig(self, index, hsh, r, s, Qx, Qy):
-        cmd = 'B000000001010000'
-        cmd += format(index, 'x').ljust(16, '0')
-        cmd += format(s, 'x').ljust(64, '0')
-        cmd += format(r, 'x').ljust(64, '0')
-        cmd += format(hsh, 'x').ljust(64, '0')
-        cmd += format(Qx, 'x').ljust(64, '0')
-        cmd += format(Qy, 'x').ljust(64, '0')
+        cmd = '00000101000000B0' 
+        cmd = format(index, 'x').ljust(16, '0') + cmd
+        cmd = format(s, 'x').ljust(64, '0') + cmd
+        cmd = format(r, 'x').ljust(64, '0') + cmd
+        cmd = format(hsh, 'x').ljust(64, '0') + cmd
+        cmd = format(Qx, 'x').ljust(64, '0') + cmd
+        cmd = format(Qy, 'x').ljust(64, '0') + cmd
+        #Need to swap cmd byte order
+        cmd = "".join(reversed([cmd[i:i+2] for i in range(0, len(cmd), 2)]))
+
         self.s.write(self.codecs.decode(cmd, 'hex'))
         res = self.get_reply()
-        if (self.struct.unpack('<I', res[4:8])[0] != self.fpga_msg_type_dict['VERIFY_SECP256K1_SIG_RPL']):
+        if res is not None and (self.struct.unpack('<I', res[4:8])[0] != self.fpga_msg_type_dict['VERIFY_SECP256K1_SIG_RPL']):
             print("ERROR: Reply type was not VERIFY_SECP256K1_SIG_RPL")
             
     def close(self):
@@ -69,6 +76,7 @@ class zcash_fpga:
     def print_reply(self, msg):
         if (len(msg) < 8):
             print("ERROR: Message too small")
+            return None
         length = (self.struct.unpack('<I', msg[0:4])[0])
         if (len(msg) != length):
             print("ERROR: Message length mismatch")
@@ -83,11 +91,18 @@ class zcash_fpga:
             print(self.fpga_msg_dict[cmd]['feilds'][i][1], ":", self.fpga_msg_dict[cmd]['feilds'][i][2](bytes(msg[offset:offset+length])))
             offset += length
 
-#Example usage:
+#Example usages:
+def example_secp256k1_sig():
+    zf = zcash_fpga()
+    
+    index = 1234
+    hsh = 34597931798561447004034205848155169322219865803759328163562698792725658370004
+    r = 550117237093786687120086685263208063857013211911888854762107796665370524299
+    s = 100440748044460701692736849796872767381221821858945401325418288486792652245963
+    Qx = 58140175961173984744358741087164846868370435294166601807987768465943227655092
+    Qy = 108022006572115270940875378266056879700669412417454111206384551596343133676105
+    zf.secp256k1_verify_sig(index, hsh, r, s, Qx, Qy)
 
-zf = zcash_fpga()
-zf.secp256k1_verify_sig(1, 1, 1, 1, 1, 1)
+    zf.close()
 
-zf.close()
-
-
+example_secp256k1_sig()
