@@ -19,7 +19,7 @@ class zcash_fpga:
                           'RESET_FPGA_RPL':int('80000000', 16),
                           'VERIFY_SECP256K1_SIG_RPL':int('80000101', 16)}
 
-    fpga_msg_dict = {fpga_msg_type_dict['VERIFY_SECP256K1_SIG_RPL']:{'name':'VERIFY_SECP256K1_SIG_RPL', 'feilds':[(8, 'index', byt_to_hex), (1, 'bm', byt_to_hex)]},
+    fpga_msg_dict = {fpga_msg_type_dict['VERIFY_SECP256K1_SIG_RPL']:{'name':'VERIFY_SECP256K1_SIG_RPL', 'feilds':[(8, 'index', byt_to_hex), (1, 'bm', byt_to_hex), (2, 'cycle_cnt', byt_to_hex)]},
                      fpga_msg_type_dict['FPGA_IGNORE_RPL']:{'name':'FPGA_IGNORE_RPL', 'feilds':[(8, 'ignored_header', byt_to_hex)]},
                      fpga_msg_type_dict['FPGA_STATUS_RPL']:{'name':'FPGA_STATUS_RPL', 'feilds':[(4, 'version', byt_to_ver), (8, 'build_date', byt_to_str), (8, 'buid_host', byt_to_str), (8, 'cmd_cap', byt_to_hex)]},
                      fpga_msg_type_dict['RESET_FPGA_RPL']:{'name':'RESET_FPGA_RPL', 'feilds':[]}}

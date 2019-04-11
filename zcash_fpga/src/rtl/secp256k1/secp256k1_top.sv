@@ -94,7 +94,7 @@ always_ff @ (posedge i_clk) begin
     mult_in_if[2].reset_source();
 
     index <= 0;
-    
+
     timeout <= 0;
 
   end else begin
@@ -355,14 +355,15 @@ always_ff @ (posedge i_clk) begin
           end
           2: begin
             if (mult_out_if[2].rdy && mult_out_if[2].val) begin
-              if(mult_out_if[2].dat != pt_mult0_in_p2.x)
+              if(mult_out_if[2].dat != pt_mult0_in_p2.x) begin
                 secp256k1_ver.FAILED_SIG_VER <= 1;
+              end
               cnt <= 3;
             end
           end
           3: begin
             cnt <= $bits(verify_secp256k1_sig_rpl_t)/8;
-            msg <= verify_secp256k1_sig_rpl(secp256k1_ver, index);
+            msg <= verify_secp256k1_sig_rpl(secp256k1_ver, index, timeout);
             secp256k1_state <= FINISHED;
           end
         endcase

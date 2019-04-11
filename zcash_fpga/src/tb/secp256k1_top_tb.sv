@@ -86,6 +86,7 @@ begin
   fail |= verify_secp256k1_sig_rpl.hdr.cmd != VERIFY_SECP256K1_SIG_RPL;
   fail |= (verify_secp256k1_sig_rpl.bm != 0);
   fail |= (verify_secp256k1_sig_rpl.index != k);
+  fail |= (verify_secp256k1_sig_rpl.cycle_cnt == 0);
   assert (~fail) else $fatal(1, "%m %t ERROR: test failed :\n%p", $time, verify_secp256k1_sig_rpl);
 
   $display("test #%d PASSED in %d clocks", integer'(k), (finish_time-start_time)/CLK_PERIOD);
@@ -97,7 +98,7 @@ initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
-/*
+
   test(1, 256'h4c7dbc46486ad9569442d69b558db99a2612c4f003e6631b593942f531e67fd4,  // message hash
           256'h1375af664ef2b74079687956fd9042e4e547d57c4438f1fc439cbfcb4c9ba8b,  // r
           256'hde0f72e442f7b5e8e7d53274bf8f97f0674f4f63af582554dbecbb4aa9d5cbcb,  // s
@@ -109,7 +110,7 @@ initial begin
           256'h6abcd5e40fcee8bca6b506228a2dcae67daa5d743e684c4d3fb1cb77e43b48fe,  // s
           256'hb661c143ffbbad5acfe16d427767cdc57fb2e4c019a4753ba68cd02c29e4a153,  //Qx
           256'h6e1fb00fdb9ddd39b55596bfb559bc395f220ae51e46dbe4e4df92d1a5599726); //Qy
-          */
+
   test(3, 256'h10,  // message hash
           256'h10,  // r
           256'h10,  // s
