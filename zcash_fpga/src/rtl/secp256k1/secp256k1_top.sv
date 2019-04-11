@@ -13,6 +13,9 @@ localparam DAT_BYTS = 8;
 localparam DAT_BITS = DAT_BYTS*8;
 import zcash_fpga_pkg::*;
 
+debug_if #(.DAT_BYTS (8), .CTL_BITS (1)) tx_debug_if (.i_if(if_cmd_rx));
+debug_if #(.DAT_BYTS (8), .CTL_BITS (1)) rx_debug_if (.i_if(if_cmd_tx));
+
 // 256 bit inverse calculation
 if_axi_stream #(.DAT_BYTS(256/8)) bin_inv_in_if(i_clk);
 if_axi_stream #(.DAT_BYTS(256/8)) bin_inv_out_if(i_clk);
@@ -42,7 +45,7 @@ typedef enum {IDLE,
               IGNORE,
               FINISHED} secp256k1_state_t;
 
-secp256k1_state_t secp256k1_state;
+(* mark_debug = "true" *)  secp256k1_state_t secp256k1_state;
 header_t header, header_l;
 secp256k1_ver_t secp256k1_ver;
 // Other temporary values
@@ -379,10 +382,12 @@ always_ff @ (posedge i_clk) begin
     endcase
 
     // Something went wrong - send a message back to host
-    if (&timeout) begin
-      secp256k1_ver.TIMEOUT_FAIL <= 1;
-    end else begin
-      timeout <= timeout + 1;
+    if (secp256k1_state != IDLE) begin
+      if (&timeout) begin
+        secp256k1_ver.TIMEOUT_FAIL <= 1;
+      end else begin
+        timeout <= timeout + 1;
+      end
     end
     if (secp256k1_ver.TIMEOUT_FAIL && secp256k1_state != FINISHED) begin
       cnt <= $bits(verify_secp256k1_sig_rpl_t)/8;
