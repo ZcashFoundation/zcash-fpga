@@ -319,7 +319,7 @@ always_ff @ (posedge i_clk) begin
           end
           {3}: begin
             cnt <= $bits(verify_secp256k1_sig_rpl_t)/8;
-            msg <= verify_secp256k1_sig_rpl(secp256k1_ver, index);
+            msg <= verify_secp256k1_sig_rpl(secp256k1_ver, index, timeout);
             secp256k1_state <= FINISHED;
           end
         endcase
@@ -386,7 +386,7 @@ always_ff @ (posedge i_clk) begin
     end
     if (secp256k1_ver.TIMEOUT_FAIL && secp256k1_state != FINISHED) begin
       cnt <= $bits(verify_secp256k1_sig_rpl_t)/8;
-      msg <= verify_secp256k1_sig_rpl(secp256k1_ver, index);
+      msg <= verify_secp256k1_sig_rpl(secp256k1_ver, index, timeout);
       secp256k1_state <= FINISHED;
     end
   end
