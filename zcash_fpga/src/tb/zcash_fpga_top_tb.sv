@@ -30,10 +30,10 @@ logic clk_200, rst_200;
 
 localparam CLK200_PERIOD = 5000;
 localparam CLK300_PERIOD = 3333;
-localparam IF_CLK_PERIOD = 10000;
+localparam IF_CLK_PERIOD = 100000;
 
 parameter DAT_BYTS = 8;
-parameter IF_DAT_BYTS = 4;
+parameter IF_DAT_BYTS = 1;
 string my_file_path_s = get_file_dir(`__FILE__);
 
 if_axi_stream #(.DAT_BYTS(IF_DAT_BYTS)) tx_if(clk_if);
@@ -76,7 +76,7 @@ end
 // Need one for each test so we can multiplex the input
 always_comb begin
   tx_346_if.rdy = 0;
-  tx_if.val = 0;
+  //
 
   if (start_346 && ~done_346) begin
     tx_346_if.rdy = tx_if.rdy;
@@ -260,12 +260,18 @@ endtask;
 
 // Main testbench calls
 initial begin
+  tx_if.rdy = 0;
   rx_if.rdy = 0;
+  tx_if.val = 0;
   #20us; // Let internal memories reset
 
   //test_ignored_message();
-  //test_block_346_equihash();
-  test_block_secp256k1();
+  
+  if (zcash_fpga_pkg::ENB_VERIFY_EQUIHASH == 1)
+    test_block_346_equihash();
+    
+  if (zcash_fpga_pkg::ENB_VERIFY_SECP256K1_SIG == 1)  
+    test_block_secp256k1();
 
   #1us $finish();
 

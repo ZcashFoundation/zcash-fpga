@@ -140,7 +140,7 @@ always_ff @ (posedge i_clk) begin
         if_cmd_rx.rdy <= 1;
         header_l <= header;
         cnt <= 0;
-
+        bin_inv_out_if.rdy <= 0;
         pt_mult1_in_p.z <= 1;
         pt_mult1_in_p.x <= secp256k1_pkg::Gx;
         pt_mult1_in_p.y <= secp256k1_pkg::Gy;

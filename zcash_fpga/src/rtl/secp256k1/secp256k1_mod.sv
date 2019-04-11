@@ -75,7 +75,7 @@ generate
   end    
 endgenerate
 
-always_comb o_rdy = i_rdy;
+always_comb o_rdy = ~o_val || (i_rdy && o_val);
 
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin

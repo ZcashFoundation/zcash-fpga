@@ -53,13 +53,13 @@ logic [LEVEL*3-1:0][CTL_BITS-1:0] ctl;
 always_comb begin
   o_val = val[LEVEL*3-1];
   o_ctl = ctl[LEVEL*3-1]; 
-  o_rdy = i_rdy;
+  o_rdy = ~o_val || (o_val && i_rdy);
 end
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     val <= 0;
   end else begin
-    if(o_rdy) begin
+    if(~o_val || (o_val && i_rdy)) begin
       val <= {val, i_val};
     end
   end
@@ -78,7 +78,7 @@ always_ff @ (posedge i_clk) begin
     dat_b <= 0;
     sign <= 0;
   end else begin
-      if(o_rdy) begin
+      if(~o_val || (o_val && i_rdy)) begin
         o_dat <= q;
         ctl <= {ctl, i_ctl};
         a0_ <= a0;
