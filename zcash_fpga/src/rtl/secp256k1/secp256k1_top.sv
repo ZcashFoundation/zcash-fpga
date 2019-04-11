@@ -6,18 +6,12 @@ module secp256k1_top import secp256k1_pkg::*; #(
   input          i_rst,
   // Command interface
   if_axi_stream.sink if_cmd_rx,
-  if_axi_stream.source if_cmd_tx,
-  // Memory map interface for debug
-  if_axi_mm.sink if_axi_mm
+  if_axi_stream.source if_cmd_tx
 );
 
 localparam DAT_BYTS = 8;
 localparam DAT_BITS = DAT_BYTS*8;
 import zcash_fpga_pkg::*;
-
-// Register map is used for storing command data
-if_ram #(.RAM_WIDTH(64), .RAM_DEPTH(REGISTER_SIZE)) register_file_a (i_clk, i_rst);
-if_ram #(.RAM_WIDTH(64), .RAM_DEPTH(REGISTER_SIZE)) register_file_b (i_clk, i_rst);
 
 // 256 bit inverse calculation
 if_axi_stream #(.DAT_BYTS(256/8)) bin_inv_in_if(i_clk);
@@ -34,8 +28,8 @@ logic [255:0] pt_mult0_in_k, pt_mult1_in_k;
 logic pt_mult0_in_val, pt_mult0_in_rdy, pt_mult0_out_rdy, pt_mult0_out_val, pt_mult0_out_err, pt_mult0_in_p2_val;
 logic pt_mult1_in_val, pt_mult1_in_rdy, pt_mult1_out_rdy, pt_mult1_out_val, pt_mult1_out_err;
 
-// Can avoid final inverstion converting from projected coord by some check in c++ code
-
+// Global timeout in case we get stuck somewhere, we send a failed message back to host
+logic [(USE_ENDOMORPH == "YES" ? 14 : 15):0] timeout;
 // Controlling state machine
 typedef enum {IDLE,
               GET_INDEX,
@@ -45,14 +39,13 @@ typedef enum {IDLE,
               CALC_X,
               CALC_X_AFFINE,
               CHECK_IN_JB,
-              UPDATE_RAM_VARIABLES,
               IGNORE,
               FINISHED} secp256k1_state_t;
 
 secp256k1_state_t secp256k1_state;
 header_t header, header_l;
 secp256k1_ver_t secp256k1_ver;
-// Other temporary values - could use RAM insead?
+// Other temporary values
 logic [255:0]  r, u2;
 logic [63:0] index;
 logic u2_val;
@@ -61,7 +54,6 @@ localparam MAX_BYT_MSG = 64; // Max bytes in a reply message
 
 logic [MAX_BYT_MSG*8 -1:0] msg;
 logic [$clog2(MAX_BYT_MSG)-1:0] cnt; // Counter for parsing command inputs
-logic if_axi_mm_rd;
 
 logic [255:0] inv_p;
 
@@ -76,7 +68,6 @@ always_ff @ (posedge i_clk) begin
     if_cmd_tx.reset_source();
     if_cmd_rx.rdy <= 0;
     cnt <= 0;
-    register_file_a.reset_source();
     r <= 0;
     u2 <= 0;
     u2_val <= 0;
@@ -103,12 +94,11 @@ always_ff @ (posedge i_clk) begin
     mult_in_if[2].reset_source();
 
     index <= 0;
+    
+    timeout <= 0;
 
   end else begin
 
-    register_file_a.en <= 1;
-    register_file_a.we <= 0;
-    register_file_a.re <= 1;
     mult_out_if[2].rdy <= 1;
     mult_in_if[2].sop <= 1;
     mult_in_if[2].eop <= 1;
@@ -134,6 +124,7 @@ always_ff @ (posedge i_clk) begin
 
     case(secp256k1_state)
       {IDLE}: begin
+        timeout <= 0;
         inv_p <=  secp256k1_pkg::n;
         u2_val <= 0;
         secp256k1_ver <= 0;
@@ -148,9 +139,6 @@ always_ff @ (posedge i_clk) begin
         if (if_cmd_rx.val && if_cmd_rx.rdy) begin
           case(header.cmd)
             {VERIFY_SECP256K1_SIG}: begin
-              register_file_a.we <= 1;
-              register_file_a.a <= CURR_CMD;
-              register_file_a.d <= header;
               secp256k1_state <= GET_INDEX;
             end
             default: begin
@@ -172,7 +160,6 @@ always_ff @ (posedge i_clk) begin
       {VERIFY_SECP256K1_SIG_PARSE}: begin
         if_cmd_rx.rdy <= 1;
         if (if_cmd_rx.val && if_cmd_rx.rdy) begin
-          register_file_a.we <= 1;
           cnt <= cnt + 1;
           if (cnt == 19 && if_cmd_rx.val && if_cmd_rx.rdy) begin
             secp256k1_state <= CALC_S_INV;
@@ -182,8 +169,6 @@ always_ff @ (posedge i_clk) begin
 
         case(cnt) inside
           [0:3]: begin
-            register_file_a.a <= SIG_VER_S/8 + (cnt);
-            register_file_a.d <= if_cmd_rx.dat;
             // Can start calculating the inverse here
             bin_inv_in_if.dat[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
             if (cnt == 3 && if_cmd_rx.val && if_cmd_rx.rdy) begin
@@ -191,25 +176,19 @@ always_ff @ (posedge i_clk) begin
             end
           end
           [4:7]: begin
-            register_file_a.a <= SIG_VER_R/8 + (cnt - 4);
-            r[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat; // TODO remove
-            register_file_a.d <= if_cmd_rx.dat;
+            r[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
             mult_in_if[2].dat[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
           end
           [8:11]: begin
             pt_mult0_in_k[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
-            register_file_a.a <= SIG_VER_HASH/8 + (cnt - 8);
-            register_file_a.d <= if_cmd_rx.dat;
           end
           [12:19]: begin
-            register_file_a.a <= SIG_VER_Q/8 + (cnt - 12);
             pt_mult0_in_p.z <= 1;
             if ((cnt-12) < 4) begin
               pt_mult0_in_p.x[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
             end else begin
               pt_mult0_in_p.y[(cnt % 4)*64 +: 64] <= if_cmd_rx.dat;
             end
-            register_file_a.d <= if_cmd_rx.dat;
           end
         endcase
       end
@@ -226,7 +205,6 @@ always_ff @ (posedge i_clk) begin
           mult_in_if[2].val <= 1;
           secp256k1_state <= CALC_U1_U2;
           cnt <= 0;
-          // TODO also write this to RAM
           // need to do 2 multiplications % n to get u1 and u2
         end
       end
@@ -242,8 +220,6 @@ always_ff @ (posedge i_clk) begin
           end
         end
         // Check for result
-        // TODO load into RAM
-
         if (mult_out_if[2].val && mult_out_if[2].rdy) begin
           case(cnt[2])
             {1'd0}: begin
@@ -267,22 +243,19 @@ always_ff @ (posedge i_clk) begin
       {CALC_X}: begin
         // Wait for u1.P to finish
         if (pt_mult0_out_rdy && pt_mult0_out_val) begin
-          // TODO load equation into point ADD
           pt_X0 <= pt_mult0_out_p;
           pt_mult0_in_p <= pt_mult0_out_p;
           cnt[0] <= 1;
         end
         // Wait for u2.Q to finish
         if (pt_mult1_out_rdy && pt_mult1_out_val) begin
-          // TODO load equation into point ADD
-          pt_X1 <= pt_mult1_out_p; // TODO remove these
+          pt_X1 <= pt_mult1_out_p;
           pt_mult0_in_p2 <= pt_mult1_out_p;
           cnt[1] <= 1;
         end
 
         // Do the final point add
         if (cnt[2:0] == 3'b011) begin
-            // TODO the final add  /checks
             pt_mult0_in_p2_val <= 1;
             cnt[2:0] <= 3'b100;
         end
@@ -394,14 +367,8 @@ always_ff @ (posedge i_clk) begin
           end
         endcase
       end
-      {UPDATE_RAM_VARIABLES}: begin
-        // Here we write all our calculated variables to RAM
-      end
-
       {FINISHED}: begin
-        // TODO send message back
         send_message($bits(verify_secp256k1_sig_rpl_t)/8);
-        // TODO also write result into RAM
       end
       {IGNORE}: begin
         if_cmd_rx.rdy <= 1;
@@ -410,47 +377,20 @@ always_ff @ (posedge i_clk) begin
       end
     endcase
 
-    // We use this to write to the RAM as results are valid
-
-  end
-end
-
-logic if_axi_mm_rd_;
-
-always_comb begin
-  register_file_b.a = if_axi_mm.addr/8;
-end
-
-always_ff @ (posedge i_clk) begin
-  if (i_rst) begin
-    if_axi_mm.reset_sink();
-    register_file_b.en <= 1;
-    register_file_b.re <= 1;
-    register_file_b.we <= 0;
-    register_file_b.d <= 0;
-    if_axi_mm_rd_ <= 0;
-  end else begin
-    if_axi_mm_rd_ <= if_axi_mm_rd;
-    if_axi_mm.rd_dat_val <= 0;
-    register_file_b.en <= 1;
-    register_file_b.re <= 1;
-    if_axi_mm_rd <= if_axi_mm.rd;
-    if (if_axi_mm_rd_) begin
-      if_axi_mm.rd_dat_val <= 1;
-      if_axi_mm.rd_dat <= register_file_b.q;
+    // Something went wrong - send a message back to host
+    if (&timeout) begin
+      secp256k1_ver.TIMEOUT_FAIL <= 1;
+    end else begin
+      timeout <= timeout + 1;
+    end
+    if (secp256k1_ver.TIMEOUT_FAIL && secp256k1_state != FINISHED) begin
+      cnt <= $bits(verify_secp256k1_sig_rpl_t)/8;
+      msg <= verify_secp256k1_sig_rpl(secp256k1_ver, index);
+      secp256k1_state <= FINISHED;
     end
   end
 end
 
-// BRAM for storing parsed inputs
-bram #(
-  .RAM_WIDTH       ( 64                 ),
-  .RAM_DEPTH       ( REGISTER_SIZE      ),
-  .RAM_PERFORMANCE ( "HIGH_PERFORMANCE" )
-) register_file (
-  .a ( register_file_a ),
-  .b ( register_file_b )
-);
 
 // Calculate binary inverse mod n
 bin_inv #(
@@ -607,7 +547,7 @@ generate if (USE_ENDOMORPH == "NO") begin
     .i_p2     ( pt_mult0_in_p2  ),
     .i_p2_val ( pt_mult0_in_p2_val )
   );
-  
+
   secp256k1_point_mult #(
     .RESOURCE_SHARE ( "YES" )
   )
@@ -630,7 +570,7 @@ generate if (USE_ENDOMORPH == "NO") begin
     .i_p2_val ( 1'b0 )
   );
 end else begin
-  secp256k1_point_mult_endo 
+  secp256k1_point_mult_endo
   secp256k1_point_mult_endo0 (
     .i_clk ( i_clk ),
     .i_rst ( i_rst ),
@@ -650,7 +590,7 @@ end else begin
     .i_p2_val ( pt_mult0_in_p2_val )
   );
 
-  secp256k1_point_mult_endo 
+  secp256k1_point_mult_endo
   secp256k1_point_mult_endo1 (
     .i_clk ( i_clk ),
     .i_rst ( i_rst ),

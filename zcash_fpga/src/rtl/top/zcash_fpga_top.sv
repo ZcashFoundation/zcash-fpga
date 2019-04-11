@@ -1,9 +1,9 @@
 /*
   This is the top level of the Zcash FPGA acceleration engine.
-  
+
   We have different interfaces that are all muxed together to provide FPGA
   with commands and data.
-  
+
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
   This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */ 
+ */
 
 module zcash_fpga_top
   import zcash_fpga_pkg::*, equihash_pkg::*;
@@ -30,7 +30,7 @@ module zcash_fpga_top
   input i_clk_core0, i_rst_core0, // Core 0 is the main clock
   input i_clk_core1, i_rst_core1, // Core 1 is used on logic with faster clock
   input i_clk_if, i_rst_if,       // Command interface clock (e.g. UART / PCIe)
-  
+
   // Command interface input and output
   if_axi_stream.sink   rx_if,
   if_axi_stream.source tx_if
@@ -42,11 +42,10 @@ if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS)) equihash_axi(i_clk_core0);
 
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS)) secp256k1_out_if(i_clk_core0);
 if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS)) secp256k1_in_if(i_clk_core0);
-if_axi_mm secp256k1_mm_if(i_clk_core0);
 
 equihash_bm_t equihash_mask;
 logic         equihash_mask_val;
-  
+
 always_ff @ (posedge i_clk_core0) begin
   usr_rst_r <= usr_rst;
   rst_core0 <= i_rst_core0 || usr_rst_r;
@@ -101,7 +100,7 @@ equihash_verif_top (
   .i_clk ( i_clk_core0 ),
   .i_rst ( rst_core0 || ENB_VERIFY_EQUIHASH == 0 ),
   .i_clk_300 ( i_clk_core1 ), // Faster clock
-  .i_rst_300 ( rst_core1 || ENB_VERIFY_EQUIHASH == 0 ), 
+  .i_rst_300 ( rst_core1 || ENB_VERIFY_EQUIHASH == 0 ),
   .i_axi      ( equihash_axi      ),
   .o_mask     ( equihash_mask     ),
   .o_mask_val ( equihash_mask_val )
@@ -109,15 +108,12 @@ equihash_verif_top (
 
 
 // This block is the ECCDSA block for curve secp256k1
-always_comb begin
- secp256k1_mm_if.reset_source();
-end
+
 secp256k1_top secp256k1_top (
   .i_clk      ( i_clk_core0 ),
   .i_rst      ( rst_core0 || ENB_VERIFY_SECP256K1_SIG == 0 ),
   .if_cmd_rx  ( secp256k1_out_if ),
-  .if_cmd_tx  ( secp256k1_in_if  ),
-  .if_axi_mm  ( secp256k1_mm_if  )
+  .if_cmd_tx  ( secp256k1_in_if  )
 );
 
 
