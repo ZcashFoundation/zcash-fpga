@@ -27,6 +27,8 @@ class zcash_fpga:
 
     def __init__(self, COM='COM4'):
         self.s = self.serial.Serial(COM, 921600, timeout=1)
+        #Clear any pending messages
+        self.get_reply()
         #Test getting FPGA status
         self.get_status()
         print("Connected...")
@@ -46,11 +48,10 @@ class zcash_fpga:
 
     def get_reply(self):
         res = self.s.read(1024)
-        print(res)
-        msg_list = self.parse_reply(self, res)
-        print(msg_list)
-        if len(msg_list) > 0:
+        msg_list = self.parse_reply(res)
+        if msg_list and len(msg_list) > 0:
             for msg in msg_list:
+                print (msg)
                 self.print_reply(msg)
             return msg_list
         else:
@@ -86,12 +87,15 @@ class zcash_fpga:
         self.s.close()
         print("Closed...")
 
-    def parse_reply(self, msg, msg_list = []):
-        if (len(msg) < 8):
-            return msg_list
-        length = (self.struct.unpack('<I', msg[0:4])[0])
-        msg_list.append(msg[0:length])
-        self.parse_reply(msg[length:len(msg)], msg_list)
+    def parse_reply(self, msg, msg_list = None):
+        if (msg_list == None):
+            msg_list = []
+        if (len(msg) >= 8):
+            length = (self.struct.unpack('<I', msg[0:4])[0])
+            msg_list.append(msg[0:length])
+            if (len(msg) > length):
+                self.parse_reply(msg[length:len(msg)], msg_list)
+        return msg_list
 
     def print_reply(self, msg):
         cmd = (self.struct.unpack('<I', msg[4:8])[0])
@@ -108,7 +112,8 @@ class zcash_fpga:
 #Example usages:
 def example_secp256k1_sig():
     zf = zcash_fpga()
-    zf.reset_fpga() # Reset incase somethign went wrong last run
+    
+    zf.reset_fpga() # Reset incase something went wrong last run
 
     index = 1234
     hsh = 34597931798561447004034205848155169322219865803759328163562698792725658370004

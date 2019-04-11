@@ -101,6 +101,8 @@ always_ff @ (posedge i_clk) begin
     timeout <= 0;
 
   end else begin
+  
+    timeout <= timeout + 1;
 
     mult_out_if[2].rdy <= 1;
     mult_in_if[2].sop <= 1;
@@ -154,6 +156,7 @@ always_ff @ (posedge i_clk) begin
         end
       end
       {GET_INDEX}: begin
+        timeout <= 0; // Don't timeout here
         if (if_cmd_rx.val && if_cmd_rx.rdy) begin
           index <= if_cmd_rx.dat;
           secp256k1_state <= VERIFY_SECP256K1_SIG_PARSE;
@@ -161,6 +164,7 @@ always_ff @ (posedge i_clk) begin
         if_cmd_rx.rdy <= 1;
       end
       {VERIFY_SECP256K1_SIG_PARSE}: begin
+        timeout <= 0; // Don't timeout here
         if_cmd_rx.rdy <= 1;
         if (if_cmd_rx.val && if_cmd_rx.rdy) begin
           cnt <= cnt + 1;
@@ -372,6 +376,7 @@ always_ff @ (posedge i_clk) begin
         endcase
       end
       {FINISHED}: begin
+        timeout <= 0;
         send_message($bits(verify_secp256k1_sig_rpl_t)/8);
       end
       {IGNORE}: begin
@@ -382,14 +387,11 @@ always_ff @ (posedge i_clk) begin
     endcase
 
     // Something went wrong - send a message back to host
-    if (secp256k1_state != IDLE) begin
-      if (&timeout) begin
+    if (&timeout) begin
         secp256k1_ver.TIMEOUT_FAIL <= 1;
-      end else begin
-        timeout <= timeout + 1;
-      end
     end
-    if (secp256k1_ver.TIMEOUT_FAIL && secp256k1_state != FINISHED) begin
+    if (secp256k1_ver.TIMEOUT_FAIL) begin
+      secp256k1_ver.TIMEOUT_FAIL <= 0;
       cnt <= $bits(verify_secp256k1_sig_rpl_t)/8;
       msg <= verify_secp256k1_sig_rpl(secp256k1_ver, index, timeout);
       secp256k1_state <= FINISHED;
