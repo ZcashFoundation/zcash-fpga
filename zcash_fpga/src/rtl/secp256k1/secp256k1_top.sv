@@ -34,16 +34,16 @@ logic pt_mult1_in_val, pt_mult1_in_rdy, pt_mult1_out_rdy, pt_mult1_out_val, pt_m
 // Global timeout in case we get stuck somewhere, we send a failed message back to host
 logic [(USE_ENDOMORPH == "YES" ? 14 : 15):0] timeout;
 // Controlling state machine
-typedef enum {IDLE,
-              GET_INDEX,
-              VERIFY_SECP256K1_SIG_PARSE,
-              CALC_S_INV,
-              CALC_U1_U2,
-              CALC_X,
-              CALC_X_AFFINE,
-              CHECK_IN_JB,
-              IGNORE,
-              FINISHED} secp256k1_state_t;
+typedef enum {IDLE = 0,
+              GET_INDEX = 1,
+              VERIFY_SECP256K1_SIG_PARSE = 2,
+              CALC_S_INV = 3,
+              CALC_U1_U2 = 4,
+              CALC_X = 5,
+              CALC_X_AFFINE = 6,
+              CHECK_IN_JB = 7,
+              IGNORE = 8,
+              FINISHED = 9} secp256k1_state_t;
 
 (* mark_debug = "true" *)  secp256k1_state_t secp256k1_state;
 header_t header, header_l;
@@ -389,6 +389,7 @@ always_ff @ (posedge i_clk) begin
     // Something went wrong - send a message back to host
     if (&timeout) begin
         secp256k1_ver.TIMEOUT_FAIL <= 1;
+        timeout <= timeout;
     end
     if (secp256k1_ver.TIMEOUT_FAIL) begin
       secp256k1_ver.TIMEOUT_FAIL <= 0;
