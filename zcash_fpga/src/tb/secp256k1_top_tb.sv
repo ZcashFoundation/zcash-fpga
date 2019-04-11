@@ -111,12 +111,6 @@ initial begin
           256'hb661c143ffbbad5acfe16d427767cdc57fb2e4c019a4753ba68cd02c29e4a153,  //Qx
           256'h6e1fb00fdb9ddd39b55596bfb559bc395f220ae51e46dbe4e4df92d1a5599726); //Qy
 
-  test(3, 256'h10,  // message hash
-          256'h10,  // r
-          256'h10,  // s
-          256'hb661c143ffbbad5acfe16d427767cdc57fb2e4c019a4753ba68cd02c29e4a153,  //Qx
-          256'h6e1fb00fdb9ddd39b55596bfb559bc395f220ae51e46dbe4e4df92d1a5599726); //Qy
-
   #1us $finish();
 end
 endmodule
