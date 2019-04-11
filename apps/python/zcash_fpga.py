@@ -40,15 +40,19 @@ class zcash_fpga:
     def reset_fpga(self):
         self.s.write(self.codecs.decode('0800000000000000', 'hex'))
         # Parse reply - should be reset
-        res = self.get_reply()
+        res = self.get_reply()[0]
         if (self.struct.unpack('<I', res[4:8])[0] != self.fpga_msg_type_dict['RESET_FPGA_RPL']):
             print("ERROR: Reply type was not RESET_FPGA_RPL")
 
     def get_reply(self):
         res = self.s.read(1024)
-        if len(res) > 0:
-            self.print_reply(res)
-            return res
+        print(res)
+        msg_list = self.parse_reply(self, res)
+        print(msg_list)
+        if len(msg_list) > 0:
+            for msg in msg_list:
+                self.print_reply(msg)
+            return msg_list
         else:
             print ("INFO: No reply received")
             return None
@@ -65,7 +69,7 @@ class zcash_fpga:
         cmd = "".join(reversed([cmd[i:i+2] for i in range(0, len(cmd), 2)]))
 
         self.s.write(self.codecs.decode(cmd, 'hex'))
-        res = self.get_reply()
+        res = self.get_reply()[0] # Just look at the first reply
         if res is not None and (self.struct.unpack('<I', res[4:8])[0] != self.fpga_msg_type_dict['VERIFY_SECP256K1_SIG_RPL']):
             print("ERROR: Reply type was not VERIFY_SECP256K1_SIG_RPL")
             return False
@@ -82,13 +86,14 @@ class zcash_fpga:
         self.s.close()
         print("Closed...")
 
-    def print_reply(self, msg):
+    def parse_reply(self, msg, msg_list = []):
         if (len(msg) < 8):
-            print("ERROR: Message too small")
-            return None
+            return msg_list
         length = (self.struct.unpack('<I', msg[0:4])[0])
-        if (len(msg) != length):
-            print("ERROR: Message length mismatch")
+        msg_list.append(msg[0:length])
+        self.parse_reply(msg[length:len(msg)], msg_list)
+
+    def print_reply(self, msg):
         cmd = (self.struct.unpack('<I', msg[4:8])[0])
         if (cmd not in self.fpga_msg_dict):
             print("ERROR: Unknown message type:", cmd)
@@ -98,7 +103,7 @@ class zcash_fpga:
         for i in range(len(self.fpga_msg_dict[cmd]['feilds'])):
             length = self.fpga_msg_dict[cmd]['feilds'][i][0]
             print(self.fpga_msg_dict[cmd]['feilds'][i][1], ":", self.fpga_msg_dict[cmd]['feilds'][i][2](bytes(msg[offset:offset+length])))
-            offset += length
+            offset += length   
 
 #Example usages:
 def example_secp256k1_sig():
