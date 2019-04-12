@@ -40,9 +40,6 @@ logic uart_axi_awready, uart_axi_awvalid, uart_axi_arvalid, uart_axi_arready, ua
 
 logic [15:0] tx_byt_cnt, tx_byt_len, rx_byt_cnt, rx_byt_len;
 
-debug_if #(.DAT_BYTS (1), .CTL_BITS (1)) txuart_debug_if (.i_if(tx_if));
-debug_if #(.DAT_BYTS (1), .CTL_BITS (1)) rxuart_debug_if (.i_if(rx_if));
-
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     uart_axi_wdata <= 0;

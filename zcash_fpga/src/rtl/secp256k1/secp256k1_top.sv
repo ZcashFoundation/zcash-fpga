@@ -13,8 +13,6 @@ localparam DAT_BYTS = 8;
 localparam DAT_BITS = DAT_BYTS*8;
 import zcash_fpga_pkg::*;
 
-debug_if #(.DAT_BYTS (8), .CTL_BITS (1)) tx_debug_if (.i_if(if_cmd_rx));
-debug_if #(.DAT_BYTS (8), .CTL_BITS (1)) rx_debug_if (.i_if(if_cmd_tx));
 
 // 256 bit inverse calculation
 if_axi_stream #(.DAT_BYTS(256/8)) bin_inv_in_if(i_clk);
@@ -45,7 +43,7 @@ typedef enum {IDLE = 0,
               IGNORE = 8,
               FINISHED = 9} secp256k1_state_t;
 
-(* mark_debug = "true" *)  secp256k1_state_t secp256k1_state;
+secp256k1_state_t secp256k1_state;
 header_t header, header_l;
 secp256k1_ver_t secp256k1_ver;
 // Other temporary values
