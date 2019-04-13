@@ -26,7 +26,8 @@ module width_change_cdc_fifo # (
   parameter OUT_DAT_BYTS,
   parameter CTL_BITS,
   parameter FIFO_ABITS,
-  parameter USE_BRAM
+  parameter USE_BRAM,
+  parameter CDC_ASYNC = "YES"  // Do we require the clock crossing
 ) (
   input i_clk_a, i_rst_a,
   input i_clk_b, i_rst_b,
@@ -100,118 +101,105 @@ generate if (SHIFT_DOWN) begin
     end
   end
 
-
 end else begin
 
-// Logic to take words out of the CDC and form packets
-always_comb begin
-  if (SHIFT_DOWN) begin
-    o_axi_int.rdy =  (byt_cnt + OUT_DAT_BYTS == IN_DAT_BYTS) &&  o_axi_b.rdy ||
-        (o_axi_int.mod != 0 && (byt_cnt + OUT_DAT_BYTS >= o_axi_int.mod));
-  end else begin
-    o_axi_int.rdy = (~o_axi_b.val && (byt_cnt + IN_DAT_BYTS < OUT_DAT_BYTS))  ||
-                     o_axi_b.rdy;
-  end
-end
-
-always_ff @ (posedge i_clk_b) begin
-  if (i_rst_b) begin
-    o_axi_b.reset_source();
-    byt_cnt <= 0;
-    sop_l <= 0;
-  end else begin
-
-    if (~o_axi_b.val || (o_axi_b.val && o_axi_b.rdy)) begin
-
+  always_ff @ (posedge i_clk_b) begin
+    if (i_rst_b) begin
+      o_axi_b.reset_source();
+      byt_cnt <= 0;
+      sop_l <= 0;
+      o_axi_int.rdy <= 0;
+    end else begin
+      
       if (o_axi_b.val && o_axi_b.rdy) begin
         o_axi_b.reset_source();
       end
 
-      if (o_axi_int.val) begin
+      if (~o_axi_b.val || (o_axi_b.val && o_axi_b.rdy)) begin
 
-        if (byt_cnt == 0 && o_axi_int.sop) begin
-          sop_l <= 1;
-          if (SHIFT_DOWN)
-            o_axi_b.sop <= 1;
-        end
-
-        if (SHIFT_DOWN)
-          o_axi_b.dat <= o_axi_int.dat[byt_cnt*8 +: OUT_DAT_BITS];
-        else
-          o_axi_b.dat[byt_cnt*8 +: IN_DAT_BITS] <= o_axi_int.dat;
-
-        if (SHIFT_DOWN) begin
-           if (o_axi_int.val)
-             byt_cnt <= byt_cnt + OUT_DAT_BYTS;
-        end else begin
-          if (o_axi_int.rdy && o_axi_int.val)
-            byt_cnt <= byt_cnt + IN_DAT_BYTS;
-        end
-
-        if ((byt_cnt + IN_DAT_BYTS) % OUT_DAT_BYTS == 0 ||
-             o_axi_int.eop ||
-             SHIFT_DOWN ) begin
-
-          o_axi_b.val <= 1;
-
-          if (~SHIFT_DOWN)
-            o_axi_b.sop <= sop_l || o_axi_int.sop;
-
-          sop_l <= 0;
-          if (SHIFT_DOWN) begin
-            if((byt_cnt + OUT_DAT_BYTS) % IN_DAT_BYTS == 0 ||
-               (o_axi_int.mod != 0 && (byt_cnt + OUT_DAT_BYTS >= o_axi_int.mod))) begin
-              o_axi_b.eop <= o_axi_int.eop;
-              byt_cnt <= 0;
-            end
-
-          end else begin
-            o_axi_b.eop <= o_axi_int.eop;
-            byt_cnt <= 0;
+          o_axi_int.rdy <= 1;
+          
+        if (o_axi_int.val && o_axi_int.rdy) begin
+          
+          if (~sop_l) begin
+            o_axi_b.ctl <= o_axi_int.ctl;
+            o_axi_b.err <= o_axi_int.err;
+            sop_l <= 1;
           end
-          o_axi_b.mod <= o_axi_int.mod == 0 ? 0 : (byt_cnt + o_axi_int.mod);
+          o_axi_b.dat[byt_cnt*8 +: IN_DAT_BITS] <= o_axi_int.dat;
+          o_axi_b.sop <= o_axi_b.sop || ~sop_l;
+
+          byt_cnt <= byt_cnt + IN_DAT_BYTS;
+
+          // Detect the last data
+          if ((byt_cnt + IN_DAT_BYTS == OUT_DAT_BYTS) || o_axi_int.eop) begin
+            byt_cnt <= 0;
+            o_axi_b.val <= 1;
+            o_axi_int.rdy <= 0;
+            if (o_axi_int.eop) begin
+              o_axi_b.eop <= 1;
+              o_axi_b.mod <= byt_cnt + IN_DAT_BYTS;
+              sop_l <= 0;
+            end
+          end
         end
+
       end
-
     end
-
   end
-end
 
 end
 endgenerate
 
-cdc_fifo #(
-  .SIZE     ( 1<<FIFO_ABITS                              ),
-  .DAT_BITS ( IN_DAT_BYTS*8 + IN_MOD_BITS + CTL_BITS + 3 ),
-  .USE_BRAM ( USE_BRAM                                   )
-)
-cdc_fifo (
-  .i_clk_a ( i_clk_a ),
-  .i_rst_a ( i_rst_a ),
-  .i_clk_b ( i_clk_b ),
-  .i_rst_b ( i_rst_b ),
-
-  .i_val_a( i_axi_a.val ),
-  .i_dat_a({i_axi_a.dat,
-            i_axi_a.mod,
-            i_axi_a.sop,
-            i_axi_a.eop,
-            i_axi_a.err,
-            i_axi_a.ctl}),
-  .o_rdy_a( i_axi_a.rdy ),
-  .o_full_a(),
-
-  .o_val_b( o_axi_int.val ),
-  .o_dat_b({o_axi_int.dat,
-            o_axi_int.mod,
-            o_axi_int.sop,
-            o_axi_int.eop,
-            o_axi_int.err,
-            o_axi_int.ctl}),
-  .i_rdy_b( o_axi_int.rdy ),
-  .o_emp_b(),
-  .o_rd_wrds_b()
-);
+generate if (CDC_ASYNC == "YES") begin
+  cdc_fifo #(
+    .SIZE     ( 1<<FIFO_ABITS                              ),
+    .DAT_BITS ( IN_DAT_BYTS*8 + IN_MOD_BITS + CTL_BITS + 3 ),
+    .USE_BRAM ( USE_BRAM                                   )
+  )
+  cdc_fifo (
+    .i_clk_a ( i_clk_a ),
+    .i_rst_a ( i_rst_a ),
+    .i_clk_b ( i_clk_b ),
+    .i_rst_b ( i_rst_b ),
+  
+    .i_val_a( i_axi_a.val ),
+    .i_dat_a({i_axi_a.dat,
+              i_axi_a.mod,
+              i_axi_a.sop,
+              i_axi_a.eop,
+              i_axi_a.err,
+              i_axi_a.ctl}),
+    .o_rdy_a( i_axi_a.rdy ),
+    .o_full_a(),
+  
+    .o_val_b( o_axi_int.val ),
+    .o_dat_b({o_axi_int.dat,
+              o_axi_int.mod,
+              o_axi_int.sop,
+              o_axi_int.eop,
+              o_axi_int.err,
+              o_axi_int.ctl}),
+    .i_rdy_b( o_axi_int.rdy ),
+    .o_emp_b(),
+    .o_rd_wrds_b()
+  );
+end else begin
+  axi_stream_fifo #(
+    .SIZE     ( 1<<FIFO_ABITS    ),
+    .DAT_BITS ( i_axi_a.DAT_BITS ),
+    .MOD_BITS ( i_axi_a.MOD_BITS ),
+    .CTL_BITS ( i_axi_a.CTL_BITS ),
+    .USE_BRAM ( USE_BRAM         )
+  ) 
+  axi_stream_fifo (
+    .i_clk ( i_clk_a ),
+    .i_rst ( i_rst_a ),
+    .i_axi ( i_axi_a),
+    .o_axi ( o_axi_int ),
+    .o_full(),
+    .o_emp()
+  );
+end endgenerate
 
 endmodule
