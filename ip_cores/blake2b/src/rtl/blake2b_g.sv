@@ -25,6 +25,7 @@ module blake2b_g
 (
   input               i_clk,
   input        [63:0] i_a, i_b, i_c, i_d, i_m0, i_m1,
+  input               i_rdy,
   output logic [63:0] o_a, o_b, o_c, o_d
 );
 
@@ -66,10 +67,12 @@ generate begin: PIPE_GEN
   end
   for (gv_p = 0; gv_p < PIPELINES; gv_p++) begin: PIPE_LOOP_GEN
     always_ff @ (posedge i_clk) begin
-      pipeline[gv_p + 1][0*64 +: 64] <= pipeline[gv_p][0*64 +: 64];
-      pipeline[gv_p + 1][1*64 +: 64] <= pipeline[gv_p][1*64 +: 64];
-      pipeline[gv_p + 1][2*64 +: 64] <= pipeline[gv_p][2*64 +: 64];
-      pipeline[gv_p + 1][3*64 +: 64] <= pipeline[gv_p][3*64 +: 64];
+      if (i_rdy) begin
+        pipeline[gv_p + 1][0*64 +: 64] <= pipeline[gv_p][0*64 +: 64];
+        pipeline[gv_p + 1][1*64 +: 64] <= pipeline[gv_p][1*64 +: 64];
+        pipeline[gv_p + 1][2*64 +: 64] <= pipeline[gv_p][2*64 +: 64];
+        pipeline[gv_p + 1][3*64 +: 64] <= pipeline[gv_p][3*64 +: 64];
+      end
     end
   end
 end

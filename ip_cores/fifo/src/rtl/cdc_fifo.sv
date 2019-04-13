@@ -200,5 +200,6 @@ function [ABITS:0] bin_to_grey(input logic [ABITS:0] in);
   for (int i = ABITS; i > 0; i--)
     bin_to_grey[i-1] = in[i] ^ in[i-1];
 endfunction
-  
+
+initial if (SIZE != 2**($clog2(SIZE))) $fatal(1, "ERROR: cdc_fifo.sv SIZE needs to be a power of 2 - was %d", SIZE);
 endmodule

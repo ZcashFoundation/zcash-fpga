@@ -21,13 +21,11 @@
 module control_top
   import zcash_fpga_pkg::*, equihash_pkg::*;
 #(
-  parameter        IN_DAT_BYTS,
-  parameter        CORE_DAT_BYTS = 8, // Only tested at 8 byte data width
+  parameter        DAT_BYTS = 8, // Only tested at 8 byte data width
   parameter [63:0] BUILD_HOST = "test",
   parameter [63:0] BUILD_DATE = "20180311"
 )(
-  input i_clk_core, i_rst_core, i_rst_core_perm, // _perm reset is not effected by o_usr_rst
-  input i_clk_if, i_rst_if,
+  input i_clk, i_rst,
   // User is able to reset custom logic on FPGA
   output logic o_usr_rst,
   // Interface inputs and outputs
@@ -44,29 +42,25 @@ module control_top
   if_axi_stream.sink   i_secp256k1_if
 );
 
-localparam IN_DAT_BITS = IN_DAT_BYTS*8;
-localparam CORE_DAT_BITS = CORE_DAT_BYTS*8;
-
+localparam DAT_BITS = DAT_BYTS*8;
 localparam MAX_BYT_MSG = 256; // Max bytes in a reply message
+
+logic rst_int;
+always_comb rst_int = i_rst || o_usr_rst;
 
 // When a command comes in it is put through a clock crossing, and then stored in a command
 // FIFO to be processed. There are two FIFOS - one for processing status / reset commands (msg_type == 0),
 // and one for everything else. This is so we can process these messages even if we are 
 // running something else.
 
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_int_if (i_clk_core);
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_int0_if (i_clk_core);
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_int1_if (i_clk_core);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BYTS(1)) rx_int0_if (i_clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BYTS(1)) rx_int1_if (i_clk);
 
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_typ0_if (i_clk_core);
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_typ1_if (i_clk_core);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BYTS(1)) rx_typ0_if (i_clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BYTS(1)) rx_typ1_if (i_clk);
 
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) tx_arb_in_if [2] (i_clk_core);
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) tx_int_if (i_clk_core);
-
-
-debug_if #(.DAT_BYTS (CORE_DAT_BYTS), .CTL_BITS (1)) debug_if_rx (.i_if(rx_int_if));
-debug_if #(.DAT_BYTS (CORE_DAT_BYTS), .CTL_BITS (1)) debug_if_tx (.i_if(tx_int_if));
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BYTS(1)) tx_arb_in_if [2] (i_clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BYTS(1)) tx_int_if (i_clk);
 
 
 typedef enum {TYP0_IDLE = 0,
@@ -101,14 +95,14 @@ always_comb begin
   fpga_state = 0;
   fpga_state.error = 0;
   fpga_state.typ1_state = typ1_msg_state;
-  header = rx_int_if.dat;
+  header = rx_if.dat;
   header0 = rx_typ0_if.dat;
   header1 = rx_typ1_if.dat;
 end
 
 // Logic for processing msg_type == 0 messages
-always_ff @ (posedge i_clk_core) begin
-  if (i_rst_core_perm ) begin
+always_ff @ (posedge i_clk) begin
+  if (i_rst) begin
     rx_typ0_if.rdy <= 0;
     typ0_msg_state <= TYP0_IDLE;
     header0_l <= 0;
@@ -181,10 +175,10 @@ task send_typ0_message(input logic [$clog2(MAX_BYT_MSG)-1:0] msg_size,
     tx_arb_in_if[0].dat <= typ0_msg;
     tx_arb_in_if[0].val <= 1;
     tx_arb_in_if[0].sop <= typ0_wrd_cnt == msg_size;
-    tx_arb_in_if[0].eop <= typ0_wrd_cnt <= CORE_DAT_BYTS;
-    tx_arb_in_if[0].mod <= typ0_wrd_cnt < CORE_DAT_BYTS ? typ0_wrd_cnt : 0;
-    typ0_wrd_cnt <= (typ0_wrd_cnt > CORE_DAT_BYTS) ? (typ0_wrd_cnt - CORE_DAT_BYTS) : 0;
-    typ0_msg <= typ0_msg >> CORE_DAT_BITS;
+    tx_arb_in_if[0].eop <= typ0_wrd_cnt <= DAT_BYTS;
+    tx_arb_in_if[0].mod <= typ0_wrd_cnt < DAT_BYTS ? typ0_wrd_cnt : 0;
+    typ0_wrd_cnt <= (typ0_wrd_cnt > DAT_BYTS) ? (typ0_wrd_cnt - DAT_BYTS) : 0;
+    typ0_msg <= typ0_msg >> DAT_BITS;
     if (typ0_wrd_cnt == 0) begin
       tx_arb_in_if[0].val <= 0;
       typ0_msg_state <= nxt_state;
@@ -204,8 +198,8 @@ always_comb begin
   i_secp256k1_if.rdy = (typ1_msg_state == TYP1_VERIFY_SECP256K1) && tx_arb_in_if[1].rdy;
 end
 // Logic for processing msg_type == 1 messages
-always_ff @ (posedge i_clk_core) begin
-  if (i_rst_core) begin
+always_ff @ (posedge i_clk) begin
+  if (rst_int) begin
     rx_typ1_if_rdy <= 0;
     typ1_msg_state <= TYP1_IDLE;
     header1_l <= 0;
@@ -244,7 +238,7 @@ always_ff @ (posedge i_clk_core) begin
             end
             VERIFY_SECP256K1_SIG: begin
               rx_typ1_if_rdy <= o_secp256k1_if.rdy;
-              o_secp256k1_if.copy_if(rx_typ1_if.to_struct());
+              o_secp256k1_if.copy_if(rx_typ1_if.dat, rx_typ1_if.val, rx_typ1_if.sop, rx_typ1_if.eop);
               typ1_msg_state <= TYP1_VERIFY_SECP256K1;
               if (~ENB_VERIFY_SECP256K1_SIG) begin
                 typ1_msg <= get_fpga_ignore_rpl(header1);
@@ -274,13 +268,9 @@ always_ff @ (posedge i_clk_core) begin
         end else begin         
           // First load block data (this might be bypassed if loading from memory)  
           if (~o_equihash_if.val || (o_equihash_if.rdy && o_equihash_if.val)) begin
-            o_equihash_if.copy_if(rx_typ1_if.to_struct());
+            o_equihash_if.copy_if(rx_typ1_if.dat, rx_typ1_if.val, ~sop_l, rx_typ1_if.eop, rx_typ1_if.err, rx_typ1_if.mod);
             // First cycle has .sop set
-            o_equihash_if.sop <= ~sop_l;
-            if (o_equihash_if.val) begin
-              sop_l <= 1;
-              o_equihash_if.sop <= 0;
-            end
+            if (rx_typ1_if.val)  sop_l <= 1;
           end
         end
         
@@ -300,14 +290,14 @@ always_ff @ (posedge i_clk_core) begin
       TYP1_VERIFY_SECP256K1: begin
         rx_typ1_if_rdy <= o_secp256k1_if.rdy;
         if (~eop_l && ~o_secp256k1_if.val || (o_secp256k1_if.rdy && o_secp256k1_if.val)) begin
-          o_secp256k1_if.copy_if(rx_typ1_if.to_struct());
+          o_secp256k1_if.copy_if(rx_typ1_if.dat, rx_typ1_if.val, rx_typ1_if.sop, rx_typ1_if.eop, rx_typ1_if.err, rx_typ1_if.mod);
           eop_l <= rx_typ1_if.eop && rx_typ1_if.val;
           if (rx_typ1_if.eop && rx_typ1_if.val)
             rx_typ1_if_rdy <= 0;
         end
         
         if (~tx_arb_in_if[1].val || (tx_arb_in_if[1].rdy && tx_arb_in_if[1].val)) begin
-          tx_arb_in_if[1].copy_if(i_secp256k1_if.to_struct()); 
+          tx_arb_in_if[1].copy_if(i_secp256k1_if.dat, i_secp256k1_if.val, i_secp256k1_if.sop, i_secp256k1_if.eop, 0, i_secp256k1_if.mod);
         end
         
         if (tx_arb_in_if[1].val && tx_arb_in_if[1].rdy && tx_arb_in_if[1].eop) begin
@@ -336,10 +326,10 @@ task send_typ1_message(input logic [$clog2(MAX_BYT_MSG)-1:0] msg_size,
     tx_arb_in_if[1].dat <= typ1_msg;
     tx_arb_in_if[1].val <= 1;
     tx_arb_in_if[1].sop <= typ1_wrd_cnt == msg_size;
-    tx_arb_in_if[1].eop <= typ1_wrd_cnt <= CORE_DAT_BYTS;
-    tx_arb_in_if[1].mod <= typ1_wrd_cnt < CORE_DAT_BYTS ? typ1_wrd_cnt : 0;
-    typ1_wrd_cnt <= (typ1_wrd_cnt > CORE_DAT_BYTS) ? (typ1_wrd_cnt - CORE_DAT_BYTS) : 0;
-    typ1_msg <= typ1_msg >> CORE_DAT_BITS;
+    tx_arb_in_if[1].eop <= typ1_wrd_cnt <= DAT_BYTS;
+    tx_arb_in_if[1].mod <= typ1_wrd_cnt < DAT_BYTS ? typ1_wrd_cnt : 0;
+    typ1_wrd_cnt <= (typ1_wrd_cnt > DAT_BYTS) ? (typ1_wrd_cnt - DAT_BYTS) : 0;
+    typ1_msg <= typ1_msg >> DAT_BITS;
     if (typ1_wrd_cnt == 0) begin
       tx_arb_in_if[1].val <= 0;
       typ1_msg_state <= nxt_state;
@@ -350,37 +340,35 @@ endtask
 // Logic to mux the packet depending on its command type
 logic msg_type, msg_type_l;
 always_comb begin
-  rx_int0_if.copy_if_comb(rx_int_if.to_struct());
-  rx_int1_if.copy_if_comb(rx_int_if.to_struct());
+  rx_int0_if.copy_if_comb(rx_if.dat, 0, rx_if.sop, rx_if.eop, 0, rx_if.mod, 0);
+  rx_int1_if.copy_if_comb(rx_if.dat, 0, rx_if.sop, rx_if.eop, 0, rx_if.mod, 0);
   
-  rx_int0_if.val = 0;
-  rx_int1_if.val = 0;
-  rx_int_if.rdy = 0;
+  rx_if.rdy = 0;
   
-  if (rx_int_if.sop && rx_int_if.val) begin
+  if (rx_if.sop && rx_if.val) begin
     if(header.cmd[8 +: 8] == 8'd0) begin
       msg_type = 0;
-      rx_int0_if.val = rx_int_if.val;
-      rx_int_if.rdy = rx_int0_if.rdy;
+      rx_int0_if.val = rx_if.val;
+      rx_if.rdy = rx_int0_if.rdy;
     end else begin
       msg_type = 1;
-      rx_int1_if.val = rx_int_if.val;
-      rx_int_if.rdy = rx_int1_if.rdy;
+      rx_int1_if.val = rx_if.val;
+      rx_if.rdy = rx_int1_if.rdy;
     end
   end else begin
-    rx_int0_if.val = rx_int_if.val && (msg_type_l == 0);
-    rx_int1_if.val = rx_int_if.val && (msg_type_l == 1);
-    rx_int_if.rdy = (msg_type_l == 0) ? rx_int0_if.rdy : rx_int1_if.rdy;
+    rx_int0_if.val = rx_if.val && (msg_type_l == 0);
+    rx_int1_if.val = rx_if.val && (msg_type_l == 1);
+    rx_if.rdy = (msg_type_l == 0) ? rx_int0_if.rdy : rx_int1_if.rdy;
     msg_type = msg_type_l;
   end
 end
   
-always_ff @ (posedge i_clk_core) begin
-  if (i_rst_core ) begin
+always_ff @ (posedge i_clk) begin
+  if (i_rst) begin
     msg_type_l <= 0;
   end else begin
-    if (rx_int_if.val && rx_int_if.rdy) begin
-      if (rx_int_if.sop)
+    if (rx_if.val && rx_if.rdy) begin
+      if (rx_if.sop)
         msg_type_l <= msg_type;
     end
   end
@@ -389,71 +377,39 @@ end
 // FIFO control queues for different message types
     
 axi_stream_fifo #(
-  .SIZE     ( 64            ),
-  .DAT_BITS ( CORE_DAT_BITS )
+  .SIZE     ( 64       ),
+  .DAT_BITS ( DAT_BITS )
 )
 cmd_fifo0 (
-  .i_clk ( i_clk_core ),
-  .i_rst ( i_rst_core ),
+  .i_clk ( i_clk   ),
+  .i_rst ( rst_int ),
   .i_axi ( rx_int0_if ),
   .o_axi ( rx_typ0_if )
 );
 
 axi_stream_fifo #(
-  .SIZE     ( 64            ),
-  .DAT_BITS ( CORE_DAT_BITS )
+  .SIZE     ( 64       ),
+  .DAT_BITS ( DAT_BITS )
 )
 cmd_fifo1 (
-  .i_clk ( i_clk_core ),
-  .i_rst ( i_rst_core ),
+  .i_clk ( i_clk   ),
+  .i_rst ( rst_int ),
   .i_axi ( rx_int1_if ),
   .o_axi ( rx_typ1_if )
 );
 
-width_change_cdc_fifo #(
-  .IN_DAT_BYTS  ( IN_DAT_BYTS   ),
-  .OUT_DAT_BYTS ( CORE_DAT_BYTS ),
-  .CTL_BITS     ( 8             ),
-  .FIFO_ABITS   ( $clog2(1024/IN_DAT_BITS) ),
-  .USE_BRAM     ( 1             ) 
-) 
-cdc_fifo_rx (
-  .i_clk_a ( i_clk_if   ),
-  .i_rst_a ( i_rst_if   ),
-  .i_clk_b ( i_clk_core ),
-  .i_rst_b ( i_rst_core ),
-  .i_axi_a ( rx_if      ),
-  .o_axi_b ( rx_int_if  )
-);
-
 // Arbitrator for sending messages back
 packet_arb # (
-  .NUM_IN   ( 2             ),
-  .DAT_BYTS ( CORE_DAT_BYTS ),
-  .CTL_BITS ( 8             )
+  .NUM_IN   ( 2        ),
+  .DAT_BYTS ( DAT_BYTS ),
+  .CTL_BITS ( 8        )
 ) 
 packet_arb_tx (
-  .i_clk ( i_clk_core ),
-  .i_rst ( i_rst_core ),
+  .i_clk ( i_clk  ),
+  .i_rst ( rst_int ),
 
   .i_axi ( tx_arb_in_if ), 
-  .o_axi ( tx_int_if    )
+  .o_axi ( tx_if    )
 );
 
-// Width change back to tx interface
-width_change_cdc_fifo #(
-  .IN_DAT_BYTS  ( CORE_DAT_BYTS ),
-  .OUT_DAT_BYTS ( IN_DAT_BYTS   ),
-  .CTL_BITS     ( 8             ),
-  .FIFO_ABITS   ( $clog2(1024/CORE_DAT_BYTS) ),
-  .USE_BRAM     ( 1             ) 
-) 
-cdc_fifo_tx (
-  .i_clk_a ( i_clk_core ),
-  .i_rst_a ( i_rst_core ),
-  .i_clk_b ( i_clk_if   ),
-  .i_rst_b ( i_rst_if   ),
-  .i_axi_a ( tx_int_if  ),
-  .o_axi_b ( tx_if      )
-);
 endmodule

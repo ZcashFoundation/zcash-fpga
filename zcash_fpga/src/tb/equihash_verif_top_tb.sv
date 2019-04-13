@@ -16,11 +16,15 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+`timescale 1ps/1ps
 
 module equihash_verif_top_tb();
 
 import equihash_pkg::*;
 import common_pkg::*;
+
+localparam CLK_PERIOD = 10000;
+localparam CLK_PERIOD_300 = 3333;
 
 logic clk, rst;
 logic clk_300, rst_300;
@@ -69,24 +73,24 @@ end
 
 initial begin
   rst = 0;
-  #100ns rst = 1;
-  #100ns rst = 0;
+  #(CLK_PERIOD) rst = 1;
+  #(100*CLK_PERIOD) rst = 0;
 end
 
 initial begin
   rst_300 = 0;
-  #100ns rst_300 = 1;
-  #100ns rst_300 = 0;
+  #(CLK_PERIOD_300) rst_300 = 1;
+  #(100*CLK_PERIOD_300) rst_300 = 0;
 end
 
 initial begin
   clk = 0;
-  forever #2.5ns clk = ~clk;
+  forever #(CLK_PERIOD/2) clk = ~clk;
 end
 
 initial begin
   clk_300 = 0;
-  forever #1.666ns clk_300 = ~clk_300;
+  forever #(CLK_PERIOD_300/2) clk_300 = ~clk_300;
 end
 
 file_to_axi #(
@@ -131,13 +135,16 @@ DUT (
 // This is a tests the sample block 346 in the block chain
 task test_block_346();
 begin
+  integer start_time, finish_time; 
+   
   $display("Running test_block_346...");
   start_346 = 1;
-  
+  start_time = $time;
   while(!done_346 || !mask_val) @(posedge clk);
+  finish_time = $time;
    
   assert (|mask == 0) else $fatal(1, "%m %t ERROR: test_block_346 mask was non-zero:\n%p", $time, mask);
-  $display("test_block_346 PASSED");
+  $display("test_block_346 PASSED in %d clocks",  (finish_time-start_time)/CLK_PERIOD);
   
 end
 endtask

@@ -27,9 +27,9 @@ always_comb begin
   rst_300 = rst_300_r[2];
 end
 
+always_ff @ (posedge clk_100) rst_100_r <= {rst_100_r, ~sys_reset_n};
 always_ff @ (posedge clk_200) rst_200_r <= {rst_200_r, ~sys_reset_n};
 always_ff @ (posedge clk_300) rst_300_r <= {rst_300_r, ~sys_reset_n};
-always_ff @ (posedge clk_100) rst_100_r <= {rst_100_r, ~sys_reset_n};
 
 if_axi_stream #(.DAT_BYTS(1)) uart_axi_rx(clk_300);
 if_axi_stream #(.DAT_BYTS(1)) uart_axi_tx(clk_300);
@@ -48,15 +48,16 @@ uart_wrapper uart_wrapper (
 );
 
 zcash_fpga_top #(
-  .IF_DAT_BYTS   ( 1 ),
   .CORE_DAT_BYTS ( 8 )
-  )
+)
 zcash_fpga_top (
   // Clocks and resets
-  .i_clk_core0 ( clk_200 ),
-  .i_rst_core0 ( rst_200 ),
-  .i_clk_core1 ( clk_300 ),
-  .i_rst_core1 ( rst_300 ),
+  .i_clk_100 ( clk_100 ),
+  .i_rst_100 ( rst_100 ),
+  .i_clk_200 ( clk_200 ),
+  .i_rst_200 ( rst_200 ),
+  .i_clk_300 ( clk_300 ),
+  .i_rst_300 ( rst_300 ),  
   .i_clk_if    ( clk_300 ),
   .i_rst_if    ( rst_300 ),
   .rx_if ( uart_axi_tx ),

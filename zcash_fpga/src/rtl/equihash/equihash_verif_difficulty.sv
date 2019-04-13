@@ -98,13 +98,16 @@ always_ff @ (posedge i_clk) begin
             if (((byt_cnt + DAT_BYTS) % 64 == 0) ||
                 (byt_cnt + DAT_BYTS) >= $bits(cblockheader_sol_t)/8) begin
               i_block.val <= 1;
-              o_fifo.rdy <= 0;
+              o_fifo.rdy <= 1;
               i_block.sop <= (byt_cnt + DAT_BYTS)/64 == 1;
               i_block.eop <= 0;
               i_block.mod <= 0;
               if ((byt_cnt + DAT_BYTS) >= $bits(cblockheader_sol_t)/8) begin
                 i_block.eop <= 1;
                 i_block.mod <= $bits(cblockheader_sol_t)/8;
+                for (int i = 0; i < 64; i++)
+                  if (i >= ($bits(cblockheader_sol_t)/8 % 64))
+                    i_block.dat[i*8 +:8] <= 0;
                 state <= SHA256_1;
               end
             end

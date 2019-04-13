@@ -458,79 +458,33 @@ secp256k1_mod (
   .o_val( mod_out_if[2].val )
 );
 
-packet_arb # (
-  .DAT_BYTS    ( 512/8   ),
-  .CTL_BITS    ( 16      ),
-  .NUM_IN      ( 3       ),
+resource_share # (
+  .NUM_IN ( 2 ),
   .OVR_WRT_BIT ( ARB_BIT ),
-  .PIPELINE    ( 0       )
+  .PIPELINE_ARB ( 0 )
 )
-packet_arb_mult (
+resource_share_mod (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( mult_in_if[2:0] ),
-  .o_axi ( mult_in_if[3]   )
+  .i_axi ( mod_in_if[1:0]  ),
+  .o_res ( mod_in_if[2]    ),
+  .i_res ( mod_out_if[2]   ), 
+  .o_axi ( mod_out_if[1:0] )
 );
 
-packet_arb # (
-  .DAT_BYTS    ( 512/8   ),
-  .CTL_BITS    ( 16      ),
-  .NUM_IN      ( 2       ),
+resource_share # (
+  .NUM_IN ( 3 ),
   .OVR_WRT_BIT ( ARB_BIT ),
-  .PIPELINE    ( 0       )
+  .PIPELINE_ARB ( 0 )
 )
-packet_arb_mod (
+resource_share_mult (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( mod_in_if[1:0] ),
-  .o_axi ( mod_in_if[2]   )
+  .i_axi ( mult_in_if[2:0]  ),
+  .o_res ( mult_in_if[3]    ),
+  .i_res ( mult_out_if[3]   ), 
+  .o_axi ( mult_out_if[2:0] )
 );
-
-always_comb begin
-  mod_out_if[0].copy_if_comb(mod_out_if[2].to_struct());
-  mod_out_if[1].copy_if_comb(mod_out_if[2].to_struct());
-
-  mod_out_if[0].ctl = mod_out_if[2].ctl;
-  mod_out_if[1].ctl = mod_out_if[2].ctl;
-  mod_out_if[0].ctl[ARB_BIT] = 0;
-  mod_out_if[1].ctl[ARB_BIT] = 0;
-
-  mod_out_if[1].val = mod_out_if[2].val && mod_out_if[2].ctl[ARB_BIT] == 1;
-  mod_out_if[0].val = mod_out_if[2].val && mod_out_if[2].ctl[ARB_BIT] == 0;
-  mod_out_if[2].rdy = mod_out_if[2].ctl[ARB_BIT] == 0 ? mod_out_if[0].rdy : mod_out_if[1].rdy;
-
-  mod_out_if[2].sop = 1;
-  mod_out_if[2].eop = 1;
-  mod_out_if[2].mod = 0;
-end
-
-always_comb begin
-  mult_out_if[0].copy_if_comb(mult_out_if[3].to_struct());
-  mult_out_if[1].copy_if_comb(mult_out_if[3].to_struct());
-  mult_out_if[2].copy_if_comb(mult_out_if[3].to_struct());
-
-  mult_out_if[0].ctl = mult_out_if[3].ctl;
-  mult_out_if[1].ctl = mult_out_if[3].ctl;
-  mult_out_if[2].ctl = mult_out_if[3].ctl;
-  mult_out_if[0].ctl[ARB_BIT +: 2] = 0;
-  mult_out_if[1].ctl[ARB_BIT +: 2] = 0;
-  mult_out_if[2].ctl[ARB_BIT +: 2] = 0;
-
-  mult_out_if[1].val = mult_out_if[3].val && mult_out_if[3].ctl[ARB_BIT +: 2] == 1;
-  mult_out_if[0].val = mult_out_if[3].val && mult_out_if[3].ctl[ARB_BIT +: 2] == 0;
-  mult_out_if[2].val = mult_out_if[3].val && mult_out_if[3].ctl[ARB_BIT +: 2] == 2;
-
-  if (mult_out_if[3].ctl[ARB_BIT +: 2] == 0)
-    mult_out_if[3].rdy = mult_out_if[0].rdy;
-  else if (mult_out_if[3].ctl[ARB_BIT +: 2] == 1)
-    mult_out_if[3].rdy = mult_out_if[1].rdy;
-  else
-    mult_out_if[3].rdy = mult_out_if[2].rdy;
-
-  mult_out_if[3].sop = 1;
-  mult_out_if[3].eop = 1;
-  mult_out_if[3].mod = 0;
-end
 
 generate if (USE_ENDOMORPH == "NO") begin
   secp256k1_point_mult #(

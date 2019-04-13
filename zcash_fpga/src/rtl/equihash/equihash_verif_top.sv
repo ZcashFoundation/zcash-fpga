@@ -56,7 +56,7 @@ logic [64*8-1:0]                 parameters;
 if_axi_stream #(.DAT_BYTS(BLAKE2B_DIGEST_BYTS), .CTL_BYTS(4)) blake2b_out_hash(i_clk);
 if_axi_stream #(.DAT_BYTS(EQUIHASH_GEN_BYTS),   .CTL_BYTS(4)) blake2b_in_hash(i_clk);
 
-if_axi_stream #(.DAT_BYTS(DAT_BYTS)) difficulty_if_in(i_clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) difficulty_if_in(i_clk_300);
 
 // We write the block into a port as it comes in and then read from the b port
 localparam EQUIHASH_SOL_BRAM_DEPTH = 1 + SOL_LIST_BYTS/DAT_BYTS;
@@ -119,7 +119,7 @@ always_ff @ (posedge i_clk) begin
     case (ram_wr_state)
       // This state we are waiting for an input block
       STATE_WR_IDLE: begin
-        i_axi.rdy <= (dup_check_if_in.rdy && equihash_order_if.rdy && difficulty_if_in.rdy);
+        i_axi.rdy <= (dup_check_if_in.rdy && equihash_order_if.rdy && difficulty_if_in_rdy);
         if (i_axi.val && i_axi.rdy) begin
           ram_wr_state <= STATE_WR_DATA;
           equihash_sol_bram_if_a.a <= 0;
@@ -396,27 +396,83 @@ function bit bad_order_check(input logic [N-1:0] in, input int cnt);
 endfunction
 
 // The difficulty check block - takes a copy of the header as it is streamed in
+// We run difficulty check on a faster clock
+logic difficulty_if_in_rdy;
+cdc_fifo #(
+  .SIZE     ( 32       ),
+  .DAT_BITS ( DAT_BITS + 2 + MOD_BITS ),
+  .USE_BRAM ( 0        )
+)
+diff_check_fifo_in (
+  .i_clk_a ( i_clk ),
+  .i_rst_a ( i_rst ),
+  .i_clk_b ( i_clk_300 ),
+  .i_rst_b ( i_rst_300 ),
+  
+  .i_val_a ( difficulty_if_in_rdy && i_axi.val && i_axi.rdy ),
+  .o_rdy_a ( difficulty_if_in_rdy ),
+  .i_dat_a ( {i_axi.dat,
+              i_axi.sop,
+              i_axi.eop,
+              i_axi.mod} ),
+  .o_full_a(),  
+  
+  .i_rdy_b ( difficulty_if_in.rdy ),
+  .o_val_b ( difficulty_if_in.val ),
+
+  .o_dat_b ( {difficulty_if_in.dat,
+              difficulty_if_in.sop,
+              difficulty_if_in.eop,
+              difficulty_if_in.mod} ),
+   .o_emp_b()
+);
+
+logic [31:0] cblockheader_bits_s;
+synchronizer  #(.DAT_BITS ( 32 ), .NUM_CLKS ( 3 )) difficult_bits_sync (
+  .i_clk_a ( i_clk ),
+  .i_clk_b ( i_clk_300 ),
+  .i_dat_a ( cblockheader.bits  ),
+  .o_dat_b ( cblockheader_bits_s )
+);
 
 always_comb begin
-  difficulty_if_in.val = difficulty_if_in.rdy && i_axi.val && i_axi.rdy;
-  difficulty_if_in.dat = i_axi.dat;
-  difficulty_if_in.sop = i_axi.sop;
-  difficulty_if_in.eop = i_axi.eop;
-  difficulty_if_in.mod = i_axi.mod;
   difficulty_if_in.err = 0;
   difficulty_if_in.ctl = 0;
 end
 
+logic difficulty_fail_s, difficulty_fail_val_s;
 equihash_verif_difficulty #(
   .DAT_BYTS ( DAT_BYTS )
 )
 equihash_verif_difficulty (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_axi             ( difficulty_if_in    ),
-  .i_bits            ( cblockheader.bits   ),
-  .o_difficulty_fail ( difficulty_fail     ),
-  .o_val             ( difficulty_fail_val )
+  .i_clk ( i_clk_300 ),
+  .i_rst ( i_rst_300 ),
+  .i_axi             ( difficulty_if_in      ),
+  .i_bits            (  cblockheader_bits_s  ),
+  .o_difficulty_fail ( difficulty_fail_s     ),
+  .o_val             ( difficulty_fail_val_s )
+);
+
+cdc_fifo #(
+  .SIZE     ( 4 ),
+  .DAT_BITS ( 1 ),
+  .USE_BRAM ( 0 )
+)
+diff_check_fifo_out (
+  .i_clk_a ( i_clk_300 ),
+  .i_rst_a ( i_rst_300 ),
+  .i_clk_b ( i_clk     ),
+  .i_rst_b ( i_rst     ),
+  .i_val_a ( difficulty_fail_val_s ),
+  .o_rdy_a (),
+  .i_dat_a ( difficulty_fail_s ),
+  .o_full_a(),  
+  
+  .i_rdy_b ( 1'd1 ),
+  .o_val_b ( difficulty_fail_val ),
+
+  .o_dat_b ( difficulty_fail ),
+   .o_emp_b()
 );
 
 // Instantiate the Blake2b block - use high performance pipelined version

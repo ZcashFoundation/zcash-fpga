@@ -38,10 +38,11 @@ interface if_axi_stream # (
   logic [DAT_BITS-1:0] dat;
   logic [MOD_BITS-1:0] mod;
   
-  modport sink (input val, err, sop, eop, ctl, dat, mod, i_clk, output rdy,
-                import function to_struct() );
+  modport sink (input val, err, sop, eop, ctl, dat, mod, i_clk, output rdy);
   modport source (output val, err, sop, eop, ctl, dat, mod, input rdy, i_clk,
-                  import task reset_source(), import task copy_if(in), import task copy_if_comb(in), import function to_struct());
+                  import task reset_source(), 
+                  import task copy_if(dat_, val_, sop_, eop_, err_, mod_, ctl_),
+                  import task copy_if_comb(dat_, val_, sop_, eop_, err_, mod_, ctl_));
  
   // Task to reset a source interface signals to all 0
   task reset_source();
@@ -53,49 +54,27 @@ interface if_axi_stream # (
     ctl <= 0;
     mod <= 0;
   endtask
- 
-  typedef struct packed {
-    logic val;
-    logic err;
-    logic sop;
-    logic eop;
-    logic [CTL_BITS-1:0] ctl;
-    logic [DAT_BITS-1:0] dat;
-    logic [MOD_BITS-1:0] mod;
-  } if_t;
   
-  function if_t to_struct();
-    to_struct.val = val;
-    to_struct.err = err;
-    to_struct.sop = sop;
-    to_struct.eop = eop;
-    to_struct.ctl = ctl;
-    to_struct.dat = dat;
-    to_struct.mod = mod;
-  endfunction
+  task copy_if(input logic [DAT_BITS-1:0] dat_=0, input logic val_=0, sop_=0, eop_=0, err_=0, input  logic [MOD_BITS-1:0] mod_=0, input logic [CTL_BITS-1:0] ctl_=0);
+    dat <= dat_;
+    val <= val_;
+    sop <= sop_;
+    eop <= eop_;
+    mod <= mod_;
+    ctl <= ctl_;
+    err <= err_;
+  endtask   
   
-  // Task to apply signals from one task to another in a clocked process
-  task automatic copy_if(if_t in);
-    dat <= in.dat;
-    val <= in.val;
-    sop <= in.sop;
-    eop <= in.eop;
-    mod <= in.mod;
-    ctl <= in.ctl;
-    err <= in.err;
-  endtask
+    task copy_if_comb(input logic [DAT_BITS-1:0] dat_=0, input logic val_=0, sop_=0, eop_=0, err_=0, input  logic [MOD_BITS-1:0] mod_=0, input logic [CTL_BITS-1:0] ctl_=0);
+    dat = dat_;
+    val = val_;
+    sop = sop_;
+    eop = eop_;
+    mod = mod_;
+    ctl = ctl_;
+    err = err_;
+  endtask   
   
-  // Same task but for comb
-  task automatic copy_if_comb(if_t in);
-    dat = in.dat;
-    val = in.val;
-    sop = in.sop;
-    eop = in.eop;
-    mod = in.mod;
-    ctl = in.ctl;
-    err = in.err;
-  endtask
-    
   // Task used in simulation to drive data on a source interface
   task automatic put_stream(input logic [common_pkg::MAX_SIM_BYTS*8-1:0] data,
                             input integer signed len,

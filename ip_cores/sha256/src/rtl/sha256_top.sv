@@ -102,11 +102,12 @@ always_ff @ (posedge i_clk) begin
         end
       end
       SHA_UPDATE_HV: begin
-        update_HV(0);
         if (final_block) begin
+          update_HV(0);
           sha_state <= SHA_FINAL;
           i_block.rdy <= 0;
         end else if (padding_only) begin
+          update_HV(0);
           final_block <= 1;
           W <= 0;
           W[15:14] <= {bit_len_c[0], bit_len_c[1]};
@@ -114,6 +115,7 @@ always_ff @ (posedge i_clk) begin
             W[0] <= sha256_pkg::bs32(32'd1);
           sha_state <= SHA_ROUNDS;
         end else if (i_block.rdy && i_block.val) begin
+          update_HV(0);
           for (int i = 0; i < 16; i++)
             W[i] <= sha256_pkg::bs32(i_block.dat[i*32 +: 32]);
           bit_len <= bit_len + DAT_BITS;

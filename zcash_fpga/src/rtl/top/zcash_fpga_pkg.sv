@@ -29,7 +29,7 @@ package zcash_fpga_pkg;
 
   // What features are enabled in this build
   parameter bit ENB_VERIFY_SECP256K1_SIG = 1;
-  parameter bit ENB_VERIFY_EQUIHASH = 0;
+  parameter bit ENB_VERIFY_EQUIHASH = 1;
 
   localparam [63:0] FPGA_CMD_CAP = {{61'd0},
                                      ENB_VERIFY_SECP256K1_SIG,

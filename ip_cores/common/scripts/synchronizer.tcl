@@ -16,15 +16,16 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>. 
 
 set synchronizer_instance [get_cells -hierarchical -filter { ORIG_REF_NAME =~  "synchronizer" || REF_NAME =~  "synchronizer" } ]
+
 foreach child $synchronizer_instance {
 
-  set name [get_property NAME $child]
+  set name [get_property NAME zcash_fpga_top/equihash_verif_top/difficult_bits_sync ]
   
   set cells [get_cells -hierarchical -filter "NAME =~ $name/* "]
-  set clock [get_clocks -of_objects [get_pins  -filter { NAME =~  "*dat_reg[1]*C" }  -of_objects $cells]]
+  set clock [get_clocks -of_objects [get_pins  -filter { NAME =~  "*dat_reg[3]*C" }  -of_objects $cells]]
   set clock_period [get_property PERIOD $clock]
  
-  set_bus_skew -from [get_pins  -filter { NAME =~  "*dat_reg[0]*C" }  -of_objects $cells] -to [get_pins  -filter { NAME =~  "*dat_reg[1]*D" }  -of_objects $cells] [expr $clock_period/2]
-  set_max_delay -from [get_pins  -filter { NAME =~  "*dat_reg[0]*C" }  -of_objects $cells] -to [get_pins  -filter { NAME =~  "*dat_reg[1]*D" }  -of_objects $cells] -datapath_only [expr $clock_period/2]
+  set_bus_skew -from [get_pins  -filter { NAME =~  "*dat_reg[0]*C" }  -of_objects $cells] -to [get_pins  -filter { NAME =~  "*dat_reg[2]*D" }  -of_objects $cells] [expr $clock_period/2]
+  set_max_delay -from [get_pins  -filter { NAME =~  "*dat_reg[0]*C" }  -of_objects $cells] -to [get_pins  -filter { NAME =~  "*dat_reg[2]*D" }  -of_objects $cells] -datapath_only [expr $clock_period/2]
  
 } 

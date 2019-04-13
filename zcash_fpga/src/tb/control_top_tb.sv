@@ -23,44 +23,33 @@ import common_pkg::*;
 import zcash_fpga_pkg::*;
 import equihash_pkg::*;
 
-localparam CORE_CLK_PERIOD = 600;
-localparam UART_CLK_PERIOD = 1000;
+localparam CLK_PERIOD = 1000;
+localparam DAT_BYTS = 8; 
 
-localparam CORE_BYTS = 8;
-localparam UART_BYTS = 1; 
-
-logic core_clk, core_rst, uart_clk, uart_rst, usr_rst;
+logic clk, rst, usr_rst;
 
 equihash_bm_t equihash_mask;
 logic equihash_mask_val;
 
-if_axi_stream #(.DAT_BYTS(CORE_BYTS)) equihash_axi(core_clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) equihash_axi(clk);
 
-if_axi_stream #(.DAT_BYTS(CORE_BYTS)) secp256k1_tx_if(core_clk);
-if_axi_stream #(.DAT_BYTS(CORE_BYTS)) secp256k1_rx_if(core_clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) secp256k1_tx_if(clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) secp256k1_rx_if(clk);
 
-if_axi_stream #(.DAT_BYTS(UART_BYTS)) uart_rx_if (uart_clk);
-if_axi_stream #(.DAT_BYTS(UART_BYTS)) uart_tx_if (uart_clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) uart_rx_if (clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) uart_tx_if (clk);
 
 initial begin
-  core_rst = 0;
-  repeat(10) #CORE_CLK_PERIOD core_rst = ~core_rst;
+  rst = 0;
+  #(1*CLK_PERIOD) rst = 1;
+  #(10*CLK_PERIOD) rst = 0;
 end
 
 initial begin
-  core_clk = 0;
-  forever #CORE_CLK_PERIOD core_clk = ~core_clk;
+  clk = 0;
+  forever #CLK_PERIOD clk = ~clk;
 end
 
-initial begin
-  uart_rst = 0;
-  repeat(10) #UART_CLK_PERIOD uart_rst = ~uart_rst;
-end
-
-initial begin
-  uart_clk = 0;
-  forever #UART_CLK_PERIOD uart_clk = ~uart_clk;
-end
 
 always_comb begin
   secp256k1_tx_if.reset_source();
@@ -68,15 +57,12 @@ always_comb begin
 end
 
 control_top #(
-  .IN_DAT_BYTS(UART_BYTS)
+  .DAT_BYTS(DAT_BYTS)
 )
 DUT (
-  .i_clk_core ( core_clk   ),
-  .i_rst_core ( core_rst   ),
-  .i_rst_core_perm (core_rst),
-  .o_usr_rst  ( usr_rst    ),
-  .i_clk_if   ( uart_clk   ),
-  .i_rst_if   ( uart_rst   ),
+  .i_clk ( clk   ),
+  .i_rst ( rst   ),
+  .o_usr_rst  ( usr_rst ),
   .rx_if      ( uart_tx_if ),
   .tx_if      ( uart_rx_if ),
   .o_equihash_if ( equihash_axi ),
@@ -135,8 +121,8 @@ begin
     uart_tx_if.put_stream(header, $bits(header)/8);
     uart_rx_if.get_stream(get_dat, get_len);
     begin
-      while (!usr_rst) @(posedge core_clk);
-      while (usr_rst) @(posedge core_clk);
+      while (!usr_rst) @(posedge clk);
+      while (usr_rst) @(posedge clk);
     end
   join
   
@@ -155,14 +141,16 @@ begin
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat, get_dat_eh;
   logic fail = 0;
   $display("Running test_eh_verify_message...");
+  msg = 0;
   msg.hdr.cmd = VERIFY_EQUIHASH;
   msg.hdr.len = $bits(verify_equihash_t)/8;
   msg.index = 1;
+
  
   fork
     uart_tx_if.put_stream(msg, $bits(msg)/8);
     begin
-      equihash_axi.get_stream(get_dat_eh, eh_len);
+      equihash_axi.get_stream(get_dat_eh, eh_len, 0);
       equihash_mask_val = 1;
       equihash_mask = 0;
     end

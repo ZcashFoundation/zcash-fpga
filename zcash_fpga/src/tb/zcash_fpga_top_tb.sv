@@ -25,12 +25,14 @@ import equihash_pkg::*;
 import common_pkg::*;
 
 logic clk_if, rst_if;
+logic clk_100, rst_100;
 logic clk_300, rst_300;
 logic clk_200, rst_200;
 
+localparam CLK100_PERIOD = 10000;
 localparam CLK200_PERIOD = 5000;
 localparam CLK300_PERIOD = 3333;
-localparam IF_CLK_PERIOD = 100000;
+localparam IF_CLK_PERIOD = 10000;
 
 parameter DAT_BYTS = 8;
 parameter IF_DAT_BYTS = 1;
@@ -44,8 +46,20 @@ logic start_346 = 0;
 logic done_346 = 0;
 
 initial begin
+  rst_100 = 0;
+  #(CLK100_PERIOD) rst_100 = 1;
+  #(100*CLK100_PERIOD) rst_100 = 0;
+end
+
+initial begin
+  clk_100 = 0;
+  forever #(CLK100_PERIOD/2) clk_100 = ~clk_100;
+end
+
+initial begin
   rst_300 = 0;
-  repeat(2) #(20*CLK300_PERIOD) rst_300 = ~rst_300;
+  #(CLK300_PERIOD) rst_300 = 1;
+  #(100*CLK300_PERIOD) rst_300 = 0;
 end
 
 initial begin
@@ -55,7 +69,8 @@ end
 
 initial begin
   rst_200 = 0;
-  repeat(2) #(20*CLK200_PERIOD) rst_200 = ~rst_200;
+  #(CLK200_PERIOD) rst_200 = 1;
+  #(100*CLK200_PERIOD) rst_200 = 0;
 end
 
 initial begin
@@ -65,7 +80,8 @@ end
 
 initial begin
   rst_if = 0;
- repeat(2) #(20*IF_CLK_PERIOD) rst_if = ~rst_if;
+  #(IF_CLK_PERIOD) rst_if = 1;
+  #(20*IF_CLK_PERIOD) rst_if = 0;
 end
 
 initial begin
@@ -75,9 +91,6 @@ end
 
 // Need one for each test so we can multiplex the input
 always_comb begin
-  tx_346_if.rdy = 0;
-  //
-
   if (start_346 && ~done_346) begin
     tx_346_if.rdy = tx_if.rdy;
     tx_if.val = tx_346_if.val;
@@ -108,15 +121,16 @@ file_to_axi_block346 (
 
 
 zcash_fpga_top #(
-  .IF_DAT_BYTS   ( IF_DAT_BYTS ),
   .CORE_DAT_BYTS ( DAT_BYTS    )
   )
 DUT(
   // Clocks and resets
-  .i_clk_core0 ( clk_200 ),
-  .i_rst_core0 ( rst_200 ),
-  .i_clk_core1 ( clk_300 ),
-  .i_rst_core1 ( rst_300 ),
+  .i_clk_100 ( clk_100 ),
+  .i_rst_100 ( rst_100 ),
+  .i_clk_200 ( clk_200 ),
+  .i_rst_200 ( rst_200 ),
+  .i_clk_300 ( clk_300 ),
+  .i_rst_300 ( rst_300 ),
   .i_clk_if ( clk_if ),
   .i_rst_if ( rst_if ),
   .rx_if ( tx_if ),
@@ -143,37 +157,38 @@ begin
       header.len = $bits(header_t)/8;
       tx_if.put_stream(header, $bits(header)/8);
       // Wait for tx_if.rdy to go low (reset started)
-      while (tx_if.rdy) @(posedge tx_if.i_clk);
+      repeat(50) @(posedge tx_if.i_clk);
       // Then send data
       start_346 = 1;
       while(!done_346) @(posedge clk_if);
+      tx_if.val = 0;
       // Then status request
       header.cmd = FPGA_STATUS;
       header.len = $bits(header_t)/8;
       tx_if.put_stream(header, $bits(header)/8);
     end
     begin
-      rx_if.get_stream(get_dat1, get_len1); // reset rpl
-      rx_if.get_stream(get_dat2, get_len2); // status rpl
-      rx_if.get_stream(get_dat3, get_len3); // equihash rpl
+      rx_if.get_stream(get_dat1, get_len1);
+      rx_if.get_stream(get_dat2, get_len2); 
+      rx_if.get_stream(get_dat3, get_len3); 
     end
   join
-
+ 
   fpga_reset_rpl = get_dat1;
-  verify_equihash_rpl = get_dat3;
-  fpga_status_rpl = get_dat2;
+  verify_equihash_rpl = get_dat2;
+  fpga_status_rpl = get_dat3;
 
-  fail |= get_len3 != $bits(verify_equihash_rpl_t)/8;
+  fail |= get_len2 != $bits(verify_equihash_rpl_t)/8;
   fail |= verify_equihash_rpl.hdr.cmd != VERIFY_EQUIHASH_RPL;
   fail |= verify_equihash_rpl.hdr.len != $bits(verify_equihash_rpl_t)/8;
   fail |= verify_equihash_rpl.index != 1;
   fail |= verify_equihash_rpl.bm != 0;
   assert (~fail) else $fatal(1, "%m %t ERROR: test_block_346_equihash equihash rply was wrong:\n%p", $time, verify_equihash_rpl);
 
-  fail |= get_len2 != $bits(fpga_status_rpl_t)/8;
+  fail |= get_len3 != $bits(fpga_status_rpl_t)/8;
   fail |= fpga_status_rpl.hdr.cmd != FPGA_STATUS_RPL;
   fail |= fpga_status_rpl.hdr.len != $bits(fpga_status_rpl_t)/8;
-  fail |= fpga_status_rpl.hdr.len != get_len2;
+  fail |= fpga_status_rpl.hdr.len != get_len3;
   fail |= fpga_status_rpl.version != FPGA_VERSION;
   fail |= fpga_status_rpl.build_host != "test";
   fail |= fpga_status_rpl.build_date != "20180311";

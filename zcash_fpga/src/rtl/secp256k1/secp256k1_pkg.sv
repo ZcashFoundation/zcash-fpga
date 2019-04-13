@@ -159,6 +159,7 @@ package secp256k1_pkg;
     $display("x:%h", p.x);
     $display("y:%h", p.y);
     $display("z:%h", p.z);
+    return;
   endfunction
 
 endpackage

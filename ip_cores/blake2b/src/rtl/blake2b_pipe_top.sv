@@ -48,8 +48,9 @@ module blake2b_pipe_top
 
 
 localparam NUM_ROUNDS = 12; 
+localparam G_FUNC_PIPELINES = 1;
 localparam NUM_PASSES = 1 + (MSG_LEN - 1)/128;
-localparam NUM_PIPE = 2 + NUM_PASSES*(NUM_ROUNDS*2) + 2*NUM_PASSES - 1;
+localparam NUM_PIPE = 2 + NUM_PASSES*(NUM_ROUNDS*G_FUNC_PIPELINES*2) + 2*NUM_PASSES - 1;
 
 logic [NUM_PIPE-1:0][15:0][63:0] v;
 logic [NUM_PIPE-1:0][7:0][63:0] h;
@@ -64,7 +65,7 @@ generate
   
   // Since this is a single pipeline flow we pause if output is not ready
   // Simplier than dealing with valid bubbles in the pipeline
-  always_comb i_block.rdy = o_hash.rdy;
+  always_comb i_block.rdy = ~o_hash.val || (o_hash.val && o_hash.rdy);
     
   // Assign the output from the final pipeline stage
   always_comb begin
@@ -91,7 +92,7 @@ generate
       msg_fixed <= 0;
       byte_len <= 0;
     end else begin
-      if (i_block.rdy) begin
+      if (~o_hash.val || (o_hash.val && o_hash.rdy)) begin
         // First stage - depends if we are fully unrolling or not as where input comes from
         h[0] <= i_parameters ^ blake2b_pkg::IV;
         v[0] <= 0;
@@ -102,9 +103,8 @@ generate
           byte_len <= i_byte_len;
         end
         ctl[0] <= i_block.ctl;
-        valid[0] <= i_block.val;
-      end
-      if (o_hash.rdy) begin
+        valid[0] <= i_block.val && i_block.rdy;
+
         // Second stage
         h[1] <= h[0];
         init_local_work_vector_pipe(1, NUM_PASSES == 1 ? byte_len : 128, NUM_PASSES == 1); // initializes v[1]
@@ -134,7 +134,7 @@ generate
         valid[PIPE_G0] <= 0;
         valid[PIPE_G0+1] <= 0;
       end else begin
-        if (o_hash.rdy) begin
+        if (~o_hash.val || (o_hash.val && o_hash.rdy)) begin
           valid[PIPE_G0] <= valid[PIPE_G0-1];
           valid[PIPE_G0+1] <= valid[PIPE_G0];
         end
@@ -147,12 +147,12 @@ generate
       msg[PIPE_G0] <= msg[PIPE_G0-1]; 
       ctl[PIPE_G0] <= ctl[PIPE_G0-1];
       v[PIPE_G0] <= 0;  
-      if (o_hash.rdy) begin
+      if (~o_hash.val || (o_hash.val && o_hash.rdy)) begin
         for (int i = 0; i < 8; i++)
           h[PIPE_G0][i] <= h[PIPE_G0-1][i] ^ v[PIPE_G0-1][i] ^ v[PIPE_G0-1][i+8];
       end
       // Second stage
-      if (o_hash.rdy) begin
+      if (~o_hash.val || (o_hash.val && o_hash.rdy)) begin
         // Shift message down either from previous pipeline or from fixed portion
         if (g0 < (NUM_PASSES - 1)) begin
           h[PIPE_G0+1] <= h[PIPE_G0];      
@@ -166,21 +166,23 @@ generate
     end
       
     for (g1 = 0; g1 < NUM_ROUNDS; g1++) begin: GEN_ROUND
+      
       for (g2 = 0; g2 < 2; g2++) begin: GEN_G_FUNC
         
         // Each pipeline stage has 4 G function blocks in parallel
-        localparam PIPE_G2 = 2 + g0*(2 + NUM_ROUNDS*2) + g1*2 + g2;
+        localparam PIPE_G2 = 2 + g0*(2 + NUM_ROUNDS*2) + g1*G_FUNC_PIPELINES*2 + g2;
         
         always_ff @(posedge i_clk) begin
           if (i_rst) begin
             valid[PIPE_G2] <= 0;
           end else begin
-            if (o_hash.rdy) valid[PIPE_G2] <= valid[PIPE_G2-1];
+            if (~o_hash.val || (o_hash.val && o_hash.rdy))
+              valid[PIPE_G2] <= valid[PIPE_G2-1];
           end
         end
         
         always_ff @(posedge i_clk) begin
-          if (o_hash.rdy) begin
+          if (~o_hash.val || (o_hash.val && o_hash.rdy)) begin
             msg[PIPE_G2] <= msg[PIPE_G2-1];
               h[PIPE_G2] <= h[PIPE_G2-1];
             ctl[PIPE_G2] <= ctl[PIPE_G2-1];
@@ -205,9 +207,10 @@ generate
           end
           
           blake2b_g
-            #( .PIPELINES(1) )
+            #( .PIPELINES(G_FUNC_PIPELINES) )
           blake2b_g (
             .i_clk(i_clk),
+            .i_rdy (~o_hash.val || (o_hash.val && o_hash.rdy)),
             .i_a(g2 == 0 ? v[PIPE_G2-1][blake2b_pkg::G_MAPPING[(g3*4 + 0)]] : v[PIPE_G2-1][blake2b_pkg::G_MAPPING[16 + (g3*4 + 0)]]),
             .i_b(g2 == 0 ? v[PIPE_G2-1][blake2b_pkg::G_MAPPING[(g3*4 + 1)]] : v[PIPE_G2-1][blake2b_pkg::G_MAPPING[16 + (g3*4 + 1)]]),
             .i_c(g2 == 0 ? v[PIPE_G2-1][blake2b_pkg::G_MAPPING[(g3*4 + 2)]] : v[PIPE_G2-1][blake2b_pkg::G_MAPPING[16 + (g3*4 + 2)]]),
