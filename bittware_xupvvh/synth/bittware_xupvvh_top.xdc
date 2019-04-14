@@ -146,3 +146,156 @@ set_bus_skew -from [get_pins -filter { NAME =~  "*dat_reg[0]*C" } -of_objects [g
 set_max_delay -datapath_only -from [get_pins -filter { NAME =~  "*dat_reg[0]*C" } -of_objects [get_cells -hierarchical -filter {NAME =~ zcash_fpga_top/equihash_verif_top/dup_check_fifo_out/synchronizer_rd_ptr/* }]] -to [get_pins -filter { NAME =~  "*dat_reg[1]*D" } -of_objects [get_cells -hierarchical -filter {NAME =~ zcash_fpga_top/equihash_verif_top/dup_check_fifo_out/synchronizer_rd_ptr/* }]] 1.667
 set_bus_skew -from [get_pins -filter { NAME =~  "*ram*C" } -of_objects [get_cells -hierarchical -filter {NAME =~ zcash_fpga_top/equihash_verif_top/dup_check_fifo_out/* }]] -to [get_pins -filter { NAME =~  "*o_dat_b*D" } -of_objects [get_cells -hierarchical -filter {NAME =~ zcash_fpga_top/equihash_verif_top/dup_check_fifo_out/* }]] 1.667
 set_max_delay -datapath_only -from [get_pins -filter { NAME =~  "*ram*C" } -of_objects [get_cells -hierarchical -filter {NAME =~ zcash_fpga_top/equihash_verif_top/dup_check_fifo_out/* }]] -to [get_pins -filter { NAME =~  "*o_dat_b*D" } -of_objects [get_cells -hierarchical -filter {NAME =~ zcash_fpga_top/equihash_verif_top/dup_check_fifo_out/* }]] 1.667
+
+create_debug_core u_ila_0 ila
+set_property ALL_PROBE_SAME_MU true [get_debug_cores u_ila_0]
+set_property ALL_PROBE_SAME_MU_CNT 1 [get_debug_cores u_ila_0]
+set_property C_ADV_TRIGGER false [get_debug_cores u_ila_0]
+set_property C_DATA_DEPTH 1024 [get_debug_cores u_ila_0]
+set_property C_EN_STRG_QUAL false [get_debug_cores u_ila_0]
+set_property C_INPUT_PIPE_STAGES 1 [get_debug_cores u_ila_0]
+set_property C_TRIGIN_EN false [get_debug_cores u_ila_0]
+set_property C_TRIGOUT_EN false [get_debug_cores u_ila_0]
+set_property port_width 1 [get_debug_ports u_ila_0/clk]
+connect_debug_port u_ila_0/clk [get_nets [list clk_wiz_mmcm/inst/clk_300]]
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe0]
+set_property port_width 64 [get_debug_ports u_ila_0/probe0]
+connect_debug_port u_ila_0/probe0 [get_nets [list {zcash_fpga_top/control_top/rx_debug/dat[0]} {zcash_fpga_top/control_top/rx_debug/dat[1]} {zcash_fpga_top/control_top/rx_debug/dat[2]} {zcash_fpga_top/control_top/rx_debug/dat[3]} {zcash_fpga_top/control_top/rx_debug/dat[4]} {zcash_fpga_top/control_top/rx_debug/dat[5]} {zcash_fpga_top/control_top/rx_debug/dat[6]} {zcash_fpga_top/control_top/rx_debug/dat[7]} {zcash_fpga_top/control_top/rx_debug/dat[8]} {zcash_fpga_top/control_top/rx_debug/dat[9]} {zcash_fpga_top/control_top/rx_debug/dat[10]} {zcash_fpga_top/control_top/rx_debug/dat[11]} {zcash_fpga_top/control_top/rx_debug/dat[12]} {zcash_fpga_top/control_top/rx_debug/dat[13]} {zcash_fpga_top/control_top/rx_debug/dat[14]} {zcash_fpga_top/control_top/rx_debug/dat[15]} {zcash_fpga_top/control_top/rx_debug/dat[16]} {zcash_fpga_top/control_top/rx_debug/dat[17]} {zcash_fpga_top/control_top/rx_debug/dat[18]} {zcash_fpga_top/control_top/rx_debug/dat[19]} {zcash_fpga_top/control_top/rx_debug/dat[20]} {zcash_fpga_top/control_top/rx_debug/dat[21]} {zcash_fpga_top/control_top/rx_debug/dat[22]} {zcash_fpga_top/control_top/rx_debug/dat[23]} {zcash_fpga_top/control_top/rx_debug/dat[24]} {zcash_fpga_top/control_top/rx_debug/dat[25]} {zcash_fpga_top/control_top/rx_debug/dat[26]} {zcash_fpga_top/control_top/rx_debug/dat[27]} {zcash_fpga_top/control_top/rx_debug/dat[28]} {zcash_fpga_top/control_top/rx_debug/dat[29]} {zcash_fpga_top/control_top/rx_debug/dat[30]} {zcash_fpga_top/control_top/rx_debug/dat[31]} {zcash_fpga_top/control_top/rx_debug/dat[32]} {zcash_fpga_top/control_top/rx_debug/dat[33]} {zcash_fpga_top/control_top/rx_debug/dat[34]} {zcash_fpga_top/control_top/rx_debug/dat[35]} {zcash_fpga_top/control_top/rx_debug/dat[36]} {zcash_fpga_top/control_top/rx_debug/dat[37]} {zcash_fpga_top/control_top/rx_debug/dat[38]} {zcash_fpga_top/control_top/rx_debug/dat[39]} {zcash_fpga_top/control_top/rx_debug/dat[40]} {zcash_fpga_top/control_top/rx_debug/dat[41]} {zcash_fpga_top/control_top/rx_debug/dat[42]} {zcash_fpga_top/control_top/rx_debug/dat[43]} {zcash_fpga_top/control_top/rx_debug/dat[44]} {zcash_fpga_top/control_top/rx_debug/dat[45]} {zcash_fpga_top/control_top/rx_debug/dat[46]} {zcash_fpga_top/control_top/rx_debug/dat[47]} {zcash_fpga_top/control_top/rx_debug/dat[48]} {zcash_fpga_top/control_top/rx_debug/dat[49]} {zcash_fpga_top/control_top/rx_debug/dat[50]} {zcash_fpga_top/control_top/rx_debug/dat[51]} {zcash_fpga_top/control_top/rx_debug/dat[52]} {zcash_fpga_top/control_top/rx_debug/dat[53]} {zcash_fpga_top/control_top/rx_debug/dat[54]} {zcash_fpga_top/control_top/rx_debug/dat[55]} {zcash_fpga_top/control_top/rx_debug/dat[56]} {zcash_fpga_top/control_top/rx_debug/dat[57]} {zcash_fpga_top/control_top/rx_debug/dat[58]} {zcash_fpga_top/control_top/rx_debug/dat[59]} {zcash_fpga_top/control_top/rx_debug/dat[60]} {zcash_fpga_top/control_top/rx_debug/dat[61]} {zcash_fpga_top/control_top/rx_debug/dat[62]} {zcash_fpga_top/control_top/rx_debug/dat[63]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe1]
+set_property port_width 64 [get_debug_ports u_ila_0/probe1]
+connect_debug_port u_ila_0/probe1 [get_nets [list {zcash_fpga_top/control_top/tx_debug/dat[0]} {zcash_fpga_top/control_top/tx_debug/dat[1]} {zcash_fpga_top/control_top/tx_debug/dat[2]} {zcash_fpga_top/control_top/tx_debug/dat[3]} {zcash_fpga_top/control_top/tx_debug/dat[4]} {zcash_fpga_top/control_top/tx_debug/dat[5]} {zcash_fpga_top/control_top/tx_debug/dat[6]} {zcash_fpga_top/control_top/tx_debug/dat[7]} {zcash_fpga_top/control_top/tx_debug/dat[8]} {zcash_fpga_top/control_top/tx_debug/dat[9]} {zcash_fpga_top/control_top/tx_debug/dat[10]} {zcash_fpga_top/control_top/tx_debug/dat[11]} {zcash_fpga_top/control_top/tx_debug/dat[12]} {zcash_fpga_top/control_top/tx_debug/dat[13]} {zcash_fpga_top/control_top/tx_debug/dat[14]} {zcash_fpga_top/control_top/tx_debug/dat[15]} {zcash_fpga_top/control_top/tx_debug/dat[16]} {zcash_fpga_top/control_top/tx_debug/dat[17]} {zcash_fpga_top/control_top/tx_debug/dat[18]} {zcash_fpga_top/control_top/tx_debug/dat[19]} {zcash_fpga_top/control_top/tx_debug/dat[20]} {zcash_fpga_top/control_top/tx_debug/dat[21]} {zcash_fpga_top/control_top/tx_debug/dat[22]} {zcash_fpga_top/control_top/tx_debug/dat[23]} {zcash_fpga_top/control_top/tx_debug/dat[24]} {zcash_fpga_top/control_top/tx_debug/dat[25]} {zcash_fpga_top/control_top/tx_debug/dat[26]} {zcash_fpga_top/control_top/tx_debug/dat[27]} {zcash_fpga_top/control_top/tx_debug/dat[28]} {zcash_fpga_top/control_top/tx_debug/dat[29]} {zcash_fpga_top/control_top/tx_debug/dat[30]} {zcash_fpga_top/control_top/tx_debug/dat[31]} {zcash_fpga_top/control_top/tx_debug/dat[32]} {zcash_fpga_top/control_top/tx_debug/dat[33]} {zcash_fpga_top/control_top/tx_debug/dat[34]} {zcash_fpga_top/control_top/tx_debug/dat[35]} {zcash_fpga_top/control_top/tx_debug/dat[36]} {zcash_fpga_top/control_top/tx_debug/dat[37]} {zcash_fpga_top/control_top/tx_debug/dat[38]} {zcash_fpga_top/control_top/tx_debug/dat[39]} {zcash_fpga_top/control_top/tx_debug/dat[40]} {zcash_fpga_top/control_top/tx_debug/dat[41]} {zcash_fpga_top/control_top/tx_debug/dat[42]} {zcash_fpga_top/control_top/tx_debug/dat[43]} {zcash_fpga_top/control_top/tx_debug/dat[44]} {zcash_fpga_top/control_top/tx_debug/dat[45]} {zcash_fpga_top/control_top/tx_debug/dat[46]} {zcash_fpga_top/control_top/tx_debug/dat[47]} {zcash_fpga_top/control_top/tx_debug/dat[48]} {zcash_fpga_top/control_top/tx_debug/dat[49]} {zcash_fpga_top/control_top/tx_debug/dat[50]} {zcash_fpga_top/control_top/tx_debug/dat[51]} {zcash_fpga_top/control_top/tx_debug/dat[52]} {zcash_fpga_top/control_top/tx_debug/dat[53]} {zcash_fpga_top/control_top/tx_debug/dat[54]} {zcash_fpga_top/control_top/tx_debug/dat[55]} {zcash_fpga_top/control_top/tx_debug/dat[56]} {zcash_fpga_top/control_top/tx_debug/dat[57]} {zcash_fpga_top/control_top/tx_debug/dat[58]} {zcash_fpga_top/control_top/tx_debug/dat[59]} {zcash_fpga_top/control_top/tx_debug/dat[60]} {zcash_fpga_top/control_top/tx_debug/dat[61]} {zcash_fpga_top/control_top/tx_debug/dat[62]} {zcash_fpga_top/control_top/tx_debug/dat[63]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe2]
+set_property port_width 3 [get_debug_ports u_ila_0/probe2]
+connect_debug_port u_ila_0/probe2 [get_nets [list {zcash_fpga_top/control_top/rx_debug/mod[0]} {zcash_fpga_top/control_top/rx_debug/mod[1]} {zcash_fpga_top/control_top/rx_debug/mod[2]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe3]
+set_property port_width 3 [get_debug_ports u_ila_0/probe3]
+connect_debug_port u_ila_0/probe3 [get_nets [list {zcash_fpga_top/control_top/tx_debug/mod[0]} {zcash_fpga_top/control_top/tx_debug/mod[1]} {zcash_fpga_top/control_top/tx_debug/mod[2]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe4]
+set_property port_width 1 [get_debug_ports u_ila_0/probe4]
+connect_debug_port u_ila_0/probe4 [get_nets [list zcash_fpga_top/control_top/tx_debug/ctl]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe5]
+set_property port_width 1 [get_debug_ports u_ila_0/probe5]
+connect_debug_port u_ila_0/probe5 [get_nets [list zcash_fpga_top/control_top/rx_debug/ctl]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe6]
+set_property port_width 1 [get_debug_ports u_ila_0/probe6]
+connect_debug_port u_ila_0/probe6 [get_nets [list zcash_fpga_top/control_top/tx_debug/eop]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe7]
+set_property port_width 1 [get_debug_ports u_ila_0/probe7]
+connect_debug_port u_ila_0/probe7 [get_nets [list zcash_fpga_top/control_top/rx_debug/eop]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe8]
+set_property port_width 1 [get_debug_ports u_ila_0/probe8]
+connect_debug_port u_ila_0/probe8 [get_nets [list zcash_fpga_top/control_top/tx_debug/err]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe9]
+set_property port_width 1 [get_debug_ports u_ila_0/probe9]
+connect_debug_port u_ila_0/probe9 [get_nets [list zcash_fpga_top/control_top/rx_debug/err]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe10]
+set_property port_width 1 [get_debug_ports u_ila_0/probe10]
+connect_debug_port u_ila_0/probe10 [get_nets [list zcash_fpga_top/control_top/tx_debug/rdy]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe11]
+set_property port_width 1 [get_debug_ports u_ila_0/probe11]
+connect_debug_port u_ila_0/probe11 [get_nets [list zcash_fpga_top/control_top/rx_debug/rdy]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe12]
+set_property port_width 1 [get_debug_ports u_ila_0/probe12]
+connect_debug_port u_ila_0/probe12 [get_nets [list zcash_fpga_top/control_top/tx_debug/sop]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe13]
+set_property port_width 1 [get_debug_ports u_ila_0/probe13]
+connect_debug_port u_ila_0/probe13 [get_nets [list zcash_fpga_top/control_top/rx_debug/sop]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe14]
+set_property port_width 1 [get_debug_ports u_ila_0/probe14]
+connect_debug_port u_ila_0/probe14 [get_nets [list zcash_fpga_top/control_top/tx_debug/val]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe15]
+set_property port_width 1 [get_debug_ports u_ila_0/probe15]
+connect_debug_port u_ila_0/probe15 [get_nets [list zcash_fpga_top/control_top/rx_debug/val]]
+create_debug_core u_ila_1 ila
+set_property ALL_PROBE_SAME_MU true [get_debug_cores u_ila_1]
+set_property ALL_PROBE_SAME_MU_CNT 1 [get_debug_cores u_ila_1]
+set_property C_ADV_TRIGGER false [get_debug_cores u_ila_1]
+set_property C_DATA_DEPTH 1024 [get_debug_cores u_ila_1]
+set_property C_EN_STRG_QUAL false [get_debug_cores u_ila_1]
+set_property C_INPUT_PIPE_STAGES 1 [get_debug_cores u_ila_1]
+set_property C_TRIGIN_EN false [get_debug_cores u_ila_1]
+set_property C_TRIGOUT_EN false [get_debug_cores u_ila_1]
+set_property port_width 1 [get_debug_ports u_ila_1/clk]
+connect_debug_port u_ila_1/clk [get_nets [list clk_wiz_mmcm/inst/clk_200]]
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe0]
+set_property port_width 64 [get_debug_ports u_ila_1/probe0]
+connect_debug_port u_ila_1/probe0 [get_nets [list {zcash_fpga_top/secp256k1_top/tx_debug/dat[0]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[1]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[2]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[3]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[4]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[5]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[6]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[7]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[8]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[9]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[10]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[11]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[12]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[13]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[14]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[15]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[16]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[17]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[18]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[19]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[20]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[21]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[22]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[23]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[24]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[25]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[26]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[27]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[28]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[29]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[30]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[31]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[32]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[33]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[34]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[35]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[36]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[37]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[38]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[39]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[40]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[41]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[42]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[43]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[44]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[45]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[46]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[47]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[48]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[49]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[50]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[51]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[52]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[53]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[54]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[55]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[56]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[57]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[58]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[59]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[60]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[61]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[62]} {zcash_fpga_top/secp256k1_top/tx_debug/dat[63]}]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe1]
+set_property port_width 64 [get_debug_ports u_ila_1/probe1]
+connect_debug_port u_ila_1/probe1 [get_nets [list {zcash_fpga_top/secp256k1_top/rx_debug/dat[0]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[1]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[2]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[3]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[4]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[5]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[6]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[7]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[8]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[9]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[10]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[11]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[12]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[13]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[14]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[15]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[16]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[17]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[18]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[19]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[20]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[21]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[22]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[23]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[24]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[25]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[26]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[27]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[28]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[29]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[30]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[31]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[32]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[33]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[34]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[35]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[36]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[37]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[38]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[39]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[40]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[41]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[42]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[43]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[44]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[45]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[46]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[47]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[48]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[49]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[50]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[51]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[52]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[53]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[54]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[55]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[56]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[57]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[58]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[59]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[60]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[61]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[62]} {zcash_fpga_top/secp256k1_top/rx_debug/dat[63]}]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe2]
+set_property port_width 3 [get_debug_ports u_ila_1/probe2]
+connect_debug_port u_ila_1/probe2 [get_nets [list {zcash_fpga_top/secp256k1_top/rx_debug/mod[0]} {zcash_fpga_top/secp256k1_top/rx_debug/mod[1]} {zcash_fpga_top/secp256k1_top/rx_debug/mod[2]}]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe3]
+set_property port_width 3 [get_debug_ports u_ila_1/probe3]
+connect_debug_port u_ila_1/probe3 [get_nets [list {zcash_fpga_top/secp256k1_top/tx_debug/mod[0]} {zcash_fpga_top/secp256k1_top/tx_debug/mod[1]} {zcash_fpga_top/secp256k1_top/tx_debug/mod[2]}]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe4]
+set_property port_width 1 [get_debug_ports u_ila_1/probe4]
+connect_debug_port u_ila_1/probe4 [get_nets [list zcash_fpga_top/secp256k1_top/rx_debug/ctl]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe5]
+set_property port_width 1 [get_debug_ports u_ila_1/probe5]
+connect_debug_port u_ila_1/probe5 [get_nets [list zcash_fpga_top/secp256k1_top/tx_debug/ctl]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe6]
+set_property port_width 1 [get_debug_ports u_ila_1/probe6]
+connect_debug_port u_ila_1/probe6 [get_nets [list zcash_fpga_top/secp256k1_top/tx_debug/eop]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe7]
+set_property port_width 1 [get_debug_ports u_ila_1/probe7]
+connect_debug_port u_ila_1/probe7 [get_nets [list zcash_fpga_top/secp256k1_top/rx_debug/eop]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe8]
+set_property port_width 1 [get_debug_ports u_ila_1/probe8]
+connect_debug_port u_ila_1/probe8 [get_nets [list zcash_fpga_top/secp256k1_top/tx_debug/err]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe9]
+set_property port_width 1 [get_debug_ports u_ila_1/probe9]
+connect_debug_port u_ila_1/probe9 [get_nets [list zcash_fpga_top/secp256k1_top/rx_debug/err]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe10]
+set_property port_width 1 [get_debug_ports u_ila_1/probe10]
+connect_debug_port u_ila_1/probe10 [get_nets [list zcash_fpga_top/secp256k1_top/tx_debug/rdy]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe11]
+set_property port_width 1 [get_debug_ports u_ila_1/probe11]
+connect_debug_port u_ila_1/probe11 [get_nets [list zcash_fpga_top/secp256k1_top/rx_debug/rdy]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe12]
+set_property port_width 1 [get_debug_ports u_ila_1/probe12]
+connect_debug_port u_ila_1/probe12 [get_nets [list zcash_fpga_top/secp256k1_top/tx_debug/sop]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe13]
+set_property port_width 1 [get_debug_ports u_ila_1/probe13]
+connect_debug_port u_ila_1/probe13 [get_nets [list zcash_fpga_top/secp256k1_top/rx_debug/sop]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe14]
+set_property port_width 1 [get_debug_ports u_ila_1/probe14]
+connect_debug_port u_ila_1/probe14 [get_nets [list zcash_fpga_top/secp256k1_top/rx_debug/val]]
+create_debug_port u_ila_1 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_1/probe15]
+set_property port_width 1 [get_debug_ports u_ila_1/probe15]
+connect_debug_port u_ila_1/probe15 [get_nets [list zcash_fpga_top/secp256k1_top/tx_debug/val]]
+set_property C_CLK_INPUT_FREQ_HZ 300000000 [get_debug_cores dbg_hub]
+set_property C_ENABLE_CLK_DIVIDER false [get_debug_cores dbg_hub]
+set_property C_USER_SCAN_CHAIN 1 [get_debug_cores dbg_hub]
+connect_debug_port dbg_hub/clk [get_nets clk_200]

@@ -39,9 +39,6 @@ module secp256k1_point_dbl
   if_axi_stream.sink i_mod_if
 );
 
-debug_if #(.DAT_BYTS (2*256/8), .CTL_BITS (16)) o_mult_debug (.i_if(o_mult_if));
-debug_if #(.DAT_BYTS (256/8), .CTL_BITS (16)) i_mult_debug (.i_if(i_mult_if));
-
 /*
  * These are the equations that need to be computed, they are issued as variables
  * become valid. We have a bitmask to track what equation results are valid which
@@ -63,7 +60,7 @@ debug_if #(.DAT_BYTS (256/8), .CTL_BITS (16)) i_mult_debug (.i_if(i_mult_if));
  * 13.   (o_p.z) = 2*(i_p.y) mod p
  * 14.   (o_p.z) = o_p.y * i_p.z mod p [eq14]
  */
-(* mark_debug = "true" *) logic [14:0] eq_val, eq_wait;
+logic [14:0] eq_val, eq_wait;
 
 // Temporary variables
 logic [255:0] A, B, C, D, E;

@@ -9,6 +9,11 @@ module secp256k1_top import secp256k1_pkg::*; #(
   if_axi_stream.source if_cmd_tx
 );
 
+
+debug_if #(.DAT_BYTS (if_cmd_rx.DAT_BYTS), .CTL_BITS (1)) rx_debug (.i_if(if_cmd_rx));
+debug_if #(.DAT_BYTS (if_cmd_tx.DAT_BYTS), .CTL_BITS (1)) tx_debug (.i_if(if_cmd_tx));
+
+
 localparam DAT_BYTS = 8;
 localparam DAT_BITS = DAT_BYTS*8;
 import zcash_fpga_pkg::*;
@@ -47,7 +52,7 @@ secp256k1_state_t secp256k1_state;
 header_t header, header_l;
 secp256k1_ver_t secp256k1_ver;
 // Other temporary values
-logic [255:0]  r, u2;
+logic [255:0]  r, r_plus_n, u2;
 logic [63:0] index;
 logic u2_val;
 
@@ -60,6 +65,10 @@ logic [255:0] inv_p;
 
 always_comb begin
   header = if_cmd_rx.dat;
+end
+
+always_ff @ (posedge i_clk) begin
+  r_plus_n <= r + secp256k1_pkg::n;
 end
 
 always_ff @ (posedge i_clk) begin
@@ -343,7 +352,7 @@ always_ff @ (posedge i_clk) begin
           end
           1: begin
             if (mult_out_if[2].rdy && mult_out_if[2].val) begin
-              r <= r + secp256k1_pkg::n;
+              r <= r_plus_n;
               if (mult_out_if[2].dat == pt_mult0_in_p2.x) begin
                 cnt <= 3;
               end else if (r + secp256k1_pkg::n >= secp256k1_pkg::p_eq) begin
