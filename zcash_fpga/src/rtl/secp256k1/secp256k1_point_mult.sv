@@ -233,7 +233,8 @@ localparam ARB_BIT = 8;
 resource_share # (
   .NUM_IN ( 2 ),
   .OVR_WRT_BIT ( ARB_BIT ),
-  .PIPELINE_ARB ( 0 )
+  .PIPELINE_IN ( 0 ),
+  .PIPELINE_OUT ( 0 )
 )
 resource_share_mod (
   .i_clk ( i_clk ),
@@ -247,7 +248,8 @@ resource_share_mod (
 resource_share # (
   .NUM_IN ( 2 ),
   .OVR_WRT_BIT ( ARB_BIT ),
-  .PIPELINE_ARB ( 0 )
+  .PIPELINE_IN ( 0 ),
+  .PIPELINE_OUT ( 0 )
 )
 resource_share_mult (
   .i_clk ( i_clk ),

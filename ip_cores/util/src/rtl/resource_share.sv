@@ -20,9 +20,10 @@
  */ 
 
 module resource_share # (
-  parameter NUM_IN,
-  parameter OVR_WRT_BIT,
-  parameter PIPELINE_ARB
+  parameter NUM_IN = 4,
+  parameter OVR_WRT_BIT = 0,
+  parameter PIPELINE_IN = 0,
+  parameter PIPELINE_OUT = 0
 ) (
   input i_clk, i_rst,
 
@@ -39,7 +40,7 @@ packet_arb # (
   .CTL_BITS    ( i_axi[0].CTL_BITS ),
   .NUM_IN      ( NUM_IN       ),
   .OVR_WRT_BIT ( OVR_WRT_BIT  ),
-  .PIPELINE    ( PIPELINE_ARB )
+  .PIPELINE    ( PIPELINE_IN )
 )
 packet_arb_mult (
   .i_clk ( i_clk ),
@@ -49,16 +50,30 @@ packet_arb_mult (
 );
 
 // Demuxing
+if_axi_stream #(.DAT_BYTS(i_res.DAT_BYTS), .CTL_BITS(i_res.CTL_BITS)) int_axi [NUM_IN-1:0] (i_res.i_clk);
+
 genvar gen0;
 logic [NUM_IN-1:0] rdy;
 generate 
   for (gen0 = 0; gen0 < NUM_IN; gen0++) begin: GEN_DEMUX
     always_comb begin
-      rdy[gen0] = o_axi[gen0].rdy;
-      o_axi[gen0].copy_if_comb(i_res.dat, i_res.val && i_res.ctl[OVR_WRT_BIT +: $clog2(NUM_IN)] == gen0,
+      rdy[gen0] = int_axi[gen0].rdy;
+      int_axi[gen0].copy_if_comb(i_res.dat, i_res.val && i_res.ctl[OVR_WRT_BIT +: $clog2(NUM_IN)] == gen0,
           i_res.sop, i_res.eop, i_res.err, i_res.mod, i_res.ctl);
-      o_axi[gen0].ctl[OVR_WRT_BIT +: $clog2(NUM_IN)] = 0;
+      int_axi[gen0].ctl[OVR_WRT_BIT +: $clog2(NUM_IN)] = 0;
     end 
+    
+    pipeline_if  #(
+      .DAT_BYTS   ( i_res.DAT_BYTS ),
+      .CTL_BITS   ( i_res.CTL_BITS ),
+      .NUM_STAGES ( PIPELINE_OUT   )
+    )
+    pipeline_if (
+      .i_rst ( i_rst         ),
+      .i_if  ( int_axi[gen0] ),
+      .o_if  ( o_axi[gen0]   )
+    );
+    
   end
 endgenerate
 
