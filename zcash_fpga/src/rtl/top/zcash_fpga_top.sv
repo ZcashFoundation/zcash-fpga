@@ -93,7 +93,7 @@ width_change_cdc_fifo #(
   .FIFO_ABITS   ( 6              ),
   .USE_BRAM     ( 1              ),
   .CDC_ASYNC    ( "NO"           )
-) 
+)
 cdc_fifo_rx (
   .i_clk_a ( i_clk_if ),
   .i_rst_a ( i_rst_if ),
@@ -111,7 +111,7 @@ width_change_cdc_fifo #(
   .FIFO_ABITS   ( 6              ),
   .USE_BRAM     ( 1              ),
   .CDC_ASYNC    ( "NO"           )
-) 
+)
 cdc_fifo_tx (
   .i_clk_a ( i_clk_if ),
   .i_rst_a ( i_rst_if ),
@@ -143,7 +143,7 @@ cdc_fifo_if #(
   .SIZE     ( 16            ),
   .USE_BRAM ( 0             ),
   .RAM_PERFORMANCE ("HIGH_PERFORMANCE")
-) 
+)
 cdc_fifo_equihash_rx (
   .i_clk_a ( i_clk_if ),
   .i_rst_a ( usr_rst || i_rst_if ),
@@ -154,12 +154,12 @@ cdc_fifo_equihash_rx (
   .o_b ( equihash_axi_s ),
   .o_emp_b ()
 );
- 
+
 cdc_fifo #(
   .SIZE     ( 16 ),
   .DAT_BITS ( $bits(equihash_bm_t) ),
   .USE_BRAM ( 0 )
-) 
+)
 cdc_fifo_equihash_tx (
   .i_clk_a ( i_clk_100 ),
   .i_rst_a ( rst_100 || ENB_VERIFY_EQUIHASH == 0 ),
@@ -196,7 +196,7 @@ cdc_fifo_if #(
   .SIZE     ( 16 ),
   .USE_BRAM ( 0 ),
   .RAM_PERFORMANCE ("HIGH_PERFORMANCE")
-) 
+)
 cdc_fifo_secp256k1_rx (
   .i_clk_a ( i_clk_if ),
   .i_rst_a ( usr_rst || i_rst_if ),
@@ -212,7 +212,7 @@ cdc_fifo_if #(
   .SIZE     ( 16 ),
   .USE_BRAM ( 0 ),
   .RAM_PERFORMANCE ("HIGH_PERFORMANCE")
-) 
+)
 cdc_fifo_secp256k1_tx (
   .i_clk_a ( i_clk_200  ),
   .i_rst_a ( rst_200 || ENB_VERIFY_SECP256K1_SIG == 0 ),
@@ -224,11 +224,38 @@ cdc_fifo_secp256k1_tx (
   .o_emp_b ()
 );
 
+// We add pipelining so this block can be on a different SLR
+if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BITS(CORE_CTL_BITS)) secp256k1_out_if_s_r(i_clk_200);
+if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BITS(CORE_CTL_BITS)) secp256k1_in_if_s_r(i_clk_200);
+
+pipeline_if  #(
+  .DAT_BYTS( CORE_DAT_BYTS ),
+  .CTL_BITS( CORE_CTL_BITS ),
+  .NUM_STAGES (2)
+)
+secp256k1_pipeline_if0 (
+  .i_rst ( rst_200 ),
+  .i_if  ( secp256k1_out_if_s   ),
+  .o_if  ( secp256k1_out_if_s_r )
+);
+
+pipeline_if  #(
+  .DAT_BYTS( CORE_DAT_BYTS ),
+  .CTL_BITS( CORE_CTL_BITS ),
+  .NUM_STAGES (2)
+)
+secp256k1_pipeline_if1 (
+  .i_rst ( rst_200 ),
+  .i_if  ( secp256k1_in_if_s_r ),
+  .o_if  ( secp256k1_in_if_s   )
+);
+
+
 secp256k1_top secp256k1_top (
   .i_clk      ( i_clk_200 ),
   .i_rst      ( rst_200 || ENB_VERIFY_SECP256K1_SIG == 0 ),
-  .if_cmd_rx  ( secp256k1_out_if_s ),
-  .if_cmd_tx  ( secp256k1_in_if_s  )
+  .if_cmd_rx  ( secp256k1_out_if_s_r ),
+  .if_cmd_tx  ( secp256k1_in_if_s_r  )
 );
 
 

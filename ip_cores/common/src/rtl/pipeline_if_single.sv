@@ -17,17 +17,24 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-module pipeline_if_single (
-  input rst,
+module pipeline_if_single #(
+  parameter DAT_BYTS = 8,
+  parameter CTL_BITS = 8
+)(
+  input i_rst,
   if_axi_stream.sink   i_if,
   if_axi_stream.source o_if
 );
 
-// Need pipeline stage to store temp data
-if_axi_stream #(.DAT_BYTS(i_if.DAT_BYTS), .CTL_BITS(i_if.CTL_BITS)) if_r (i_if.clk);
 
-always_ff @ (i_if.clk) begin
-  if (rst) begin
+
+
+
+// Need pipeline stage to store temp data
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) if_r (i_if.i_clk);
+
+always_ff @ (i_if.i_clk) begin
+  if (i_rst) begin
     o_if.reset_source();
     if_r.reset_source();
     if_r.rdy <= 0;

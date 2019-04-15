@@ -18,11 +18,13 @@
  */
 
 module pipeline_if  #(
+  parameter DAT_BYTS = 8,
+  parameter CTL_BITS = 8,
   parameter NUM_STAGES = 1
 ) (
-  input rst,
-  if_axi_stream.sink   i_if,
-  if_axi_stream.source o_if
+  input i_rst,
+  if_axi_stream   i_if,
+  if_axi_stream o_if
 );
   
 genvar g0;
@@ -33,10 +35,30 @@ generate
     
   end else begin
     
-    if_axi_stream #(.DAT_BYTS(i_if.DAT_BYTS), .CTL_BITS(i_if.CTL_BITS)) if_stage [NUM_STAGES-1] (i_if.clk);
+    if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) if_stage [NUM_STAGES-1:0] (i_if.i_clk) ;
     
     for (g0 = 0; g0 < NUM_STAGES; g0++) begin : GEN_STAGE
-      pipeline_if_single pipeline_if_single (.i_if(g0 == 0 ? i_if : if_stage[g0-1]), .o_of(g0 == NUM_STAGES-1 ? o_if : if_stage[g0]));
+      if (g0 == 0)
+        pipeline_if_single #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) 
+          pipeline_if_single (
+            .i_rst ( i_rst ),
+            .i_if(i_if ),
+            .o_if(if_stage[g0])
+          );
+        else if (g0 == NUM_STAGES-1)
+          pipeline_if_single #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) 
+            pipeline_if_single (
+              .i_rst ( i_rst ),
+              .i_if(if_stage[g0-1]),
+              .o_if( o_if )
+            );
+         else
+           pipeline_if_single #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) 
+             pipeline_if_single (
+               .i_rst ( i_rst ),
+               .i_if(if_stage[g0-1]),
+               .o_if(if_stage[g0])
+             );
     end
     
   end

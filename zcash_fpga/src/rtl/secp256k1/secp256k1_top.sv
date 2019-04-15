@@ -9,11 +9,6 @@ module secp256k1_top import secp256k1_pkg::*; #(
   if_axi_stream.source if_cmd_tx
 );
 
-
-debug_if #(.DAT_BYTS (if_cmd_rx.DAT_BYTS), .CTL_BITS (1)) rx_debug (.i_if(if_cmd_rx));
-debug_if #(.DAT_BYTS (if_cmd_tx.DAT_BYTS), .CTL_BITS (1)) tx_debug (.i_if(if_cmd_tx));
-
-
 localparam DAT_BYTS = 8;
 localparam DAT_BITS = DAT_BYTS*8;
 import zcash_fpga_pkg::*;
@@ -53,6 +48,7 @@ header_t header, header_l;
 secp256k1_ver_t secp256k1_ver;
 // Other temporary values
 logic [255:0]  r, r_plus_n, u2;
+logic r_plus_n_gt;
 logic [63:0] index;
 logic u2_val;
 
@@ -69,6 +65,7 @@ end
 
 always_ff @ (posedge i_clk) begin
   r_plus_n <= r + secp256k1_pkg::n;
+  r_plus_n_gt <= r_plus_n >= secp256k1_pkg::p_eq;
 end
 
 always_ff @ (posedge i_clk) begin
@@ -108,7 +105,7 @@ always_ff @ (posedge i_clk) begin
     timeout <= 0;
 
   end else begin
-  
+
     timeout <= timeout + 1;
 
     mult_out_if[2].rdy <= 1;
@@ -352,15 +349,14 @@ always_ff @ (posedge i_clk) begin
           end
           1: begin
             if (mult_out_if[2].rdy && mult_out_if[2].val) begin
-              r <= r_plus_n;
               if (mult_out_if[2].dat == pt_mult0_in_p2.x) begin
                 cnt <= 3;
-              end else if (r + secp256k1_pkg::n >= secp256k1_pkg::p_eq) begin
+              end else if (r_plus_n_gt) begin
                 cnt <= 3;
                 secp256k1_ver.FAILED_SIG_VER <= 1;
               end else begin
                 // Need to do one more check
-                mult_in_if[2].dat <= {r, pt_mult0_in_p2.z};
+                mult_in_if[2].dat <= {r_plus_n, pt_mult0_in_p2.z};
                 mult_in_if[2].ctl[7:6] <= 0;  // mod p
                 mult_in_if[2].val <= 1;
                 cnt <= 2;
@@ -477,7 +473,7 @@ resource_share_mod (
   .i_rst ( i_rst ),
   .i_axi ( mod_in_if[1:0]  ),
   .o_res ( mod_in_if[2]    ),
-  .i_res ( mod_out_if[2]   ), 
+  .i_res ( mod_out_if[2]   ),
   .o_axi ( mod_out_if[1:0] )
 );
 
@@ -491,7 +487,7 @@ resource_share_mult (
   .i_rst ( i_rst ),
   .i_axi ( mult_in_if[2:0]  ),
   .o_res ( mult_in_if[3]    ),
-  .i_res ( mult_out_if[3]   ), 
+  .i_res ( mult_out_if[3]   ),
   .o_axi ( mult_out_if[2:0] )
 );
 
