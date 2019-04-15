@@ -1,5 +1,5 @@
 /*
-  Just used to allow debug to be added to an interface in Vivado easily.
+  Pipelining for an interface.
   
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -15,30 +15,30 @@
 
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */ 
+ */
 
-module debug_if (
-  if_axi_stream i_if
+module pipeline_if  #(
+  parameter NUM_STAGES = 1
+) (
+  input rst,
+  if_axi_stream.sink   i_if,
+  if_axi_stream.source o_if
 );
-
-(* mark_debug = "true" *) logic rdy;
-(* mark_debug = "true" *) logic val;
-(* mark_debug = "true" *) logic err;
-(* mark_debug = "true" *) logic sop;
-(* mark_debug = "true" *) logic eop;
-(* mark_debug = "true" *) logic [i_if.CTL_BITS-1:0] ctl;
-(* mark_debug = "true" *) logic [i_if.DAT_BITS-1:0] dat;
-(* mark_debug = "true" *) logic [i_if.MOD_BITS-1:0] mod;
-
-always_ff @ (posedge i_if.i_clk) begin
-  rdy <= i_if.rdy;
-  val <= i_if.val;
-  err <= i_if.err;
-  sop <= i_if.sop;
-  eop <= i_if.eop;
-  ctl <= i_if.ctl;
-  dat <= i_if.dat;
-  mod <= i_if.mod;
-end
-
+  
+genvar g0;
+generate
+  if (NUM_STAGES == 0) begin
+    
+    always_comb o_if.copy_if_comb(i_if.dat, i_if.val, i_if.sop, i_if.eop, i_if.err, i_if.mod, i_if.ctl);
+    
+  end else begin
+    
+    if_axi_stream #(.DAT_BYTS(i_if.DAT_BYTS), .CTL_BITS(i_if.CTL_BITS)) if_stage [NUM_STAGES-1] (i_if.clk);
+    
+    for (g0 = 0; g0 < NUM_STAGES; g0++) begin : GEN_STAGE
+      pipeline_if_single pipeline_if_single (.i_if(g0 == 0 ? i_if : if_stage[g0-1]), .o_of(g0 == NUM_STAGES-1 ? o_if : if_stage[g0]));
+    end
+    
+  end
+endgenerate
 endmodule
