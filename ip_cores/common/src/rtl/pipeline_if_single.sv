@@ -26,21 +26,17 @@ module pipeline_if_single #(
   if_axi_stream.source o_if
 );
 
-
-
-
-
 // Need pipeline stage to store temp data
 if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) if_r (i_if.i_clk);
 
-always_ff @ (i_if.i_clk) begin
+always_ff @ (posedge i_if.i_clk) begin
   if (i_rst) begin
     o_if.reset_source();
     if_r.reset_source();
     if_r.rdy <= 0;
     i_if.rdy <= 0;
   end else begin
-    i_if.rdy <= ~o_if.val || (o_if.val && o_if.rdy && ~if_r.val);
+    i_if.rdy <= ~o_if.val || (o_if.val && o_if.rdy);
     
     
     // Data transfer cases
@@ -51,13 +47,14 @@ always_ff @ (i_if.i_clk) begin
         if_r.val <= 0;
       // Second case - second interface not valid
       end else begin
-        o_if.copy_if(i_if.dat, i_if.val, i_if.sop, i_if.eop, i_if.err, i_if.mod, i_if.ctl);
+        o_if.copy_if(i_if.dat, i_if.val && i_if.rdy, i_if.sop, i_if.eop, i_if.err, i_if.mod, i_if.ctl);
       end
     end
     
     // Check for case where input is valid so we need to store in second interface
     if (i_if.rdy && (o_if.val && ~o_if.rdy)) begin
       if_r.copy_if(i_if.dat, i_if.val, i_if.sop, i_if.eop, i_if.err, i_if.mod, i_if.ctl);
+      i_if.rdy <= 0;
     end
   end
 end

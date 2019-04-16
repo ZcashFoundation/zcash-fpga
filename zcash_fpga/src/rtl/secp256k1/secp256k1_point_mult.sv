@@ -56,7 +56,7 @@ logic [255:0] k_l;
 jb_point_t p_n, p_q, p_dbl, p_add;
 logic p_dbl_in_val, p_dbl_in_rdy, p_dbl_out_err, p_dbl_out_val, p_dbl_out_rdy, p_dbl_done;
 logic p_add_in_val, p_add_in_rdy, p_add_out_err, p_add_out_val, p_add_out_rdy, p_add_done;
-logic special_dbl;
+logic special_dbl, lookahead_dbl;
 
 enum {IDLE, DOUBLE_ADD, ADD_ONLY, FINISHED} state;
 
@@ -77,14 +77,17 @@ always_ff @ (posedge i_clk) begin
     p_dbl_done <= 0;
     p_add_done <= 0;
     special_dbl <= 0;
+    lookahead_dbl <= 0;
   end else begin
-    p_dbl_out_rdy <= 1;
-    p_add_out_rdy <= 1;
+
     case (state)
       {IDLE}: begin
+        p_dbl_out_rdy <= 1;
+        p_add_out_rdy <= 1;
         p_dbl_done <= 1;
         p_add_done <= 1;
         special_dbl <= 0;
+        lookahead_dbl <= 0;
         o_rdy <= 1;
         o_err <= 0;
         p_q <= 0;  // p_q starts at 0
@@ -118,6 +121,12 @@ always_ff @ (posedge i_clk) begin
             special_dbl <= 0;
           end
           p_n <= p_dbl;
+          // We can look ahead and start the next double
+          if ((k_l >> 1) != 0 && ~lookahead_dbl && ~p_add_done) begin
+            p_dbl_in_val <= 1;
+            lookahead_dbl <= 1;
+            p_dbl_out_rdy <= 0; // Want to make sure we don't output while still waiting for add
+          end 
         end
         if (p_add_out_val && p_add_out_rdy) begin
           p_add_done <= 1;
@@ -126,6 +135,8 @@ always_ff @ (posedge i_clk) begin
 
         // Update variables and issue new commands
         if (p_add_done && p_dbl_done) begin
+          lookahead_dbl <= 0;
+          p_dbl_out_rdy <= 1;
           p_add_done <= 0;
           p_dbl_done <= 0;
           k_l <= k_l >> 1;
@@ -143,7 +154,7 @@ always_ff @ (posedge i_clk) begin
 
           // Don't need to double on the final bit
           if ((k_l >> 1) != 0)
-            p_dbl_in_val <= 1;
+            p_dbl_in_val <= ~lookahead_dbl; // Don't do if we already started
           else
             p_dbl_done <= 1;
 
