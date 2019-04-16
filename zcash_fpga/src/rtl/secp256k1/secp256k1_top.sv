@@ -206,7 +206,7 @@ always_ff @ (posedge i_clk) begin
       {CALC_S_INV}: begin
         // Wait until bin_inv_out_if.val
         if (bin_inv_in_if.dat >= secp256k1_pkg::n) secp256k1_ver.OUT_OF_RANGE_S <= 1;
-        if (mult_in_if[2].dat >= secp256k1_pkg::n) secp256k1_ver.OUT_OF_RANGE_R <= 1;
+        if (r >= secp256k1_pkg::n) secp256k1_ver.OUT_OF_RANGE_R <= 1;
         if (bin_inv_out_if.val && bin_inv_out_if.rdy) begin
           bin_inv_out_if.rdy <= 0;
           bin_inv_in_if.dat <= bin_inv_out_if.dat;
