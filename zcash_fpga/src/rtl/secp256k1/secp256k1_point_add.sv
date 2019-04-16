@@ -249,7 +249,7 @@ always_ff @ (posedge i_clk) begin
         if (eq_val[18] && eq_val[9] && ~eq_wait[19]) begin      //  19. o_p.y = o_p.y * i_p2.y mod p [eq18, eq9]
           multiply(19, o_p.y, i_p2_l.y);
         end else
-        if (eq_val[5] && eq_val[12] && ~eq_wait[20]) begin      //  20. i_p2.x = i_p2.x * A [eq5, eq12]
+        if (eq_val[5] && eq_val[12] && eq_val[13] && ~eq_wait[20]) begin      //  20. i_p2.x = i_p2.x * A [eq5, eq12, 13]
           multiply(20, i_p2_l.x, A);
         end else
         if (~eq_wait[22]) begin                               //  22. o_p.z = i_p1.z * i_p2.z mod p
