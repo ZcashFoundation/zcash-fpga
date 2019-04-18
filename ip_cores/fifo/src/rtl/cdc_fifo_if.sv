@@ -38,7 +38,7 @@ cdc_fifo #(
   .USE_BRAM ( USE_BRAM            ),
   .RAM_PERFORMANCE (RAM_PERFORMANCE )
 ) 
-cdc_fifo_equihash_rx (
+cdc_fifo (
   .i_clk_a ( i_clk_a ),
   .i_rst_a ( i_rst_a ),
   .i_clk_b ( i_clk_b ),

@@ -182,7 +182,7 @@ synchronizer  #(
 )
 synchronizer_rd_ptr (
   .i_clk_a ( i_clk_b ),
-  .i_clk_b ( i_clk_a ),
+  .i_clk_b ( i_clk_a ),  
   .i_dat_a ( bin_to_grey(rd_ptr_b) ),
   .o_dat_b ( rd_ptrg_a             )
 );
