@@ -80,7 +80,6 @@ if_axi_stream #(.DAT_BITS(1), .CTL_BITS(1), .MOD_BITS(1)) dup_check_if_out_sync(
 if_axi_stream #(.DAT_BITS(SOL_BITS), .MOD_BITS(1),  .CTL_BITS(1)) equihash_order_if(i_clk);
 logic equihash_order_val, equihash_order_wrong;
 
-   
 
 enum {STATE_WR_IDLE = 0,
       STATE_WR_DATA = 1,
@@ -155,7 +154,13 @@ end
 // State machine for loading the output of RAM into the Blake2b block
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
-    blake2b_in_hash.reset_source();
+    blake2b_in_hash.val <= 0;
+    blake2b_in_hash.sop <= 0;
+    blake2b_in_hash.eop <= 0;
+    blake2b_in_hash.ctl <= 1;
+    blake2b_in_hash.err <= 1;
+    blake2b_in_hash.mod <= 1;
+    
     equihash_sol_bram_if_b.reset_source();
     sol_cnt_in <= 0;
     sol_pos <= 0;
