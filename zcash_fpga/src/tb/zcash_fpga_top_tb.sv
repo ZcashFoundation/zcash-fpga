@@ -32,15 +32,15 @@ logic clk_200, rst_200;
 localparam CLK100_PERIOD = 10000;
 localparam CLK200_PERIOD = 5000;
 localparam CLK300_PERIOD = 3333;
-localparam IF_CLK_PERIOD = 10000;
+localparam IF_CLK_PERIOD = 20000;
 
 parameter DAT_BYTS = 8;
-parameter IF_DAT_BYTS = 1;
 string my_file_path_s = get_file_dir(`__FILE__);
 
-if_axi_stream #(.DAT_BYTS(IF_DAT_BYTS)) tx_if(clk_if);
-if_axi_stream #(.DAT_BYTS(IF_DAT_BYTS)) tx_346_if(clk_if);
-if_axi_stream #(.DAT_BYTS(IF_DAT_BYTS)) rx_if(clk_if);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) tx_if(clk_if);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) tx_if_test(clk_if);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) tx_346_if(clk_if);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS)) rx_if(clk_if);
 
 logic start_346 = 0;
 logic done_346 = 0;
@@ -100,15 +100,19 @@ always_comb begin
     tx_if.mod = tx_346_if.mod;
     tx_if.err = tx_346_if.err;
     tx_if.dat = tx_346_if.dat;
+    tx_if_test.rdy = 0;
+  end else begin
+    tx_if.copy_if_comb(tx_if_test.dat, tx_if_test.val, tx_if_test.sop, tx_if_test.eop, tx_if_test.err, tx_if_test.mod, tx_if_test.ctl);
+    tx_if_test.rdy = tx_if.rdy;
+    tx_346_if.rdy = 0;
   end
-
 end
 
 
 file_to_axi #(
-  .BINARY   ( 1           ),
-  .DAT_BYTS ( IF_DAT_BYTS ),
-  .FP       ( 0           )
+  .BINARY   ( 1        ),
+  .DAT_BYTS ( DAT_BYTS ),
+  .FP       ( 0        )
 )
 file_to_axi_block346 (
   .i_file  ({my_file_path_s, "/../data/block_346_with_header.bin"}),
@@ -137,6 +141,7 @@ DUT(
   .tx_if ( rx_if )
 );
 
+
 // This is a tests the sample block 346 in the block chain with the header to verify the equihash solution
 // Also send a reset first and then status request to check it is correct
 task test_block_346_equihash();
@@ -155,17 +160,17 @@ begin
       // First send reset
       header.cmd = RESET_FPGA;
       header.len = $bits(header_t)/8;
-      tx_if.put_stream(header, $bits(header)/8);
+      tx_if_test.put_stream(header, $bits(header)/8);
       // Wait for tx_if.rdy to go low (reset started)
       repeat(50) @(posedge tx_if.i_clk);
       // Then send data
       start_346 = 1;
-      while(!done_346) @(posedge clk_if);
-      tx_if.val = 0;
-      // Then status request
+      while(!done_346) #(IF_CLK_PERIOD/2);
+      // Then status request after few clocks
+      repeat(20) @(posedge tx_if.i_clk);
       header.cmd = FPGA_STATUS;
       header.len = $bits(header_t)/8;
-      tx_if.put_stream(header, $bits(header)/8);
+      tx_if_test.put_stream(header, $bits(header)/8);
     end
     begin
       rx_if.get_stream(get_dat1, get_len1);
@@ -175,20 +180,20 @@ begin
   join
  
   fpga_reset_rpl = get_dat1;
-  verify_equihash_rpl = get_dat2;
-  fpga_status_rpl = get_dat3;
+  verify_equihash_rpl = get_dat3;
+  fpga_status_rpl = get_dat2;
 
-  fail |= get_len2 != $bits(verify_equihash_rpl_t)/8;
+  fail |= get_len3 != $bits(verify_equihash_rpl_t)/8;
   fail |= verify_equihash_rpl.hdr.cmd != VERIFY_EQUIHASH_RPL;
   fail |= verify_equihash_rpl.hdr.len != $bits(verify_equihash_rpl_t)/8;
   fail |= verify_equihash_rpl.index != 1;
   fail |= verify_equihash_rpl.bm != 0;
   assert (~fail) else $fatal(1, "%m %t ERROR: test_block_346_equihash equihash rply was wrong:\n%p", $time, verify_equihash_rpl);
 
-  fail |= get_len3 != $bits(fpga_status_rpl_t)/8;
+  fail |= get_len2 != $bits(fpga_status_rpl_t)/8;
   fail |= fpga_status_rpl.hdr.cmd != FPGA_STATUS_RPL;
   fail |= fpga_status_rpl.hdr.len != $bits(fpga_status_rpl_t)/8;
-  fail |= fpga_status_rpl.hdr.len != get_len3;
+  fail |= fpga_status_rpl.hdr.len != get_len2;
   fail |= fpga_status_rpl.version != FPGA_VERSION;
   fail |= fpga_status_rpl.build_host != "test";
   fail |= fpga_status_rpl.build_date != "20180311";
@@ -218,7 +223,7 @@ begin
   header = {$bits(header_t){1'b1}};
   header.cmd[8 +: 8] = 0;
   fork
-    tx_if.put_stream(header, $bits(header)/8);
+    tx_if_test.put_stream(header, $bits(header)/8);
     rx_if.get_stream(get_dat, get_len);
   join
 
@@ -256,7 +261,7 @@ begin
 
   start_time = $time;
   fork
-    tx_if.put_stream(verify_secp256k1_sig, $bits(verify_secp256k1_sig)/8);
+    tx_if_test.put_stream(verify_secp256k1_sig, $bits(verify_secp256k1_sig)/8);
     rx_if.get_stream(get_dat, get_len);
   join
   finish_time = $time;
@@ -278,9 +283,11 @@ initial begin
   tx_if.rdy = 0;
   rx_if.rdy = 0;
   tx_if.val = 0;
+  tx_if_test.val = 0;
   #20us; // Let internal memories reset
 
   test_ignored_message();
+  #10us;
   
   if (zcash_fpga_pkg::ENB_VERIFY_EQUIHASH == 1)
     test_block_346_equihash();
