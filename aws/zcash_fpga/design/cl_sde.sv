@@ -24,14 +24,14 @@ module  cl_sde
    );
 
    logic clk;
-   assign clk = clk_extra_a3; // 250MHz
+   assign clk = clk_main_a0; // 125MHz
    assign rst_n = rst_main_n;
 
    logic clk_100, clk_200, clk_300;
    always_comb begin
      clk_100 = clk_main_a0; // 125MHz
-     clk_200 = clk_main_a2; // 187MHz
-     clk_300 = clk_extra_c0; // 300MHz
+     clk_200 = clk_extra_a2; // 187MHz
+     clk_300 = clk_extra_b0; // 300MHz
    end
 
 `ifndef CL_VERSION
@@ -1218,6 +1218,23 @@ always @(posedge clk_main_a0)
      .ila_rvalid   (cl_sh_dma_pcis_rvalid  ),
      .ila_rready   (sh_cl_dma_pcis_rready  )
       );
+
+  zcash_fpga_top #(
+    .DAT_BYTS ( 8 )
+  )
+  zcash_fpga_top (
+    // Clocks and resets
+    .i_clk_100 ( clk_100 ),
+    .i_rst_100 ( rst_100 ),
+    .i_clk_200 ( clk_200 ),
+    .i_rst_200 ( rst_200 ),
+    .i_clk_300 ( clk_300 ),
+    .i_rst_300 ( rst_300 ),  
+    .i_clk_if    ( clk_300 ),
+    .i_rst_if    ( rst_300 ),
+    .rx_if ( uart_axi_tx ),
+    .tx_if ( uart_axi_rx )
+  );
 
    ila_axi4_wrapper #(.AXI_DATA_WIDTH(32)) PCIM_AXI4_SH_CL_BOUNDARY_ILA
      (.aclk         (clk),

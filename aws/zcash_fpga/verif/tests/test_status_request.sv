@@ -13,7 +13,7 @@
 // implied. See the License for the specific language governing permissions and
 // limitations under the License.
 
-module test_simple_h2c();
+module test_status_request();
 
 timeunit 1ns/100ps;
 
@@ -53,7 +53,7 @@ begin
 
    $display($time,,,"test_status_request: test_configuration num_pkts=%0d, desc_type=%b", cfg_num_pkts, desc_type);
 
-   tb.power_up(.clk_recipe_a(ClockRecipe::A0));
+   tb.power_up(.clk_recipe_a(ClockRecipe::A0), .clk_recipe_b(ClockRecipe::B4));
 
    //New some classes
    access = new();
