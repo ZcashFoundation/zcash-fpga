@@ -48,7 +48,7 @@ uart_wrapper uart_wrapper (
 );
 
 zcash_fpga_top #(
-  .CORE_DAT_BYTS ( 8 )
+  .DAT_BYTS ( 8 )
 )
 zcash_fpga_top (
   // Clocks and resets
