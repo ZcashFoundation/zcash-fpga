@@ -1,0 +1,1 @@
+cd c:\aws\hdk\cl\examples\cl_sde\verif\scripts\..\..\verif\sim\vivado\test_null && xvlog --sv -m64 --initfile \data\xsim\ip\xsim_ip.ini --work xil_defaultlib --relax -f c:\aws\hdk\cl\examples\cl_sde\verif\scripts\top.vivado.f
