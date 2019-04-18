@@ -28,7 +28,7 @@ module synchronizer  #(
   output logic [DAT_BITS-1:0] o_dat_b
 );
 
-logic [NUM_CLKS:0][DAT_BITS-1:0] dat;
+(* srl_style = "register" *) logic [NUM_CLKS:0][DAT_BITS-1:0] dat; // Don't want SRL as we apply timing constraints later
 
 always_ff @ (posedge i_clk_a) begin
   dat[0] <= i_dat_a;
