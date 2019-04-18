@@ -81,7 +81,7 @@ interface if_axi_stream # (
                             input logic [CTL_BITS-1:0] ctl_in = 0);
     logic sop_l=0;
     
-    reset_source();
+    val = 0;
     @(posedge i_clk);
     
     while (len > 0) begin
@@ -97,7 +97,7 @@ interface if_axi_stream # (
       @(posedge i_clk); // Go to next clock edge
       while (!rdy) @(posedge i_clk); // If not rdy then wait here
     end
-    reset_source();
+    val = 0;
   endtask
   
   task print();

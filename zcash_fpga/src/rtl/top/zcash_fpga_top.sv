@@ -23,7 +23,7 @@
 module zcash_fpga_top
   import zcash_fpga_pkg::*, equihash_pkg::*;
 #(
-  parameter CORE_DAT_BYTS = 8     // Only tested at 8 byte data width
+  parameter DAT_BYTS = 8     // Only tested at 8 byte data width
 )(
   // Clocks and resets
   input i_clk_100, i_rst_100, // 100 MHz clock
@@ -36,9 +36,7 @@ module zcash_fpga_top
   if_axi_stream.source tx_if
 );
 
-localparam CORE_DAT_BITS = CORE_DAT_BYTS*8;
-localparam CORE_MOD_BITS = $clog2(CORE_DAT_BYTS);
-localparam CORE_CTL_BITS = 8;
+localparam CTL_BITS = 8;
 
 // These are the resets combined with the user reset
 logic usr_rst_100, rst_100;
@@ -46,13 +44,13 @@ logic usr_rst_200, rst_200;
 logic usr_rst_300, rst_300;
 logic usr_rst;
 
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BITS(CORE_CTL_BITS)) equihash_axi(i_clk_if);
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BITS(CORE_CTL_BITS)) equihash_axi_s(i_clk_100);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) equihash_axi(i_clk_if);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) equihash_axi_s(i_clk_100);
 
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BITS(CORE_CTL_BITS)) secp256k1_out_if(i_clk_if);
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BITS(CORE_CTL_BITS)) secp256k1_in_if(i_clk_if);
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BITS(CORE_CTL_BITS)) secp256k1_out_if_s(i_clk_200);
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BITS(CORE_CTL_BITS)) secp256k1_in_if_s(i_clk_200);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) secp256k1_out_if(i_clk_if);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) secp256k1_in_if(i_clk_if);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) secp256k1_out_if_s(i_clk_200);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) secp256k1_in_if_s(i_clk_200);
 
 equihash_bm_t equihash_mask, equihash_mask_s;
 logic         equihash_mask_val, equihash_mask_val_s;
@@ -82,54 +80,18 @@ synchronizer  #(.DAT_BITS ( 1 ), .NUM_CLKS ( 3 )) rst_300_sync (
 );
 always_ff @ (posedge i_clk_300) rst_300 <= i_rst_300 || usr_rst_300;
 
-
 // This block takes in the interface signals and interfaces with other blocks
 // This runs on the same clock as the interface but we might need to change data width
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) rx_int_if (i_clk_if);
-width_change_cdc_fifo #(
-  .IN_DAT_BYTS  ( rx_if.DAT_BYTS ),
-  .OUT_DAT_BYTS ( CORE_DAT_BYTS  ),
-  .CTL_BITS     ( 8              ),
-  .FIFO_ABITS   ( 6              ),
-  .USE_BRAM     ( 1              ),
-  .CDC_ASYNC    ( "NO"           )
-)
-cdc_fifo_rx (
-  .i_clk_a ( i_clk_if ),
-  .i_rst_a ( i_rst_if ),
-  .i_clk_b ( i_clk_if ),
-  .i_rst_b ( i_rst_if ),
-  .i_axi_a ( rx_if     ),
-  .o_axi_b ( rx_int_if )
-);
-
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BYTS(1)) tx_int_if (i_clk_if);
-width_change_cdc_fifo #(
-  .IN_DAT_BYTS  ( CORE_DAT_BYTS  ),
-  .OUT_DAT_BYTS ( rx_if.DAT_BYTS ),
-  .CTL_BITS     ( 8              ),
-  .FIFO_ABITS   ( 6              ),
-  .USE_BRAM     ( 1              ),
-  .CDC_ASYNC    ( "NO"           )
-)
-cdc_fifo_tx (
-  .i_clk_a ( i_clk_if ),
-  .i_rst_a ( i_rst_if ),
-  .i_clk_b ( i_clk_if ),
-  .i_rst_b ( i_rst_if ),
-  .i_axi_a ( tx_int_if ),
-  .o_axi_b ( tx_if     )
-);
 
 control_top #(
-  .DAT_BYTS ( CORE_DAT_BYTS )
+  .DAT_BYTS ( DAT_BYTS )
 )
 control_top (
   .i_clk ( i_clk_if ),
   .i_rst ( i_rst_if ),
   .o_usr_rst ( usr_rst ),
-  .rx_if ( rx_int_if ),
-  .tx_if ( tx_int_if ),
+  .rx_if ( rx_if ),
+  .tx_if ( tx_if ),
   .o_equihash_if       ( equihash_axi      ),
   .i_equihash_mask     ( equihash_mask     ),
   .i_equihash_mask_val ( equihash_mask_val ),
@@ -177,7 +139,7 @@ cdc_fifo_equihash_tx (
 );
 
 equihash_verif_top #(
-  .DAT_BYTS( CORE_DAT_BYTS )
+  .DAT_BYTS( DAT_BYTS )
 )
 equihash_verif_top (
   .i_clk ( i_clk_100 ),
@@ -225,12 +187,12 @@ cdc_fifo_secp256k1_tx (
 );
 
 // We add pipelining so this block can be on a different SLR
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BITS(CORE_CTL_BITS)) secp256k1_out_if_s_r(i_clk_200);
-if_axi_stream #(.DAT_BYTS(CORE_DAT_BYTS), .CTL_BITS(CORE_CTL_BITS)) secp256k1_in_if_s_r(i_clk_200);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) secp256k1_out_if_s_r(i_clk_200);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) secp256k1_in_if_s_r(i_clk_200);
 
 pipeline_if  #(
-  .DAT_BYTS( CORE_DAT_BYTS ),
-  .CTL_BITS( CORE_CTL_BITS ),
+  .DAT_BYTS( DAT_BYTS ),
+  .CTL_BITS( CTL_BITS ),
   .NUM_STAGES (2)
 )
 secp256k1_pipeline_if0 (
@@ -240,8 +202,8 @@ secp256k1_pipeline_if0 (
 );
 
 pipeline_if  #(
-  .DAT_BYTS( CORE_DAT_BYTS ),
-  .CTL_BITS( CORE_CTL_BITS ),
+  .DAT_BYTS( DAT_BYTS ),
+  .CTL_BITS( CTL_BITS ),
   .NUM_STAGES (2)
 )
 secp256k1_pipeline_if1 (
