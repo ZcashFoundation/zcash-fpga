@@ -255,10 +255,10 @@ always_ff @(posedge clk_100) rst_100  <= !rst_main_n;
 always_ff @(posedge clk_200) rst_200  <= !rst_main_n;
 always_ff @(posedge clk_300) rst_300  <= !rst_main_n;
 
-if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(1)) zcash_if_rx (i_clk_if);
-if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(1)) zcash_if_tx (i_clk_if);
-if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) aws_if_rx (i_clk_if);
-if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) aws_if_tx (i_clk_if);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(1)) zcash_if_rx (clk_if);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(1)) zcash_if_tx (clk_if);
+if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) aws_if_rx (clk_if);
+if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) aws_if_tx (clk_if);
 
 always_comb begin
   aws_if_tx.dat = h2c_axis_data;
@@ -298,27 +298,6 @@ zcash_fpga_top (
   .rx_if ( zcash_if_rx ),
   .tx_if ( zcash_if_tx )
 );
-input logic [DAT_BITS-1:0] dat_=0, input logic val_=0, sop_=0, eop_=0, err_=0, input  logic [MOD_BITS-1:0] mod_=0, input logic [CTL_BITS-1:0] ctl_=0);
-   .c2h_axis_valid      (c2h_axis_valid ),
-   .c2h_axis_data       (c2h_axis_data  ),
-   .c2h_axis_keep       (c2h_axis_keep  ),
-   .c2h_axis_user       (c2h_axis_user  ),
-   .c2h_axis_last       (c2h_axis_last  ),
-   .c2h_axis_ready      (c2h_axis_ready ),
-
-   .h2c_axis_valid      (h2c_axis_valid ),
-   .h2c_axis_data       (h2c_axis_data  ),
-   .h2c_axis_keep       (h2c_axis_keep  ),
-   .h2c_axis_user       (h2c_axis_user  ),
-   .h2c_axis_last       (h2c_axis_last  ),
-   .h2c_axis_ready      (h2c_axis_ready )
-
-
-always_comb begin
-  zcash_if_tx.rsy = 1;
-  zcash_if_rx.copy_if_comb();
-end
-
 
 (* dont_touch = "true" *)    logic         rst_main_n_sync_bot_slr;
    lib_pipe #(.WIDTH(1), .STAGES(2)) PIPE_RST_N_BOT_SLR (.clk(clk_main_a0), .rst_n(1'b1), .in_bus(rst_main_n_sync), .out_bus(rst_main_n_sync_bot_slr));
