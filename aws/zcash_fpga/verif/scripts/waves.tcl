@@ -24,7 +24,10 @@ set curr_wave [current_wave_config]
 #}
 
 add_wave /tb/card/fpga/CL/*
+add_wave /tb/card/fpga/CL/zcash_if_rx/*
+add_wave /tb/card/fpga/CL/zcash_if_tx/*
+add_wave /tb/card/fpga/CL/aws_if_rx/*
+add_wave /tb/card/fpga/CL/aws_if_tx/*
 
-
-run 200 us 
+run 200 us
 quit
