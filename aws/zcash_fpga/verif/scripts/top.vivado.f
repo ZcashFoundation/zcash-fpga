@@ -110,6 +110,10 @@ ${HDK_COMMON_DIR}/verif/models/base/gen_buf_t.sv
 ${HDK_COMMON_DIR}/verif/models/stream_bfm/stream_bfm.sv
 ${CL_ROOT}/design/cl_sde.sv
 
+${CL_ROOT}/design/zcash_aws_wrapper.sv
+
+
+
 -f ${ZCASH_DIR}/zcash_fpga/src/rtl/top/include.f
 
 -f ${HDK_COMMON_DIR}/verif/tb/filelists/tb.${SIMULATOR}.f

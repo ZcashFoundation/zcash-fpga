@@ -27,12 +27,6 @@ module  cl_sde
    assign clk = clk_main_a0; // 125MHz
    assign rst_n = rst_main_n;
 
-   logic clk_100, clk_200, clk_300;
-   always_comb begin
-     clk_100 = clk_main_a0; // 125MHz
-     clk_200 = clk_extra_a2; // 187MHz
-     clk_300 = clk_extra_b0; // 300MHz
-   end
 
 `ifndef CL_VERSION
    `define CL_VERSION 32'h10df_f002
@@ -241,6 +235,90 @@ always @(posedge clk_main_a0)
       pre_sync_rst_n  <= 1;
       rst_main_n_sync <= pre_sync_rst_n;
    end
+
+//////////////////////////////////////////////////////////////////////////////////
+// zcash logic
+localparam DAT_BYTS = 8;
+
+logic clk_if, clk_100, clk_200, clk_300;
+logic rst_if, rst_100, rst_200, rst_300;
+
+always_comb begin
+  clk_if = clk_main_a0;
+  clk_100 = clk_main_a0;  // 125MHz
+  clk_200 = clk_extra_a2; // 187MHz
+  clk_300 = clk_extra_b0; // 300MHz
+end
+
+always_ff @(posedge clk_if) rst_if  <= !rst_main_n;
+always_ff @(posedge clk_100) rst_100  <= !rst_main_n;
+always_ff @(posedge clk_200) rst_200  <= !rst_main_n;
+always_ff @(posedge clk_300) rst_300  <= !rst_main_n;
+
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(1)) zcash_if_rx (i_clk_if);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(1)) zcash_if_tx (i_clk_if);
+if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) aws_if_rx (i_clk_if);
+if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) aws_if_tx (i_clk_if);
+
+always_comb begin
+  aws_if_tx.dat = h2c_axis_data;
+  aws_if_tx.val = h2c_axis_valid;
+  aws_if_tx.eop = h2c_axis_last;
+  aws_if_tx.err = 0;
+  aws_if_tx.ctl = 0;
+  aws_if_tx.mod = 0;
+  //h2c_axis_ready = h2c_axis_ready.rdy;
+
+  aws_if_rx.rdy = 1;
+end
+
+ zcash_aws_wrapper zcash_aws_wrapper (
+  .i_rst ( rst_if ),
+  .i_clk ( clk_if ),
+  .rx_aws_if ( aws_if_tx ),
+  .tx_aws_if ( aws_if_rx ),
+  .rx_zcash_if ( zcash_if_tx ),
+  .tx_zcash_if ( zcash_if_rx )
+);
+
+
+zcash_fpga_top #(
+  .DAT_BYTS ( DAT_BYTS )
+)
+zcash_fpga_top (
+  // Clocks and resets
+  .i_clk_100 ( clk_100 ),
+  .i_rst_100 ( rst_100 ),
+  .i_clk_200 ( clk_200 ),
+  .i_rst_200 ( rst_200 ),
+  .i_clk_300 ( clk_300 ),
+  .i_rst_300 ( rst_300 ),
+  .i_clk_if  ( clk_if ),
+  .i_rst_if  ( rst_if ),
+  .rx_if ( zcash_if_rx ),
+  .tx_if ( zcash_if_tx )
+);
+input logic [DAT_BITS-1:0] dat_=0, input logic val_=0, sop_=0, eop_=0, err_=0, input  logic [MOD_BITS-1:0] mod_=0, input logic [CTL_BITS-1:0] ctl_=0);
+   .c2h_axis_valid      (c2h_axis_valid ),
+   .c2h_axis_data       (c2h_axis_data  ),
+   .c2h_axis_keep       (c2h_axis_keep  ),
+   .c2h_axis_user       (c2h_axis_user  ),
+   .c2h_axis_last       (c2h_axis_last  ),
+   .c2h_axis_ready      (c2h_axis_ready ),
+
+   .h2c_axis_valid      (h2c_axis_valid ),
+   .h2c_axis_data       (h2c_axis_data  ),
+   .h2c_axis_keep       (h2c_axis_keep  ),
+   .h2c_axis_user       (h2c_axis_user  ),
+   .h2c_axis_last       (h2c_axis_last  ),
+   .h2c_axis_ready      (h2c_axis_ready )
+
+
+always_comb begin
+  zcash_if_tx.rsy = 1;
+  zcash_if_rx.copy_if_comb();
+end
+
 
 (* dont_touch = "true" *)    logic         rst_main_n_sync_bot_slr;
    lib_pipe #(.WIDTH(1), .STAGES(2)) PIPE_RST_N_BOT_SLR (.clk(clk_main_a0), .rst_n(1'b1), .in_bus(rst_main_n_sync), .out_bus(rst_main_n_sync_bot_slr));
@@ -1219,22 +1297,6 @@ always @(posedge clk_main_a0)
      .ila_rready   (sh_cl_dma_pcis_rready  )
       );
 
-  zcash_fpga_top #(
-    .DAT_BYTS ( 8 )
-  )
-  zcash_fpga_top (
-    // Clocks and resets
-    .i_clk_100 ( clk_100 ),
-    .i_rst_100 ( rst_100 ),
-    .i_clk_200 ( clk_200 ),
-    .i_rst_200 ( rst_200 ),
-    .i_clk_300 ( clk_300 ),
-    .i_rst_300 ( rst_300 ),  
-    .i_clk_if    ( clk_300 ),
-    .i_rst_if    ( rst_300 ),
-    .rx_if ( uart_axi_tx ),
-    .tx_if ( uart_axi_rx )
-  );
 
    ila_axi4_wrapper #(.AXI_DATA_WIDTH(32)) PCIM_AXI4_SH_CL_BOUNDARY_ILA
      (.aclk         (clk),
