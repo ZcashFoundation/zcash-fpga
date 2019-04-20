@@ -266,7 +266,7 @@ always_comb begin
   aws_if_tx.eop = h2c_axis_last;
   aws_if_tx.err = 0;
   aws_if_tx.ctl = 0;
-  aws_if_tx.mod = 0;
+  aws_if_tx.mod = $countones(h2c_axis_keep);
   //h2c_axis_ready = h2c_axis_ready.rdy;
 
   aws_if_rx.rdy = 1;

@@ -17,11 +17,13 @@ module test_status_request();
 
 timeunit 1ns/100ps;
 
+import zcash_fpga_pkg::*;
+
 `define STREAM_BFM tb.card.fpga.CL.STREAM_BFM
 
 `include "test_base.inc"
 
-import zcash_fpga_pkg::*;
+
 
 zcash_fpga_pkg::header_t  header;
 

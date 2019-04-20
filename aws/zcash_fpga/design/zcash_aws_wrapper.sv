@@ -17,7 +17,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-module zcash_aws_wrapper(
+module zcash_aws_wrapper (
   input i_rst,
   input i_clk,
   if_axi_stream.sink   rx_aws_if,
@@ -26,8 +26,8 @@ module zcash_aws_wrapper(
   if_axi_stream.source tx_zcash_if
 );
 
-if_axi_stream #(.DAT_BYTS(rx_aws_if.DAT_BYTS), .CTL_BITS(1)) rx_int (rx_aws_if.i_clk) ;
-if_axi_stream #(.DAT_BYTS(tx_aws_if.DAT_BYTS), .CTL_BITS(1)) tx_int (tx_aws_if.i_clk) ;
+if_axi_stream #(.DAT_BYTS(8), .CTL_BITS(1)) rx_int (rx_aws_if.i_clk) ;
+if_axi_stream #(.DAT_BYTS(8), .CTL_BITS(1)) tx_int (tx_aws_if.i_clk) ;
 
 axis_dwidth_converter_8_to_64 converter_8_to_64 (
   .aclk(i_clk),
@@ -53,7 +53,6 @@ axis_data_fifo_8 tx_fifo (
   .m_axis_tready(tx_int.rdy),
   .m_axis_tdata(tx_int.dat),
   .m_axis_tlast(tx_int.eop),
-  .axis_data_count(),
   .axis_wr_data_count(),
   .axis_rd_data_count()
 );
@@ -82,7 +81,6 @@ axis_data_fifo_8 rx_fifo (
   .m_axis_tready(tx_zcash_if.rdy),
   .m_axis_tdata(tx_zcash_if.dat),
   .m_axis_tlast(tx_zcash_if.eop),
-  .axis_data_count(),
   .axis_wr_data_count(),
   .axis_rd_data_count()
 );
