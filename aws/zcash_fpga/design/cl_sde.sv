@@ -238,6 +238,8 @@ always @(posedge clk_main_a0)
 
 //////////////////////////////////////////////////////////////////////////////////
 // zcash logic
+
+logic cfg_wire_zcash_enb;
 localparam DAT_BYTS = 8;
 
 logic clk_if, clk_100, clk_200, clk_300;
@@ -262,14 +264,13 @@ if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) aws_if_tx (clk_if);
 
 always_comb begin
   aws_if_tx.dat = h2c_axis_data;
-  aws_if_tx.val = h2c_axis_valid;
+  aws_if_tx.val = h2c_axis_valid && cfg_wire_zcash_enb;
   aws_if_tx.eop = h2c_axis_last;
   aws_if_tx.err = 0;
   aws_if_tx.ctl = 0;
-  aws_if_tx.mod = $countones(h2c_axis_keep);
-  //h2c_axis_ready = h2c_axis_ready.rdy;
+  aws_if_tx.set_mod_from_keep(h2c_axis_keep);
 
-  aws_if_rx.rdy = 1;
+  aws_if_rx.rdy = c2h_axis_ready;
 end
 
  zcash_aws_wrapper zcash_aws_wrapper (
@@ -776,13 +777,13 @@ cl_sde_srm CL_SDE_SRM (
    );
 
 //Mux between RTL and BFM stream blocks
-   assign h2c_axis_ready = cfg_sde_wire_loopback ? c2h_axis_ready : (use_stream_bfm)? bfm_h2c_axis_ready: srm_h2c_axis_ready;
+ assign h2c_axis_ready = cfg_wire_zcash_enb ? aws_if_tx.rdy : cfg_sde_wire_loopback ? c2h_axis_ready : (use_stream_bfm)? bfm_h2c_axis_ready: srm_h2c_axis_ready;
 
-assign c2h_axis_valid = cfg_sde_wire_loopback ? h2c_axis_valid : (use_stream_bfm)? bfm_c2h_axis_valid: srm_c2h_axis_valid;
-assign c2h_axis_data =  cfg_sde_wire_loopback ? h2c_axis_data  : (use_stream_bfm)? bfm_c2h_axis_data: srm_c2h_axis_data;
-assign c2h_axis_keep =  cfg_sde_wire_loopback ? h2c_axis_keep  : (use_stream_bfm)? bfm_c2h_axis_keep: srm_c2h_axis_keep;
-assign c2h_axis_user =  cfg_sde_wire_loopback ? h2c_axis_user  : (use_stream_bfm)? bfm_c2h_axis_user: srm_c2h_axis_user;
-assign c2h_axis_last =  cfg_sde_wire_loopback ? h2c_axis_last  : (use_stream_bfm)? bfm_c2h_axis_last: srm_c2h_axis_last;
+assign c2h_axis_valid = cfg_wire_zcash_enb ? aws_if_rx.val : cfg_sde_wire_loopback ? h2c_axis_valid : (use_stream_bfm)? bfm_c2h_axis_valid: srm_c2h_axis_valid;
+assign c2h_axis_data =  cfg_wire_zcash_enb ? aws_if_rx.dat : cfg_sde_wire_loopback ? h2c_axis_data  : (use_stream_bfm)? bfm_c2h_axis_data: srm_c2h_axis_data;
+assign c2h_axis_keep =  cfg_wire_zcash_enb ? aws_if_rx.get_keep_from_mod() : cfg_sde_wire_loopback ? h2c_axis_keep  : (use_stream_bfm)? bfm_c2h_axis_keep: srm_c2h_axis_keep;
+assign c2h_axis_user =  cfg_wire_zcash_enb ? 64'd0 : cfg_sde_wire_loopback ? h2c_axis_user  : (use_stream_bfm)? bfm_c2h_axis_user: srm_c2h_axis_user;
+assign c2h_axis_last =  cfg_wire_zcash_enb ? aws_if_rx.eop : cfg_sde_wire_loopback ? h2c_axis_last  : (use_stream_bfm)? bfm_c2h_axis_last: srm_c2h_axis_last;
 
 
 //-------------------------------------
@@ -881,7 +882,7 @@ logic cfg_srm_dec;
    logic [31:0]  tst_cfg_rdata;
 
 
-logic[31:0] cfg_ctl_reg[3:0] = '{default:'0};
+logic[31:0] cfg_ctl_reg[4:0] = '{default:'0};
 
 always @(posedge clk_main_a0)
   if (!rst_main_n_sync_mid_slr) begin
@@ -966,7 +967,7 @@ always @(posedge clk_main_a0)
       rdata  <= (cfg_srm_dec)?   srm_cfg_rdata:
                 cfg_chk_dec ? chk_cfg_rdata :
                 cfg_tst_dec ? tst_cfg_rdata :
-                cfg_ctl_reg[araddr_q[3:2]];
+                cfg_ctl_reg[araddr_q[4:2]];
    end
 
 // assign rd_done = (rd_req && !cfg_srm_dec) || (rd_req_lvl && srm_cfg_ack);
@@ -996,10 +997,10 @@ assign cfg_tst_wr = wr_req && cfg_tst_dec;
 assign cfg_tst_rd = rd_req && cfg_tst_dec;
 assign cfg_tst_wdata = wdata_q;
 
-//4 general purpose control registers
+//5 general purpose control registers
 always @(posedge clk_main_a0)
    if (wr_req && (wr_addr[15:0] >= 16'h2000) && (wr_addr[15:0]<=16'h2ffc))
-      cfg_ctl_reg[wr_addr[3:2]] <= wdata_q;
+      cfg_ctl_reg[wr_addr[4:2]] <= wdata_q;
 
    logic cfg_atg_en;
 
@@ -1007,6 +1008,7 @@ always @(posedge clk_main_a0)
    assign cfg_sde_wire_loopback = cfg_ctl_reg[0][1];
    assign cfg_arid_inc_mode = cfg_ctl_reg[0][2];
    assign cfg_atg_en = cfg_ctl_reg[0][3];
+   assign cfg_wire_zcash_enb = cfg_ctl_reg[0][4];
 
 `ifdef CL_SDE_AXI_PROT_CHK
 
