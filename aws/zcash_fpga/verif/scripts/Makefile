@@ -19,7 +19,7 @@ else
 $(info VIVADO_TOOL_VERSION = $(VIVADO_TOOL_VERSION))
 endif
 
-export ZCASH_DIR = /home/bsdevlin/zcash-fpga
+export ZCASH_DIR ?= /home/bsdevlin/zcash-fpga
 
 export TEST ?= test_null
 export C_TEST ?= test_null
