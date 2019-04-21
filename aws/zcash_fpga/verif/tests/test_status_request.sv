@@ -32,6 +32,7 @@ bit desc_type = 0;
 int pkt_length = 256;         //packet length.  Currently is constant, can be variable
 
 gen_buf_t cur_pst_pkt;        //Current packet we are posting
+gen_buf_t rpl_pkt;
 dma_buf_t tmp_buf;            //DMA buffer used to post packets (a descriptors worth)
 
 dma_buf_t dbg_buf;
@@ -44,6 +45,8 @@ int pkt_accum_length;            //As allocating buffers track size as use descr
 int cur_desc_size;               //current descriptor size
 int cur_desc_offset;             //descriptor offset.
 bit desc_eop;                    //Descriptor EOP bit (current descriptor is last of a packet)
+
+zcash_fpga_pkg::fpga_status_rpl_t fpga_status_rpl;
 
 initial
 begin
@@ -80,37 +83,49 @@ begin
       enable_c2h_auto_check = 1;
       sde.c2h_configure();
       tb.poke_ocl(.addr(64'h180), .data(32'h0000_0001));
-      fork : FORK_C2H_SB_THREAD
+      $display("ENABLING LOOPBACK");
+     end else begin
+     // Enble zcash block
+     enable_c2h_auto_check = 1;
+     sde.c2h_configure();
+     $display("ENABLING ZCASH BLOCK");
+     tb.poke_ocl(.addr(64'h2008), .data(32'h0000_0001));
+
+   end
+
+    fork : FORK_C2H_SB_THREAD
          sde.process_c2h_wb_thread;
          sde.post_c2h_desc_thread;
-      join_none
-   end
-   else
-      //Enable the H2C auto checking
-      enable_h2c_auto_check = 1;
+     join_none
 
+   
    //Post the packets (cfg_num_pkts)
    for (int i=0; i<cfg_num_pkts; i++)
    begin
 
       //Create a new packet to post, and initialize the data.  This is just a generic buffer that represents the packet.
-      cur_pst_pkt = new();
-      //cur_pst_pkt.init_inc((i<<28 | i<<24 | i<<20 | i<<16), pkt_length );
       header.cmd = zcash_fpga_pkg::FPGA_STATUS;
       header.len = $bits(header_t)/8;
       pkt_length = header.len;
+      cur_pst_pkt = new();
       for (int i = 0; i < header.len; i++) begin
         cur_pst_pkt.data.push_back(header[i*8 +: 8]);
       end
 
       //If loopback, packet will get back to Host
-      if (cfg_srm_lb_mode) begin
-         $display("Loopback was enabled!");
-         exp_c2h_pkt_q.push_back(cur_pst_pkt);
+      if (cfg_srm_lb_mode) begin     
+	      exp_c2h_pkt_q.push_back(cur_pst_pkt);
       end
-      else
-         //Push the packet onto the expect queue for end of sim checking
-         exp_h2c_pkt_q.push_back(cur_pst_pkt);
+      else begin
+         //Status reply message
+	fpga_status_rpl = get_fpga_status_rpl("test", "20180311", 0);
+	rpl_pkt = new();
+        for (int i = 0; i < fpga_status_rpl.hdr.len; i++) begin
+          rpl_pkt.data.push_back(fpga_status_rpl[i*8 +: 8]);
+        end
+	exp_c2h_pkt_q.push_back(rpl_pkt);
+        
+      end
 
       //Create descriptor(s) for the packet
       desc_eop = 0;
@@ -121,8 +136,8 @@ begin
          cur_desc_offset = 7;
 
          //Make descriptor size the page size for simplicity.  This is not required, can change this and make variable
-         //cur_desc_size = sde.page_size;
-         cur_desc_size = 64;
+         cur_desc_size = sde.page_size;
+         //cur_desc_size = 8;
 
          //Make sure desc offset/size is valid, if not reset to offset=0, size=page_size
          if ((cur_desc_size + cur_desc_offset) > sde.page_size)
@@ -177,19 +192,13 @@ begin
 
    //Wait for all the packets to be received
    fork
-   begin
-      if (cfg_srm_lb_mode)
-         wait (c2h_pkts_checked == cfg_num_pkts);
-      else
-         wait (h2c_pkts_checked == cfg_num_pkts);
-   end
+     begin
+       wait (c2h_pkts_checked == cfg_num_pkts);   
+     end
    begin
       dly_clks(1000 * cfg_num_pkts);
-      if (cfg_srm_lb_mode)
-         $display($time,,,"test_simple_h2c: ***ERROR*** waiting for RX Stream packets timeout (loopback to is C2H), num_received=0x%x, expected=0x%x", c2h_pkts_checked, cfg_num_pkts);
-      else
-         $display($time,,,"test_simple_h2c: ***ERROR*** waiting for RX Stream packets timeout, num_received=0x%x, expected=0x%x", h2c_pkts_checked, cfg_num_pkts);
-      $finish;
+      $display($time,,,"test_simple_h2c: ***ERROR*** waiting for RX Stream packets timeout (loopback to is C2H), num_received=0x%x, expected=0x%x", c2h_pkts_checked, cfg_num_pkts);
+     $finish;
    end
    join_any
    disable fork;

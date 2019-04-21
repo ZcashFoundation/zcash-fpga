@@ -26,8 +26,13 @@ module zcash_aws_wrapper (
   if_axi_stream.source tx_zcash_if
 );
 
-logic [7:0] tx_aws_if_keep, tx_zcash_if_keep;
+logic [7:0] rx_zcash_if_keep, tx_zcash_if_keep;
+logic [63:0] tx_aws_if_keep, rx_aws_if_keep;
+
 always_comb begin
+  rx_zcash_if_keep = rx_zcash_if.get_keep_from_mod();
+  rx_aws_if_keep = rx_aws_if.get_keep_from_mod();
+
   tx_aws_if.set_mod_from_keep( tx_aws_if_keep );
   tx_zcash_if.set_mod_from_keep( tx_zcash_if_keep );
 end
@@ -39,7 +44,7 @@ axis_dwidth_converter_8_to_64 converter_8_to_64 (
   .s_axis_tready(rx_zcash_if.rdy),
   .s_axis_tdata(rx_zcash_if.dat),
   .s_axis_tlast(rx_zcash_if.eop),
-  .s_axis_tkeep(rx_zcash_if.get_keep_from_mod()),
+  .s_axis_tkeep(rx_zcash_if_keep),
   .m_axis_tvalid(tx_aws_if.val),
   .m_axis_tready(tx_aws_if.rdy),
   .m_axis_tdata(tx_aws_if.dat),
@@ -54,7 +59,7 @@ axis_dwidth_converter_64_to_8 converter_64_to_8 (
   .s_axis_tready(rx_aws_if.rdy),
   .s_axis_tdata(rx_aws_if.dat),
   .s_axis_tlast(rx_aws_if.eop),
-  .s_axis_tkeep(rx_aws_if.get_keep_from_mod()),
+  .s_axis_tkeep(rx_aws_if_keep),
   .m_axis_tvalid(tx_zcash_if.val),
   .m_axis_tready(tx_zcash_if.rdy),
   .m_axis_tdata(tx_zcash_if.dat),

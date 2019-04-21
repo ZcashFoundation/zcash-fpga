@@ -38,11 +38,13 @@ interface if_axi_stream # (
   logic [DAT_BITS-1:0] dat;
   logic [MOD_BITS-1:0] mod;
 
-  modport sink (input val, err, sop, eop, ctl, dat, mod, i_clk, output rdy);
+  modport sink (input val, err, sop, eop, ctl, dat, mod, i_clk, output rdy,
+  import task get_keep_from_mod());
   modport source (output val, err, sop, eop, ctl, dat, mod, input rdy, i_clk,
                   import task reset_source(),
                   import task copy_if(dat_, val_, sop_, eop_, err_, mod_, ctl_),
-                  import task copy_if_comb(dat_, val_, sop_, eop_, err_, mod_, ctl_));
+                  import task copy_if_comb(dat_, val_, sop_, eop_, err_, mod_, ctl_),
+	  	  import task set_mod_from_keep(keep));
 
   // Task to reset a source interface signals to all 0
   task reset_source();
@@ -81,11 +83,12 @@ interface if_axi_stream # (
 
 
   function [DAT_BYTS-1:0] get_keep_from_mod();
-    get_keep_from_mod = 0;
+    get_keep_from_mod = {DAT_BYTS{1'b0}};
     for (int i = 0; i < DAT_BYTS; i++) begin
-      if (mod == 0 || i <= mod)
+      if (mod == 0 || i < mod)
         get_keep_from_mod[i] = 1;
     end
+    return get_keep_from_mod;
   endfunction
 
   // Task used in simulation to drive data on a source interface

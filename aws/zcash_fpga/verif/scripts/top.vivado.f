@@ -15,7 +15,7 @@
 
 -define VIVADO_SIM
 -define CARD_1=card
--define CL_NAME=cl_sde
+-define CL_NAME=zcash_cl_sde
 -define SIMULATION
 -define NO_SDE_DEBUG_ILA
 -define DISABLE_VJTAG_DEBUG
@@ -108,10 +108,7 @@ ${CL_ROOT}/design/sde_desc.sv
 ${CL_ROOT}/design/sde.sv
 ${HDK_COMMON_DIR}/verif/models/base/gen_buf_t.sv
 ${HDK_COMMON_DIR}/verif/models/stream_bfm/stream_bfm.sv
-${CL_ROOT}/design/cl_sde.sv
-
-${CL_ROOT}/ip/axis_data_fifo_8/sim/axis_data_fifo_8.v
-${CL_ROOT}/ip/axis_data_fifo_8/hdl/axis_data_fifo_v2_0_vl_rfs.v
+${CL_ROOT}/design/zcash_cl_sde.sv
 
 ${CL_ROOT}/ip/axis_dwidth_converter_64_to_8/sim/axis_dwidth_converter_64_to_8.v
 ${CL_ROOT}/ip/axis_dwidth_converter_64_to_8/hdl/axis_dwidth_converter_v1_1_vl_rfs.v
