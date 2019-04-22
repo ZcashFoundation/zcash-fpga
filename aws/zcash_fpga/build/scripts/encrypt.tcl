@@ -18,6 +18,7 @@
 # Add check if /build and /build/src_port_encryption directories exist
 # Add check if the vivado_keyfile exist
 
+set ZCASH_DIR $::env(ZCASH_DIR)
 set HDK_SHELL_DIR $::env(HDK_SHELL_DIR)
 set HDK_SHELL_DESIGN_DIR $::env(HDK_SHELL_DESIGN_DIR)
 set CL_DIR $::env(CL_DIR)
@@ -32,6 +33,20 @@ exec rm -f $TARGET_DIR/*
 #---- Developr would replace this section with design files ----
 
 ## Change file names and paths below to reflect your CL area.  DO NOT include AWS RTL files.
+
+
+set fileName "${ZCASH_DIR}/zcash_fpga/src/rtl/top/include.f"
+catch {set fptr [open $fileName r]} ;
+set contents [read -nonewline $fptr] ;#Read the file contents
+close $fptr ;#Close the file since it has been read now
+set splitCont [split $contents "\n"] ;#Split the files contents on new line
+foreach ele $splitCont {
+  set filep [subst $ele]
+  if { [file exists $filep] } {
+    file copy -force $filep $TARGET_DIR
+    puts "Copied $filep into $TARGET_DIR"
+  }
+}
 
 file copy -force $CL_DIR/../common/design/cl_common_defines.vh       $TARGET_DIR
 file copy -force $UNUSED_TEMPLATES_DIR/unused_flr_template.inc       $TARGET_DIR
@@ -50,6 +65,8 @@ file copy -force $CL_DIR/lib/axis_flop_fifo.sv $TARGET_DIR
 file copy -force $CL_DIR/lib/ram_fifo_ft.sv    $TARGET_DIR
 
 file copy -force $CL_DIR/design/ila_axi4_wrapper.sv $TARGET_DIR
+
+file copy -force $CL_DIR/design/zcash_aws_wrapper.sv      $TARGET_DIR
 
 file copy -force $CL_DIR/design/sde_pkg.sv      $TARGET_DIR
 file copy -force $CL_DIR/design/sde.sv          $TARGET_DIR
@@ -73,7 +90,7 @@ file copy -force $CL_DIR/design/cl_id_defines.vh   $TARGET_DIR
 file copy -force $CL_DIR/design/cl_pkt_tst.sv $TARGET_DIR
 file copy -force $CL_DIR/design/cl_tst.sv     $TARGET_DIR
 file copy -force $CL_DIR/design/cl_sde_srm.sv      $TARGET_DIR
-file copy -force $CL_DIR/design/cl_sde.sv          $TARGET_DIR
+file copy -force $CL_DIR/design/zcash_cl_sde.sv    $TARGET_DIR
 file copy -force $CL_DIR/design/axi_prot_chk.sv    $TARGET_DIR
 
 #---- End of section replaced by Developr ---

@@ -19,7 +19,7 @@ package require tar
 set TOP top_sp
 
 ## Replace with the name of your module
-set CL_MODULE cl_sde 
+set CL_MODULE zcash_cl_sde 
 
 #################################################
 ## Command-line Arguments

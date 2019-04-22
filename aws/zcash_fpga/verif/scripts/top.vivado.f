@@ -15,7 +15,7 @@
 
 -define VIVADO_SIM
 -define CARD_1=card
--define CL_NAME=cl_sde
+-define CL_NAME=zcash_cl_sde
 -define SIMULATION
 -define NO_SDE_DEBUG_ILA
 -define DISABLE_VJTAG_DEBUG
@@ -108,7 +108,21 @@ ${CL_ROOT}/design/sde_desc.sv
 ${CL_ROOT}/design/sde.sv
 ${HDK_COMMON_DIR}/verif/models/base/gen_buf_t.sv
 ${HDK_COMMON_DIR}/verif/models/stream_bfm/stream_bfm.sv
-${CL_ROOT}/design/cl_sde.sv
+${CL_ROOT}/design/zcash_cl_sde.sv
+
+${CL_ROOT}/ip/axis_dwidth_converter_64_to_8/sim/axis_dwidth_converter_64_to_8.v
+${CL_ROOT}/ip/axis_dwidth_converter_64_to_8/hdl/axis_dwidth_converter_v1_1_vl_rfs.v
+${CL_ROOT}/ip/axis_dwidth_converter_64_to_8/hdl/axis_infrastructure_v1_1_0.vh
+${CL_ROOT}/ip/axis_dwidth_converter_64_to_8/hdl/axis_infrastructure_v1_1_vl_rfs.v
+${CL_ROOT}/ip/axis_dwidth_converter_64_to_8/hdl/axis_register_slice_v1_1_vl_rfs.v
+
+${CL_ROOT}/ip/axis_dwidth_converter_8_to_64/sim/axis_dwidth_converter_8_to_64.v
+
+
+${CL_ROOT}/design/zcash_aws_wrapper.sv
+
+
+-f ${ZCASH_DIR}/zcash_fpga/src/rtl/top/include.f
 
 -f ${HDK_COMMON_DIR}/verif/tb/filelists/tb.${SIMULATOR}.f
 ${HDK_COMMON_DIR}/verif/tb/sv/dma_classes.sv

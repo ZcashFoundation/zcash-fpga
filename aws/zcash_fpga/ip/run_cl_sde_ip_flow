@@ -7,6 +7,8 @@ mkdir ila_sde_c2h_dm
 mkdir ila_sde_h2c_buf
 mkdir ila_sde_ps
 mkdir ila_sde_wb
+mkdir axis_dwidth_converter_64_to_8
+mkdir axis_dwidth_converter_8_to_64
 
 cp ila_axi4.xci ila_axi4/ila_axi4.xci
 cp ila_sde_h2c_dm.xci ila_sde_h2c_dm/ila_sde_h2c_dm.xci
@@ -17,6 +19,8 @@ cp ila_sde_c2h_dm.xci ila_sde_c2h_dm/ila_sde_c2h_dm.xci
 cp ila_sde_h2c_buf.xci ila_sde_h2c_buf/ila_sde_h2c_buf.xci
 cp ila_sde_ps.xci ila_sde_ps/ila_sde_ps.xci
 cp ila_sde_wb.xci ila_sde_wb/ila_sde_wb.xci
+cp axis_dwidth_converter_64_to_8.xci axis_dwidth_converter_64_to_8/axis_dwidth_converter_64_to_8.xci
+cp axis_dwidth_converter_8_to_64.xci axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci
 
 vivado -mode batch -source cl_sde_ip_setup.tcl
 

@@ -11,3 +11,6 @@ rm -rf ila_sde_c2h_dm/
 rm -rf ila_sde_h2c_buf/
 rm -rf ila_sde_ps/
 rm -rf ila_sde_wb/
+rm -rf axis_data_fifo_8
+rm -rf axis_dwidth_converter_64_to_8
+rm -rf axis_dwidth_converter_8_to_64

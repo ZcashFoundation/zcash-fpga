@@ -14,17 +14,21 @@
 # limitations under the License.
 
 set curr_wave [current_wave_config]
-#if { [string length $curr_wave] == 0 } {
-#  if { [llength [get_objects]] > 0} {
-#    add_wave /
-#    set_property needs_save false [current_wave_config]
-#  } else {
-#     send_msg_id Add_Wave-1 WARNING "No top level signals found. Simulator will start without a wave window. If you want to open a wav#e window go to 'File->New Waveform Configuration' or type 'create_wave_config' in the TCL console."
-#  }
-#}
+if { [string length $curr_wave] == 0 } {
+  if { [llength [get_objects]] > 0} {
+    add_wave /
+    set_property needs_save false [current_wave_config]
+  } else {
+     send_msg_id Add_Wave-1 WARNING "No top level signals found. Simulator will start without a wave window. If you want to open a wav#e window go to 'File->New Waveform Configuration' or type 'create_wave_config' in the TCL console."
+  }
+}
 
 add_wave /tb/card/fpga/CL/*
+add_wave /tb/card/fpga/CL/CL_SDE_SRM/*
+add_wave /tb/card/fpga/CL/zcash_if_rx/*
+add_wave /tb/card/fpga/CL/zcash_if_tx/*
+add_wave /tb/card/fpga/CL/aws_if_rx/*
+add_wave /tb/card/fpga/CL/aws_if_tx/*
 
 
-run 200 us 
-quit
+run 200 us

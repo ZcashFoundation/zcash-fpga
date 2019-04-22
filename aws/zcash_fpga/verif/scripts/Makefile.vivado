@@ -25,5 +25,5 @@ compile:
 
 
 run:
-	cd $(SIM_DIR) && xsim -R -log $(TEST).log $(PLUSARGS) -tclbatch $(SCRIPTS_DIR)/waves.tcl tb
+	cd $(SIM_DIR) && xsim -R -log $(TEST).log $(PLUSARGS) -tclbatch $(SCRIPTS_DIR)/waves.tcl tb 
 
