@@ -78,7 +78,10 @@ interface if_axi_stream # (
   endtask
 
   task set_mod_from_keep(input logic [DAT_BYTS-1:0] keep);
-    mod = $countones(keep);
+    mod = 0;
+    for (int i = 0; i < DAT_BYTS; i++)
+      if (keep[i])
+        mod += 1;	      
   endtask
 
 
