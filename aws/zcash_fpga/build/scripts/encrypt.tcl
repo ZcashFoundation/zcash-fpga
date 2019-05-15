@@ -18,21 +18,23 @@
 # Add check if /build and /build/src_port_encryption directories exist
 # Add check if the vivado_keyfile exist
 
-set ZCASH_DIR $::env(ZCASH_DIR)
-set HDK_SHELL_DIR $::env(HDK_SHELL_DIR)
-set HDK_SHELL_DESIGN_DIR $::env(HDK_SHELL_DESIGN_DIR)
-set CL_DIR $::env(CL_DIR)
+#set ZCASH_DIR $::env(ZCASH_DIR)
+#set HDK_SHELL_DIR $::env(HDK_SHELL_DIR)
+#set HDK_SHELL_DESIGN_DIR $::env(HDK_SHELL_DESIGN_DIR)
+#set CL_DIR $::env(CL_DIR)
+
 
 set TARGET_DIR $CL_DIR/build/src_post_encryption
 set UNUSED_TEMPLATES_DIR $HDK_SHELL_DESIGN_DIR/interfaces
 
 
 # Remove any previously encrypted files, that may no longer be used
-exec rm -f $TARGET_DIR/*
+#exec del -f $TARGET_DIR/*
 
 #---- Developr would replace this section with design files ----
 
 ## Change file names and paths below to reflect your CL area.  DO NOT include AWS RTL files.
+
 
 
 set fileName "${ZCASH_DIR}/zcash_fpga/src/rtl/top/include.f"
@@ -99,7 +101,7 @@ file copy -force $CL_DIR/design/axi_prot_chk.sv    $TARGET_DIR
 
 # Make sure files have write permissions for the encryption
 
-exec chmod +w {*}[glob $TARGET_DIR/*]
+#exec chmod +w {*}[glob $TARGET_DIR/*]
 
 # encrypt .v/.sv/.vh/inc as verilog files
 #encrypt -k $HDK_SHELL_DIR/build/scripts/vivado_keyfile.txt -lang verilog  [glob -nocomplain -- $TARGET_DIR/*.{v,sv}] [glob -nocomplain -- $TARGET_DIR/*.vh] [glob -nocomplain -- $TARGET_DIR/*.inc]

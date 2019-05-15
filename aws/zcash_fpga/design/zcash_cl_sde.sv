@@ -248,7 +248,7 @@ logic rst_if, rst_100, rst_200, rst_300;
 always_comb begin
   clk_if = clk_main_a0;
   clk_100 = clk_main_a0;  // 125MHz
-  clk_200 = clk_extra_a2; // 187MHz
+  clk_200 = clk_main_a0; // 187MHz
   clk_300 = clk_extra_b0; // 300MHz
 end
 
