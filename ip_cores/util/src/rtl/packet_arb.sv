@@ -24,7 +24,8 @@ module packet_arb # (
   parameter CTL_BITS,
   parameter NUM_IN,
   parameter OVR_WRT_BIT = CTL_BITS - $clog2(NUM_IN), // What bits in ctl are overwritten with channel id
-  parameter PIPELINE = 1
+  parameter PIPELINE = 1,
+  parameter PRIORITY_IN = 0
 ) (
   input i_clk, i_rst,
 
@@ -127,9 +128,17 @@ end
 function [$clog2(NUM_IN)-1:0] get_next(input [NUM_IN-1:0] idx);
   get_next = idx;
   for (int i = 0; i < NUM_IN; i++)
-    if (val[(idx+i+1) % NUM_IN]) begin
-      get_next = (idx+i+1) % NUM_IN;
-      break;
+    if (PRIORITY_IN == 0) begin
+      if (val[(idx+i+1) % NUM_IN]) begin
+        get_next = (idx+i+1) % NUM_IN;
+        break;
+      end
+    end else begin
+      // Give priority to highest number
+      if (val[(NUM_IN-1-i) % NUM_IN]) begin
+        get_next = (NUM_IN-1-i) % NUM_IN;
+        break;
+      end
     end
 endfunction
 

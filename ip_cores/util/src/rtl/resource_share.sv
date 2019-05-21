@@ -23,7 +23,8 @@ module resource_share # (
   parameter NUM_IN = 4,
   parameter OVR_WRT_BIT = 0,
   parameter PIPELINE_IN = 0,
-  parameter PIPELINE_OUT = 0
+  parameter PIPELINE_OUT = 0,
+  parameter PRIORITY_IN = 0
 ) (
   input i_clk, i_rst,
 
@@ -40,7 +41,8 @@ packet_arb # (
   .CTL_BITS    ( i_axi[0].CTL_BITS ),
   .NUM_IN      ( NUM_IN       ),
   .OVR_WRT_BIT ( OVR_WRT_BIT  ),
-  .PIPELINE    ( PIPELINE_IN )
+  .PIPELINE    ( PIPELINE_IN ),
+  .PRIORITY_IN ( PRIORITY_IN )
 )
 packet_arb_mult (
   .i_clk ( i_clk ),
