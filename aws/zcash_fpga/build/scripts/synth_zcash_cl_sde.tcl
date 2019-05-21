@@ -32,7 +32,7 @@ source $HDK_SHELL_DIR/build/scripts/aws_gen_clk_constraints.tcl
 #############################
 
 #Convenience to set the root of the RTL directory
-set ENC_SRC_DIR $CL_DIR/build/src_post_encryption
+set ENC_SRC_DIR $CL_DIR\\build\\src_post_encryption
 
 puts "AWS FPGA: ([clock format [clock seconds] -format %T]) Reading developer's Custom Logic files post encryption.";
 
@@ -41,8 +41,8 @@ puts "AWS FPGA: ([clock format [clock seconds] -format %T]) Reading developer's 
 # Reading the .sv and .v files, as proper designs would not require
 # reading .v, .vh, nor .inc files
 
-read_verilog -sv [glob $ENC_SRC_DIR/*.v]
-read_verilog -sv [glob $ENC_SRC_DIR/*.?v]
+read_verilog -sv [glob ../src_post_encryption/*.v]
+read_verilog -sv [glob ../src_post_encryption/*.sv]
 
 #---- End of section replaced by User ----
 
@@ -63,6 +63,20 @@ read_verilog [ list \
 ]
 
 puts "AWS FPGA: Reading IP blocks";
+
+# User IP
+read_ip [ list \
+  $CL_DIR/ip/axis_dwidth_converter_64_to_8/axis_dwidth_converter_64_to_8.xci \
+  $CL_DIR/ip/axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci
+]
+
+puts "AWS FPGA: Generating IP blocks";
+
+set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_64_to_8.xci]
+set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_8_to_64.xci]
+
+generate_target all [get_ips axis_dwidth_converter_64_to_8]
+generate_target all [get_ips axis_dwidth_converter_8_to_64]
 
 #Read DDR IP
 read_ip [ list \

@@ -34,7 +34,8 @@ enum {UART_STARTUP, UART_LOOPBACK, UART_TX_STREAM, UART_RX_STREAM, UART_WAIT_STR
 
 // Interfaces before data width conversion
 if_axi_stream #(.DAT_BYTS(1), .CTL_BYTS(1)) tx_int_if (i_clk);
-if_axi_stream #(.DAT_BYTS(8), .CTL_BYTS(1)) rx_int_if (i_clk);
+if_axi_stream #(.DAT_BYTS(1), .CTL_BYTS(1)) rx_int_if (i_clk);
+
 
 logic interrupt;
 logic [31:0] uart_axi_wdata, uart_axi_rdata;

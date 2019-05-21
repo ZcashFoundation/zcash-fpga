@@ -18,21 +18,23 @@
 # Add check if /build and /build/src_port_encryption directories exist
 # Add check if the vivado_keyfile exist
 
-set $ $::env(ZCASH_DIR)
-set HDK_SHELL_DIR $::env(HDK_SHELL_DIR)
-set HDK_SHELL_DESIGN_DIR $::env(HDK_SHELL_DESIGN_DIR)
-set CL_DIR $::env(CL_DIR)
+#set ZCASH_DIR $::env(ZCASH_DIR)
+#set HDK_SHELL_DIR $::env(HDK_SHELL_DIR)
+#set HDK_SHELL_DESIGN_DIR $::env(HDK_SHELL_DESIGN_DIR)
+#set CL_DIR $::env(CL_DIR)
+
 
 set TARGET_DIR $CL_DIR/build/src_post_encryption
 set UNUSED_TEMPLATES_DIR $HDK_SHELL_DESIGN_DIR/interfaces
 
 
 # Remove any previously encrypted files, that may no longer be used
-exec rm -f $TARGET_DIR/*
+#exec del -f $TARGET_DIR/*
 
 #---- Developr would replace this section with design files ----
 
 ## Change file names and paths below to reflect your CL area.  DO NOT include AWS RTL files.
+
 
 
 set fileName "${ZCASH_DIR}/zcash_fpga/src/rtl/top/include.f"
@@ -41,8 +43,11 @@ set contents [read -nonewline $fptr] ;#Read the file contents
 close $fptr ;#Close the file since it has been read now
 set splitCont [split $contents "\n"] ;#Split the files contents on new line
 foreach ele $splitCont {
-  file copy -force $ele $TARGET_DIR
-  puts "Copied $ele into $TARGET_DIR"
+  set filep [subst $ele]
+  if { [file exists $filep] } {
+    file copy -force $filep $TARGET_DIR
+    puts "Copied $filep into $TARGET_DIR"
+  }
 }
 
 file copy -force $CL_DIR/../common/design/cl_common_defines.vh       $TARGET_DIR
@@ -62,6 +67,8 @@ file copy -force $CL_DIR/lib/axis_flop_fifo.sv $TARGET_DIR
 file copy -force $CL_DIR/lib/ram_fifo_ft.sv    $TARGET_DIR
 
 file copy -force $CL_DIR/design/ila_axi4_wrapper.sv $TARGET_DIR
+
+file copy -force $CL_DIR/design/zcash_aws_wrapper.sv      $TARGET_DIR
 
 file copy -force $CL_DIR/design/sde_pkg.sv      $TARGET_DIR
 file copy -force $CL_DIR/design/sde.sv          $TARGET_DIR
@@ -94,7 +101,7 @@ file copy -force $CL_DIR/design/axi_prot_chk.sv    $TARGET_DIR
 
 # Make sure files have write permissions for the encryption
 
-exec chmod +w {*}[glob $TARGET_DIR/*]
+#exec chmod +w {*}[glob $TARGET_DIR/*]
 
 # encrypt .v/.sv/.vh/inc as verilog files
 #encrypt -k $HDK_SHELL_DIR/build/scripts/vivado_keyfile.txt -lang verilog  [glob -nocomplain -- $TARGET_DIR/*.{v,sv}] [glob -nocomplain -- $TARGET_DIR/*.vh] [glob -nocomplain -- $TARGET_DIR/*.inc]

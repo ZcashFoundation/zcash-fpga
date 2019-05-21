@@ -31,8 +31,8 @@ always_ff @ (posedge clk_100) rst_100_r <= {rst_100_r, ~sys_reset_n};
 always_ff @ (posedge clk_200) rst_200_r <= {rst_200_r, ~sys_reset_n};
 always_ff @ (posedge clk_300) rst_300_r <= {rst_300_r, ~sys_reset_n};
 
-if_axi_stream #(.DAT_BYTS(1)) uart_axi_rx(clk_300);
-if_axi_stream #(.DAT_BYTS(1)) uart_axi_tx(clk_300);
+if_axi_stream #(.DAT_BYTS(8)) uart_axi_rx(clk_300);
+if_axi_stream #(.DAT_BYTS(8)) uart_axi_tx(clk_300);
 
 always_comb begin
   led_pins[3:0] = 0;
