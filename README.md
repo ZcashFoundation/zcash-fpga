@@ -12,6 +12,12 @@ This is the top level for the Zcash verification FPGA board. It targets both Xil
 
 Architecture document is [here]()
 
+Contains the following top-level engine:
+### Equihash verification engine
+### EC secp256k1 signature verification engine
+### EC bls12-381 co-processor
+
+
 ## ip_cores
 
 These contain custom IP cores used in the projects in this repo.
