@@ -16,8 +16,10 @@
 */
 `timescale 1ps/1ps
 
-module bls12_381_fp_mult_mod_tb ();
+module ec_fp_mult_mod_tb ();
 import common_pkg::*;
+import ec_fp_pkg::*;
+
 import bls12_381_pkg::*;
 
 localparam CLK_PERIOD = 100;
@@ -53,8 +55,13 @@ logic [380:0] out_dat;
 
 always_comb out_if.dat = {3'd0, out_dat};
 
-bls12_381_fp_mult_mod
-bls12_381_fp_mult_mod (
+ec_fp_mult_mod #(
+  .DAT_BITS      ( 381              ),
+  .P             ( bls12_381_pkg::P ),
+  .KARATSUBA_LVL ( 3                ),
+  .CTL_BITS      ( 16               )
+)
+ec_fp_mult_mod (
   .i_clk( clk         ),
   .i_rst( rst         ),
   .i_ctl ( 16'd0       ),

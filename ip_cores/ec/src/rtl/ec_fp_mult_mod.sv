@@ -1,7 +1,6 @@
 /*
   This performs a multiplication followed by modular reduction
-  using karabusa multiplier and barrets algorithm, for the bls381-12
-  curve on Fp elements.
+  using karabusa multiplier and barrets algorithm on Fp elements.
 
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -19,41 +18,48 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-module bls12_381_fp_mult_mod #(
-  parameter CTL_BITS = 16
+module ec_fp_mult_mod #(
+  parameter                DAT_BITS,
+  parameter [DAT_BITS-1:0] P,
+  parameter                KARATSUBA_LVL,
+  parameter                CTL_BITS = 16
 )(
   input i_clk, i_rst,
   // Input value
-  input [380:0]        i_dat_a,
-  input [380:0]        i_dat_b,
+  input [DAT_BITS-1:0] i_dat_a,
+  input [DAT_BITS-1:0] i_dat_b,
+  input
   input                i_val,
   input                i_err,
   input [CTL_BITS-1:0] i_ctl,
   output logic         o_rdy,
   // output
-  output logic [380:0]        o_dat,
+  output logic [DAT_BITS-1:0] o_dat,
   output logic [CTL_BITS-1:0] o_ctl,
   input                       i_rdy,
   output logic                o_val
 );
 
-localparam ARB_BIT = 8;
-localparam KARATSUBA_LEVEL = 3;
-import bls12_381_pkg::*;
+// The reduction mod takes DAT_BITS + 1 bits, but we also need to make sure we are a multiple of KARATSUBA_LVL*2
+parameter MLT_BITS = DAT_BITS + 1 + (KARATSUBA_LVL*2 - (DAT_BITS + 1) % (KARATSUBA_LVL*2));
 
-if_axi_stream #(.DAT_BYTS(384*2/8), .CTL_BITS(CTL_BITS)) mult_if_in [3:0] (i_clk);
-if_axi_stream #(.DAT_BYTS(384*2/8), .CTL_BITS(CTL_BITS)) mult_if_out [3:0] (i_clk);
+localparam ARB_BIT = 8;
+
+if_axi_stream #(.DAT_BITS(MLT_BITS*2), .CTL_BITS(CTL_BITS)) mult_if_in [3:0] (i_clk);
+if_axi_stream #(.DAT_BITS(MLT_BITS*2), .CTL_BITS(CTL_BITS)) mult_if_out [3:0] (i_clk);
 
 always_comb begin
   mult_if_in[0].mod = 0;
   mult_if_in[0].sop = 1;
   mult_if_in[0].eop = 1;
-  mult_if_in[0].dat = {3'd0, i_dat_b, 3'd0, i_dat_a};
+  mult_if_in[0].dat = 0;
+  mult_if_in[0].dat[0 +: DAT_BITS] = i_dat_a;
+  mult_if_in[0].dat[MLT_BITS +: DAT_BITS] = i_dat_b;
   mult_if_in[0].val = i_val;
   mult_if_in[0].err = i_err;
   mult_if_in[0].ctl = i_ctl;
   o_rdy = mult_if_in[0].rdy;
-  
+
   mult_if_out[3].sop = 1;
   mult_if_out[3].eop = 1;
   mult_if_out[3].mod = 0;
@@ -77,16 +83,16 @@ resource_share_mod (
 );
 
 karatsuba_ofman_mult # (
-  .BITS     ( 384             ),
-  .LEVEL    ( KARATSUBA_LEVEL ),
-  .CTL_BITS ( CTL_BITS        )
+  .BITS     ( MLT_BITS      ),
+  .LEVEL    ( KARATSUBA_LVL ),
+  .CTL_BITS ( CTL_BITS      )
 )
 karatsuba_ofman_mult (
   .i_clk  ( i_clk ),
   .i_rst  ( i_rst ),
   .i_ctl  ( mult_if_in[3].ctl ),
-  .i_dat_a( mult_if_in[3].dat[0 +: 384]   ),
-  .i_dat_b( mult_if_in[3].dat[384 +: 384] ),
+  .i_dat_a( mult_if_in[3].dat[0 +: MLT_BITS]   ),
+  .i_dat_b( mult_if_in[3].dat[MLT_BITS +: MLT_BITS] ),
   .i_val  ( mult_if_in[3].val ),
   .o_rdy  ( mult_if_in[3].rdy ),
   .o_dat  ( mult_if_out[3].dat ),
@@ -95,10 +101,12 @@ karatsuba_ofman_mult (
   .o_ctl  ( mult_if_out[3].ctl )
 );
 
- barret_mod_pipe #(
-  .DAT_BITS ( 384      ),
+
+
+barret_mod_pipe #(
+  .DAT_BITS ( MLT_BITS ),
   .CTL_BITS ( CTL_BITS ),
-  .P        ( bls12_381_pkg::P )
+  .P        ( P        )
 )
 barret_mod_pipe (
   .i_clk ( i_clk ),
