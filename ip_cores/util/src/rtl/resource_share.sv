@@ -37,6 +37,7 @@ module resource_share # (
 
 // Arbitratation to the resource
 packet_arb # (
+  .DAT_BITS    ( i_axi[0].DAT_BITS ),
   .DAT_BYTS    ( i_axi[0].DAT_BYTS ),
   .CTL_BITS    ( i_axi[0].CTL_BITS ),
   .NUM_IN      ( NUM_IN       ),
@@ -52,7 +53,7 @@ packet_arb_mult (
 );
 
 // Demuxing
-if_axi_stream #(.DAT_BYTS(i_res.DAT_BYTS), .CTL_BITS(i_res.CTL_BITS)) int_axi [NUM_IN-1:0] (i_res.i_clk);
+if_axi_stream #(.DAT_BYTS(i_res.DAT_BYTS), .DAT_BITS(i_res.DAT_BITS), .CTL_BITS(i_res.CTL_BITS)) int_axi [NUM_IN-1:0] (i_res.i_clk);
 
 genvar gen0;
 logic [NUM_IN-1:0] rdy;
@@ -66,6 +67,7 @@ generate
     end 
     
     pipeline_if  #(
+      .DAT_BITS   ( i_res.DAT_BITS ),
       .DAT_BYTS   ( i_res.DAT_BYTS ),
       .CTL_BITS   ( i_res.CTL_BITS ),
       .NUM_STAGES ( PIPELINE_OUT   )

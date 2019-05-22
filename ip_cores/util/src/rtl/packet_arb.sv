@@ -21,6 +21,7 @@
 
 module packet_arb # (
   parameter DAT_BYTS,
+  parameter DAT_BITS = DAT_BYTS*8,
   parameter CTL_BITS,
   parameter NUM_IN,
   parameter OVR_WRT_BIT = CTL_BITS - $clog2(NUM_IN), // What bits in ctl are overwritten with channel id
@@ -33,7 +34,6 @@ module packet_arb # (
   if_axi_stream.source o_axi
 );
 
-localparam DAT_BITS = DAT_BYTS*8;
 localparam MOD_BITS = $clog2(DAT_BYTS);
 
 logic [$clog2(NUM_IN)-1:0] idx;

@@ -19,6 +19,7 @@
 
 module pipeline_if  #(
   parameter DAT_BYTS = 8,
+  parameter DAT_BITS = DAT_BYTS*8,
   parameter CTL_BITS = 8,
   parameter NUM_STAGES = 1
 ) (
@@ -38,10 +39,11 @@ generate
     
   end else begin
     
-    if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) if_stage [NUM_STAGES:0] (i_if.i_clk) ;
+    if_axi_stream #(.DAT_BYTS(DAT_BYTS), .DAT_BITS(DAT_BITS), .CTL_BITS(CTL_BITS)) if_stage [NUM_STAGES:0] (i_if.i_clk) ;
     
     for (g0 = 0; g0 < NUM_STAGES; g0++) begin : GEN_STAGE
       pipeline_if_single #(
+        .DAT_BITS(DAT_BITS),
         .DAT_BYTS(DAT_BYTS),
         .CTL_BITS(CTL_BITS)
       ) 

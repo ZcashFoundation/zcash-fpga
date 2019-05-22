@@ -19,6 +19,7 @@
 
 module pipeline_if_single #(
   parameter DAT_BYTS = 8,
+  parameter DAT_BITS = DAT_BYTS*8,
   parameter CTL_BITS = 8
 )(
   input i_rst,
@@ -27,7 +28,7 @@ module pipeline_if_single #(
 );
 
 // Need pipeline stage to store temp data
-if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) if_r (i_if.i_clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .DAT_BITS(DAT_BITS), .CTL_BITS(CTL_BITS)) if_r (i_if.i_clk);
 
 always_ff @ (posedge i_if.i_clk) begin
   if (i_rst) begin
