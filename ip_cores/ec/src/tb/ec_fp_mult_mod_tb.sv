@@ -17,9 +17,8 @@
 `timescale 1ps/1ps
 
 module ec_fp_mult_mod_tb ();
-import common_pkg::*;
-import ec_fp_pkg::*;
 
+import common_pkg::*;
 import bls12_381_pkg::*;
 
 localparam CLK_PERIOD = 100;
@@ -56,15 +55,14 @@ logic [380:0] out_dat;
 always_comb out_if.dat = {3'd0, out_dat};
 
 ec_fp_mult_mod #(
-  .DAT_BITS      ( 381              ),
   .P             ( bls12_381_pkg::P ),
   .KARATSUBA_LVL ( 3                ),
-  .CTL_BITS      ( 16               )
+  .CTL_BITS      ( 8               )
 )
 ec_fp_mult_mod (
   .i_clk( clk         ),
   .i_rst( rst         ),
-  .i_ctl ( 16'd0       ),
+  .i_ctl ( 8'd0       ),
   .i_dat_a( in_if.dat[0 +: 384]   ),
   .i_dat_b( in_if.dat[384 +: 384] ),
   .i_val( in_if.val   ),

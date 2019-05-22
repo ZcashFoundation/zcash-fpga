@@ -19,16 +19,15 @@
 */
 
 module ec_fp_mult_mod #(
-  parameter                DAT_BITS,
-  parameter [DAT_BITS-1:0] P,
-  parameter                KARATSUBA_LVL,
+  parameter                P,                   // Mod value to be used
+  parameter                DAT_BITS = $clog2(P),
+  parameter                KARATSUBA_LVL = 3,   // Number of levels in the multiplier, each adds 3 clock cycles
   parameter                CTL_BITS = 16
 )(
   input i_clk, i_rst,
   // Input value
   input [DAT_BITS-1:0] i_dat_a,
   input [DAT_BITS-1:0] i_dat_b,
-  input
   input                i_val,
   input                i_err,
   input [CTL_BITS-1:0] i_ctl,
@@ -41,12 +40,11 @@ module ec_fp_mult_mod #(
 );
 
 // The reduction mod takes DAT_BITS + 1 bits, but we also need to make sure we are a multiple of KARATSUBA_LVL*2
-parameter MLT_BITS = DAT_BITS + 1 + (KARATSUBA_LVL*2 - (DAT_BITS + 1) % (KARATSUBA_LVL*2));
+localparam MLT_BITS = DAT_BITS + 1 + (KARATSUBA_LVL*2 - (DAT_BITS + 1) % (KARATSUBA_LVL*2));
+localparam ARB_BIT = CTL_BITS;
 
-localparam ARB_BIT = 8;
-
-if_axi_stream #(.DAT_BITS(MLT_BITS*2), .CTL_BITS(CTL_BITS)) mult_if_in [3:0] (i_clk);
-if_axi_stream #(.DAT_BITS(MLT_BITS*2), .CTL_BITS(CTL_BITS)) mult_if_out [3:0] (i_clk);
+if_axi_stream #(.DAT_BITS(MLT_BITS*2), .CTL_BITS(CTL_BITS+2)) mult_if_in [3:0] (i_clk);
+if_axi_stream #(.DAT_BITS(MLT_BITS*2), .CTL_BITS(CTL_BITS+2)) mult_if_out [3:0] (i_clk);
 
 always_comb begin
   mult_if_in[0].mod = 0;
@@ -85,7 +83,7 @@ resource_share_mod (
 karatsuba_ofman_mult # (
   .BITS     ( MLT_BITS      ),
   .LEVEL    ( KARATSUBA_LVL ),
-  .CTL_BITS ( CTL_BITS      )
+  .CTL_BITS ( CTL_BITS + 2  )
 )
 karatsuba_ofman_mult (
   .i_clk  ( i_clk ),

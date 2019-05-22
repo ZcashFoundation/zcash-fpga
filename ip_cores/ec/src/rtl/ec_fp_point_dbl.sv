@@ -19,24 +19,25 @@
 
 module ec_fp_point_dbl
 #(
-  parameter                DAT_BITS,
-  parameter [DAT_BITS-1:0] P
+  parameter      P,
+  parameter type POINT_TYPE
 )(
   input i_clk, i_rst,
   // Input point
-  input jb_point_t i_p,
+  input POINT_TYPE i_p,
   input logic      i_val,
   output logic     o_rdy,
   // Output point
-  output jb_point_t o_p,
-  input logic      i_rdy,
-  output logic     o_val,
-  output logic     o_err,
+  output POINT_TYPE o_p,
+  input logic       i_rdy,
+  output logic      o_val,
+  output logic      o_err,
   // Interface to multiplier (mod p)
   if_axi_stream.source o_mult_if,
   if_axi_stream.sink   i_mult_if
 );
 
+localparam DAT_BITS = $clog2(P);
 /*
  * These are the equations that need to be computed, they are issued as variables
  * become valid. We have a bitmask to track what equation results are valid which
@@ -62,7 +63,7 @@ logic [14:0] eq_val, eq_wait;
 
 // Temporary variables
 logic [DAT_BITS-1:0] A, B, C, D, E;
-jb_point_t i_p_l;
+POINT_TYPE i_p_l;
 
 always_comb begin
   o_mult_if.sop = 1;
@@ -81,7 +82,6 @@ always_ff @ (posedge i_clk) begin
     o_mult_if.ctl <= 0;
     o_mult_if.dat <= 0;
     i_mult_if.rdy <= 0;
-    i_mod_if.rdy <= 0;
     eq_val <= 0;
     state <= IDLE;
     eq_wait <= 0;
@@ -157,7 +157,7 @@ always_ff @ (posedge i_clk) begin
           multiply(5, i_p_l.x, i_p_l.x);
         end else
         if (eq_val[5] && ~eq_wait[6]) begin //6.    D = 3*D mod p [eq5]
-          multiply(6, 256'd3, D);
+          multiply(6, 3, D);
         end else
         if (eq_val[6] && ~eq_wait[7]) begin //7.   (o_p.x) = D^2 mod p[eq6]
           multiply(7, D, D);
