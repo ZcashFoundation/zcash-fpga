@@ -31,7 +31,6 @@ module ec_fp_mult_mod #(
   input [DAT_BITS-1:0] i_dat_a,
   input [DAT_BITS-1:0] i_dat_b,
   input                i_val,
-  input                i_err,
   input [CTL_BITS-1:0] i_ctl,
   output logic         o_rdy,
   // output
