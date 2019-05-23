@@ -57,7 +57,7 @@ if_axi_stream #(.DAT_BYTS(DAT_BITS/8)) fifo_out_if(i_clk);
 
 // Stage 1 multiplication
 always_comb begin
-  o_rdy = (o_mult_if_0.rdy && o_mult_if_0.val) || ~o_mult_if_0.val;
+  o_rdy = ~o_mult_if_0.val || (o_mult_if_0.val && o_mult_if_0.rdy);
 end
 
 always_ff @ (posedge i_clk) begin
@@ -65,7 +65,7 @@ always_ff @ (posedge i_clk) begin
     o_mult_if_0.reset_source();
     fifo_in_if.reset_source();
   end else begin
-    if (~o_mult_if_0.val || (o_mult_if_0.val && o_mult_if_0.rdy)) begin
+    if (o_rdy) begin
       o_mult_if_0.sop <= 1;
       o_mult_if_0.eop <= 1;
       o_mult_if_0.val <= i_val;
@@ -80,14 +80,14 @@ end
 
 // Stage 2 shift + multiplication
 always_comb begin
-  i_mult_if_0.rdy = (o_mult_if_1.rdy && o_mult_if_1.val) || ~o_mult_if_1.val;
+  i_mult_if_0.rdy = ~o_mult_if_1.val || (o_mult_if_1.val && o_mult_if_1.rdy);
 end
 
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     o_mult_if_1.reset_source();
   end else begin
-    if (~o_mult_if_1.val || (o_mult_if_1.val && o_mult_if_1.rdy)) begin
+    if (i_mult_if_0.rdy) begin
       o_mult_if_1.sop <= 1;
       o_mult_if_1.eop <= 1;
       o_mult_if_1.val <= i_mult_if_0.val;
@@ -108,7 +108,7 @@ always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     val <= 0;
   end else begin
-    if (~val || (val && rdy)) begin
+    if (i_mult_if_1.rdy) begin
       val <= i_mult_if_1.val;
       ctl <= i_mult_if_1.ctl;
       dat <= fifo_out_if.dat - (i_mult_if_1.dat % (1 << (2*K + 2)));

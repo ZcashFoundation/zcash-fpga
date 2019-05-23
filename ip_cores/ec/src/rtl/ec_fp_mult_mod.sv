@@ -1,6 +1,8 @@
 /*
   This performs a multiplication followed by modular reduction
   using karabusa multiplier and barrets algorithm on Fp elements.
+  (Used when the prime feild is not a special form that allows for
+  fast modulus reduction)
 
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -43,63 +45,64 @@ module ec_fp_mult_mod #(
 localparam MLT_BITS = DAT_BITS + 1 + (KARATSUBA_LVL*2 - (DAT_BITS + 1) % (KARATSUBA_LVL*2));
 localparam ARB_BIT = CTL_BITS;
 
-if_axi_stream #(.DAT_BITS(MLT_BITS*2), .CTL_BITS(CTL_BITS+2)) mult_if_in [3:0] (i_clk);
-if_axi_stream #(.DAT_BITS(MLT_BITS*2), .CTL_BITS(CTL_BITS+2)) mult_if_out [3:0] (i_clk);
+if_axi_stream #(.DAT_BITS(MLT_BITS*2), .CTL_BITS(CTL_BITS)) mult_if [4:0] (i_clk);
 
-always_comb begin
-  mult_if_in[0].mod = 0;
-  mult_if_in[0].sop = 1;
-  mult_if_in[0].eop = 1;
-  mult_if_in[0].dat = 0;
-  mult_if_in[0].dat[0 +: DAT_BITS] = i_dat_a;
-  mult_if_in[0].dat[MLT_BITS +: DAT_BITS] = i_dat_b;
-  mult_if_in[0].val = i_val;
-  mult_if_in[0].err = i_err;
-  mult_if_in[0].ctl = i_ctl;
-  o_rdy = mult_if_in[0].rdy;
-
-  mult_if_out[3].sop = 1;
-  mult_if_out[3].eop = 1;
-  mult_if_out[3].mod = 0;
-  mult_if_out[3].err = 0;
-end
-
-resource_share # (
-  .NUM_IN       ( 3       ),
-  .OVR_WRT_BIT  ( ARB_BIT ),
-  .PIPELINE_IN  ( 0       ),
-  .PIPELINE_OUT ( 1       ),
-  .PRIORITY_IN  ( 1       )
+karatsuba_ofman_mult # (
+  .BITS     ( MLT_BITS      ),
+  .LEVEL    ( KARATSUBA_LVL ),
+  .CTL_BITS ( CTL_BITS   )
 )
-resource_share_mod (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_axi ( mult_if_in[2:0]  ),
-  .o_res ( mult_if_in[3]    ),
-  .i_res ( mult_if_out[3]   ),
-  .o_axi ( mult_if_out[2:0] )
+karatsuba_ofman_mult_0 (
+  .i_clk  ( i_clk ),
+  .i_rst  ( i_rst ),
+  .i_ctl  ( i_ctl ),
+  .i_dat_a( {3'd0, i_dat_a}  ),
+  .i_dat_b( {3'd0, i_dat_b} ),
+  .i_val  ( i_val ),
+  .o_rdy  ( o_rdy ),
+  .o_dat  ( mult_if[0].dat ),
+  .o_val  ( mult_if[0].val ),
+  .i_rdy  ( mult_if[0].rdy ),
+  .o_ctl  ( mult_if[0].ctl )
 );
 
 karatsuba_ofman_mult # (
   .BITS     ( MLT_BITS      ),
   .LEVEL    ( KARATSUBA_LVL ),
-  .CTL_BITS ( CTL_BITS + 2  )
+  .CTL_BITS ( CTL_BITS   )
 )
-karatsuba_ofman_mult (
+karatsuba_ofman_mult_1 (
   .i_clk  ( i_clk ),
   .i_rst  ( i_rst ),
-  .i_ctl  ( mult_if_in[3].ctl ),
-  .i_dat_a( mult_if_in[3].dat[0 +: MLT_BITS]   ),
-  .i_dat_b( mult_if_in[3].dat[MLT_BITS +: MLT_BITS] ),
-  .i_val  ( mult_if_in[3].val ),
-  .o_rdy  ( mult_if_in[3].rdy ),
-  .o_dat  ( mult_if_out[3].dat ),
-  .o_val  ( mult_if_out[3].val ),
-  .i_rdy  ( mult_if_out[3].rdy ),
-  .o_ctl  ( mult_if_out[3].ctl )
+  .i_ctl  ( mult_if[1].ctl ),
+  .i_dat_a( mult_if[1].dat[0 +: MLT_BITS]  ),
+  .i_dat_b( mult_if[1].dat[MLT_BITS +: MLT_BITS] ),
+  .i_val  ( mult_if[1].val ),
+  .o_rdy  ( mult_if[1].rdy ),
+  .o_dat  ( mult_if[2].dat ),
+  .o_val  ( mult_if[2].val ),
+  .i_rdy  ( mult_if[2].rdy ),
+  .o_ctl  ( mult_if[2].ctl )
 );
 
-
+karatsuba_ofman_mult # (
+  .BITS     ( MLT_BITS      ),
+  .LEVEL    ( KARATSUBA_LVL ),
+  .CTL_BITS ( CTL_BITS   )
+)
+karatsuba_ofman_mult_2 (
+  .i_clk  ( i_clk ),
+  .i_rst  ( i_rst ),
+  .i_ctl  ( mult_if[3].ctl ),
+  .i_dat_a( mult_if[3].dat[0 +: MLT_BITS]  ),
+  .i_dat_b( mult_if[3].dat[MLT_BITS +: MLT_BITS] ),
+  .i_val  ( mult_if[3].val ),
+  .o_rdy  ( mult_if[3].rdy ),
+  .o_dat  ( mult_if[4].dat ),
+  .o_val  ( mult_if[4].val ),
+  .i_rdy  ( mult_if[4].rdy ),
+  .o_ctl  ( mult_if[4].ctl )
+);
 
 barret_mod_pipe #(
   .DAT_BITS ( MLT_BITS ),
@@ -109,18 +112,18 @@ barret_mod_pipe #(
 barret_mod_pipe (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_dat ( mult_if_out[0].dat ),
-  .i_val ( mult_if_out[0].val ),
-  .i_ctl ( mult_if_out[0].ctl ),
+  .i_dat ( mult_if[0].dat ),
+  .i_val ( mult_if[0].val ),
+  .i_ctl ( mult_if[0].ctl ),
   .o_ctl ( o_ctl ),
-  .o_rdy ( mult_if_out[0].rdy ),
+  .o_rdy ( mult_if[0].rdy ),
   .o_dat ( o_dat ),
   .o_val ( o_val ),
   .i_rdy ( i_rdy ),
-  .o_mult_if_0 ( mult_if_in[1]  ),
-  .i_mult_if_0 ( mult_if_out[1] ),
-  .o_mult_if_1 ( mult_if_in[2]  ),
-  .i_mult_if_1 ( mult_if_out[2] )
+  .o_mult_if_0 ( mult_if[1]  ),
+  .i_mult_if_0 ( mult_if[2] ),
+  .o_mult_if_1 ( mult_if[3]  ),
+  .i_mult_if_1 ( mult_if[4] )
 );
 
 endmodule
