@@ -23,7 +23,6 @@ module ec_fp_point_mult
   parameter      P,
   parameter type POINT_TYPE,
   parameter      DAT_BITS = $clog2(P),
-  parameter      MUL_BITS = DAT_BITS+1,
   parameter      RESOURCE_SHARE = "NO"
 )(
   input i_clk, i_rst,
@@ -46,8 +45,8 @@ module ec_fp_point_mult
 );
 
 // [0] is connection from/to dbl block, [1] is add block, [2] is arbitrated value
-if_axi_stream #(.DAT_BITS(MUL_BITS*2), .CTL_BITS(16)) mult_in_if [2:0] (i_clk);
-if_axi_stream #(.DAT_BITS(MUL_BITS), .CTL_BITS(16)) mult_out_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BITS(DAT_BITS*2), .CTL_BITS(16)) mult_in_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BITS(DAT_BITS), .CTL_BITS(16)) mult_out_if [2:0] (i_clk);
 
 logic [DAT_BITS-1:0] k_l;
 POINT_TYPE p_n, p_q, p_dbl, p_add;
@@ -285,8 +284,8 @@ generate
     ec_fp_mult_mod (
       .i_clk( i_clk ),
       .i_rst( i_rst ),
-      .i_dat_a ( mult_in_if[2].dat[0 +: MUL_BITS]        ),
-      .i_dat_b ( mult_in_if[2].dat[MUL_BITS +: MUL_BITS] ),
+      .i_dat_a ( mult_in_if[2].dat[0 +: DAT_BITS]        ),
+      .i_dat_b ( mult_in_if[2].dat[DAT_BITS +: DAT_BITS] ),
       .i_val ( mult_in_if[2].val  ),
       .i_ctl ( mult_in_if[2].ctl  ),
       .o_rdy ( mult_in_if[2].rdy  ),
