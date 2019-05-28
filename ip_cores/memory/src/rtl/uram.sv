@@ -6,31 +6,119 @@
 //  Only when write is inactive data corresponding to the address is
 //  presented on the output port.
 //
-//module xilinx_ultraram_true_dual_port #(
+
+module uram_reset #(
+  parameter RAM_WIDTH = 18,
+  parameter RAM_DEPTH = 1024,
+  parameter PIPELINES = 3
+) (
+  if_ram.sink a,
+  if_ram.sink b
+);
+
+if_ram #(.RAM_WIDTH(a.RAM_WIDTH), .RAM_DEPTH(a.RAM_DEPTH)) if_ram_a(.i_clk(a.i_clk), .i_rst(a.i_rst));
+
+logic reset_done;
+logic [$clog2(RAM_WIDTH)-1:0] addr;
+
+always_ff @ (posedge a.i_clk) begin
+  if (a.i_rst) begin
+    reset_done <= 0;
+    addr <= 0;
+  end else begin
+    addr <= addr + 1;
+    if (&addr)
+      reset_done <= 1;
+  end
+end
+
+always_comb begin
+  if_ram_a.a =  reset_done ? a.a : addr;
+  if_ram_a.en = a.en;
+  if_ram_a.we = reset_done ? a.we : 1'd1;
+  if_ram_a.re = a.re;
+  if_ram_a.d =  reset_done ? a.d : {RAM_WIDTH{1'd0}};
+  a.q = if_ram_a.q;
+end
+
+uram #(
+  .RAM_WIDTH ( RAM_WIDTH ),
+  .RAM_DEPTH ( RAM_DEPTH ),
+  .PIPELINES ( PIPELINES )
+)
+uram_instance (
+  .a( if_ram_a ),
+  .b( b )
+);
+
+endmodule
+
 module uram #(
+  parameter RAM_WIDTH = 18,
+  parameter RAM_DEPTH = 1024,
+  parameter PIPELINES = 3
+) (
+  if_ram.sink a,
+  if_ram.sink b
+);
+
+// Check RAM sizes match the interface
+initial begin
+  assert ($bits(a.d) == RAM_WIDTH) else $fatal(1, "%m %t ERROR: bram RAM_WIDTH (%d) does not match interface a (%d)", $time, RAM_WIDTH, $bits(a.d));
+  assert ($bits(a.a) == $clog2(RAM_DEPTH)) else $fatal(1, "%m %t ERROR: bram $clog2(RAM_DEPTH) (%d) does not match interface a (%d)", $time, $clog2(RAM_DEPTH), $bits(a.a));
+  assert ($bits(b.d) == RAM_WIDTH) else $fatal(1, "%m %t ERROR: bram RAM_WIDTH (%d) does not match interface b (%d)", $time, RAM_WIDTH, $bits(b.d));
+  assert ($bits(b.a) == $clog2(RAM_DEPTH)) else $fatal(1, "%m %t ERROR: bram $clog2(RAM_DEPTH) (%d) does not match interface b (%d)", $time, $clog2(RAM_DEPTH), $bits(b.a));
+end
+
+xilinx_ultraram_true_dual_port #(
+  .AWIDTH ( $clog2(RAM_DEPTH) ),
+  .DWIDTH ( RAM_WIDTH ),
+  .NBPIPE ( PIPELINES )
+)
+uram_instance (
+  .addra(a.a),
+  .addrb(b.a),
+  .dina(a.d),
+  .dinb(b.d),
+  .clk(a.i_clk),
+  .wea(a.we),
+  .web(b.we),
+  .mem_ena(a.en),
+  .mem_enb(b.en),
+  .rsta(a.i_rst),
+  .rstb(b.i_rst),
+  .regcea(a.re),
+  .regceb(b.re),
+  .douta(a.q),
+  .doutb(b.q)
+ );
+
+endmodule
+
+module xilinx_ultraram_true_dual_port #(
   parameter AWIDTH = 12,  // Address Width
   parameter DWIDTH = 72,  // Data Width
   parameter NBPIPE = 3    // Number of pipeline Registers
  ) (
-    input clk,                    // Clock
-    // Port A
-    input rsta,                   // Reset
-    input wea,                    // Write Enable
-    input regcea,                 // Output Register Enable
-    input mem_ena,                // Memory Enable
-    input [DWIDTH-1:0] dina,      // Data Input
-    input [AWIDTH-1:0] addra,     // Address Input
-    output reg [DWIDTH-1:0] douta,// Data Output
+  input clk,                    // Clock
+  // Port A
+  input rsta,                   // Reset
+  input wea,                    // Write Enable
+  input regcea,                 // Output Register Enable
+  input mem_ena,                // Memory Enable
+  input [DWIDTH-1:0] dina,      // Data Input
+  input [AWIDTH-1:0] addra,     // Address Input
+  output reg [DWIDTH-1:0] douta,// Data Output
 
-    // Port B
-    input rstb,                   // Reset
-    input web,                    // Write Enable
-    input regceb,                 // Output Register Enable
-    input mem_enb,                // Memory Enable
-    input [DWIDTH-1:0] dinb,      // Data Input
-    input [AWIDTH-1:0] addrb,     // Address Input
-    output reg [DWIDTH-1:0] doutb // Data Output
-   );
+  // Port B
+  input rstb,                   // Reset
+  input web,                    // Write Enable
+  input regceb,                 // Output Register Enable
+  input mem_enb,                // Memory Enable
+  input [DWIDTH-1:0] dinb,      // Data Input
+  input [AWIDTH-1:0] addrb,     // Address Input
+  output reg [DWIDTH-1:0] doutb // Data Output
+ );
 
 (* ram_style = "ultra" *)
 reg [DWIDTH-1:0] mem[(1<<AWIDTH)-1:0];        // Memory Declaration
@@ -135,32 +223,4 @@ begin
   doutb <= mem_pipe_regb[NBPIPE-1];
 end
 endmodule
-/*
-// The following is an instantation template for
-// xilinx_ultraram_true_dual_port
-
-   xilinx_ultraram_true_dual_port # (
-                                             .AWIDTH(AWIDTH),
-                                             .DWIDTH(DWIDTH),
-                                             .NBPIPE(NBPIPE)
-                                            )
-                      your_instance_name    (
-                                             clk(clk),
-                                             rsta(rsta),
-                                             wea(wea),
-                                             regcea(regcea),
-                                             mem_ena(mem_ena),
-                                             dina(dina),
-                                             addra(addra),
-                                             douta(douta),
-                                             rstb(rstb),
-                                             web(web),
-                                             regceb(regceb),
-                                             mem_enb(mem_enb),
-                                             dinb(dinb),
-                                             addrb(addrb),
-                                             doutb(doutb)
-                                            );
-*/
-
 

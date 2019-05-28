@@ -6,7 +6,7 @@
 //  which is the most power efficient mode.
 //  If a reset or enable is not necessary, it may be tied off or removed from the code.
 
-module bram #( 
+module bram_reset #(
   parameter RAM_WIDTH = 18,
   parameter RAM_DEPTH = 1024,
   parameter RAM_PERFORMANCE = "HIGH_PERFORMANCE",
@@ -15,21 +15,70 @@ module bram #(
   if_ram.sink a,
   if_ram.sink b
 );
-  
+
+if_ram #(.RAM_WIDTH(a.RAM_WIDTH), .RAM_DEPTH(a.RAM_DEPTH)) if_ram_a(.i_clk(a.i_clk), .i_rst(a.i_rst));
+
+logic reset_done;
+logic [$clog2(RAM_WIDTH)-1:0] addr;
+
+always_ff @ (posedge a.i_clk) begin
+  if (a.i_rst) begin
+    reset_done <= 0;
+    addr <= 0;
+  end else begin
+    addr <= addr + 1;
+    if (&addr)
+      reset_done <= 1;
+  end
+end
+
+always_comb begin
+  if_ram_a.a =  reset_done ? a.a : addr;
+  if_ram_a.en = a.en;
+  if_ram_a.we = reset_done ? a.we : 1'd1;
+  if_ram_a.re = a.re;
+  if_ram_a.d =  reset_done ? a.d : {RAM_WIDTH{1'd0}};
+  a.q = if_ram_a.q;
+end
+
+bram #(
+  .RAM_WIDTH ( RAM_WIDTH ),
+  .RAM_DEPTH ( RAM_DEPTH ),
+  .RAM_PERFORMANCE ( RAM_PERFORMANCE ),
+  .INIT_FILE ( INIT_FILE )
+)
+bram_instance (
+  .a( if_ram_a ),
+  .b( b )
+);
+
+endmodule
+
+module bram #(
+  parameter RAM_WIDTH = 18,
+  parameter RAM_DEPTH = 1024,
+  parameter RAM_PERFORMANCE = "HIGH_PERFORMANCE",
+  parameter INIT_FILE = ""
+) (
+  if_ram.sink a,
+  if_ram.sink b
+);
+
   // Check RAM sizes match the interface
   initial begin
     assert ($bits(a.d) == RAM_WIDTH) else $fatal(1, "%m %t ERROR: bram RAM_WIDTH (%d) does not match interface a (%d)", $time, RAM_WIDTH, $bits(a.d));
     assert ($bits(a.a) == $clog2(RAM_DEPTH)) else $fatal(1, "%m %t ERROR: bram $clog2(RAM_DEPTH) (%d) does not match interface a (%d)", $time, $clog2(RAM_DEPTH), $bits(a.a));
     assert ($bits(b.d) == RAM_WIDTH) else $fatal(1, "%m %t ERROR: bram RAM_WIDTH (%d) does not match interface b (%d)", $time, RAM_WIDTH, $bits(b.d));
-    assert ($bits(b.a) == $clog2(RAM_DEPTH)) else $fatal(1, "%m %t ERROR: bram $clog2(RAM_DEPTH) (%d) does not match interface b (%d)", $time, $clog2(RAM_DEPTH), $bits(b.a));    
+    assert ($bits(b.a) == $clog2(RAM_DEPTH)) else $fatal(1, "%m %t ERROR: bram $clog2(RAM_DEPTH) (%d) does not match interface b (%d)", $time, $clog2(RAM_DEPTH), $bits(b.a));
   end
 
   xilinx_true_dual_port_no_change_2_clock_ram #(
     .RAM_WIDTH(RAM_WIDTH),                       // Specify RAM data width
-    .RAM_DEPTH(RAM_DEPTH),                       // Specify RAM depth (number of entries)
+    .RAM_DEPTH($clog2(RAM_DEPTH)),                       // Specify RAM depth (number of entries)
     .RAM_PERFORMANCE(RAM_PERFORMANCE),           // Select "HIGH_PERFORMANCE" or "LOW_LATENCY"
     .INIT_FILE(INIT_FILE)                        // Specify name/location of RAM initialization file if using one (leave blank if not)
-  ) your_instance_name (
+  )
+  bram_instance (
     .addra(a.a),   // Port A address bus, width determined from RAM_DEPTH
     .addrb(b.a),   // Port B address bus, width determined from RAM_DEPTH
     .dina(a.d),     // Port A RAM input data, width determined from RAM_WIDTH
@@ -47,10 +96,10 @@ module bram #(
     .douta(a.q),   // Port A RAM output data, width determined from RAM_WIDTH
     .doutb(b.q)    // Port B RAM output data, width determined from RAM_WIDTH
   );
-  
+
 endmodule
-    
-    
+
+
 module xilinx_true_dual_port_no_change_2_clock_ram #(
   parameter RAM_WIDTH = 18,                       // Specify RAM data width
   parameter RAM_DEPTH = 1024,                     // Specify RAM depth (number of entries)
