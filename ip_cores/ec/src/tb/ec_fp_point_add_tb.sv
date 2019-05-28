@@ -30,6 +30,9 @@ if_axi_stream #(.DAT_BYTS((384*3)/8)) out_if(clk);
 if_axi_stream #(.DAT_BYTS(384*2/8), .CTL_BITS(8)) mult_in_if(clk);
 if_axi_stream #(.DAT_BITS(381), .CTL_BITS(8)) mult_out_if(clk);
 
+if_axi_stream #(.DAT_BITS(2*bls12_381_pkg::DAT_BITS), .CTL_BITS(8)) add_in_if(clk);
+if_axi_stream #(.DAT_BITS(bls12_381_pkg::DAT_BITS), .CTL_BITS(8)) add_out_if(clk);
+
 jb_point_t in_p1, in_p2, out_p;
 
 always_comb begin
@@ -77,7 +80,9 @@ ec_fp_point_add (
   .i_rdy ( out_if.rdy ),
   .o_val  ( out_if.val ) ,
   .o_mult_if ( mult_in_if ),
-  .i_mult_if ( mult_out_if )
+  .i_mult_if ( mult_out_if ),
+  .o_add_if ( add_in_if ),
+  .i_add_if ( add_out_if )
 );
 
 always_comb begin
@@ -85,6 +90,11 @@ always_comb begin
   mult_out_if.eop = 1;
   mult_out_if.err = 0;
   mult_out_if.mod = 1;
+  
+  add_out_if.sop = 1;
+  add_out_if.eop = 1;
+  add_out_if.err = 0;
+  add_out_if.mod = 1;
 end
 
 
@@ -100,13 +110,32 @@ ec_fp_mult_mod (
   .i_dat_a ( mult_in_if.dat[0 +: bls12_381_pkg::DAT_BITS] ),
   .i_dat_b ( mult_in_if.dat[bls12_381_pkg::DAT_BITS +: bls12_381_pkg::DAT_BITS] ),
   .i_val ( mult_in_if.val ),
-  .i_err ( mult_in_if.err ),
   .i_ctl ( mult_in_if.ctl ),
   .o_rdy ( mult_in_if.rdy ),
   .o_dat ( mult_out_if.dat ),
   .i_rdy ( mult_out_if.rdy ),
   .o_val ( mult_out_if.val ),
   .o_ctl ( mult_out_if.ctl )
+);
+
+adder_pipe # (
+  .BITS     ( bls12_381_pkg::DAT_BITS ),
+  .P        ( P   ),
+  .CTL_BITS ( 8   ),
+  .LEVEL    ( 2   )
+)
+adder_pipe (
+  .i_clk ( clk        ),
+  .i_rst ( rst        ),
+  .i_dat_a ( add_in_if.dat[0 +: bls12_381_pkg::DAT_BITS] ),
+  .i_dat_b ( add_in_if.dat[bls12_381_pkg::DAT_BITS +: bls12_381_pkg::DAT_BITS] ),
+  .i_ctl ( add_in_if.ctl ),
+  .i_val ( add_in_if.val  ),
+  .o_rdy ( add_in_if.rdy  ),
+  .o_dat ( add_out_if.dat ),
+  .o_val ( add_out_if.val ),
+  .o_ctl ( add_out_if.ctl ),
+  .i_rdy ( add_out_if.rdy )
 );
 
 task test();
@@ -137,8 +166,7 @@ begin
   end
 
   $display("test PASSED");
-      $display("Expected:");
-  print_jb_point(p_exp);
+
 end
 endtask;
 

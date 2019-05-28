@@ -33,9 +33,12 @@ module ec_fp_point_add
   input logic       i_rdy,
   output logic      o_val,
   output logic      o_err,
-  // Interface to 256bit multiplier (mod p)
+  // Interface to multiplier (mod P)
   if_axi_stream.source o_mult_if,
-  if_axi_stream.sink   i_mult_if
+  if_axi_stream.sink   i_mult_if,
+  // Interface to adder (mod P)
+  if_axi_stream.source o_add_if,
+  if_axi_stream.sink   i_add_if  
 );
 
 localparam DAT_BITS = $clog2(P);
@@ -95,8 +98,13 @@ POINT_TYPE i_p1_l, i_p2_l;
 always_comb begin
   o_mult_if.sop = 1;
   o_mult_if.eop = 1;
-  o_mult_if.err = 1;
+  o_mult_if.err = 0;
   o_mult_if.mod = 0;
+  
+  o_add_if.sop = 1;
+  o_add_if.eop = 1;
+  o_add_if.err = 0;
+  o_add_if.mod = 0;
 end
 
 enum {IDLE, START, FINISHED} state;
@@ -107,6 +115,10 @@ always_ff @ (posedge i_clk) begin
     o_p <= 0;
     o_mult_if.val <= 0;
     o_mult_if.dat <= 0;
+    o_add_if.val <= 0;
+    o_add_if.dat <= 0;
+    o_add_if.ctl <= 0;
+    i_add_if.rdy <= 0;
     i_mult_if.rdy <= 0;
     o_mult_if.ctl <= 0;
     eq_val <= 0;
@@ -122,6 +134,7 @@ always_ff @ (posedge i_clk) begin
   end else begin
 
     if (o_mult_if.rdy) o_mult_if.val <= 0;
+    if (o_add_if.rdy) o_add_if.val <= 0;
 
     case(state)
       {IDLE}: begin
@@ -130,6 +143,7 @@ always_ff @ (posedge i_clk) begin
         eq_wait <= 0;
         o_err <= 0;
         i_mult_if.rdy <= 1;
+        i_add_if.rdy <= 1;
         i_p1_l <= i_p1;
         i_p2_l <= i_p2;
         A <= 0;
@@ -163,6 +177,7 @@ always_ff @ (posedge i_clk) begin
       // are valid
       {START}: begin
         i_mult_if.rdy <= 1;
+        i_add_if.rdy <= 1;
 
         // Check any results from multiplier
         if (i_mult_if.val && i_mult_if.rdy) begin
@@ -187,6 +202,16 @@ always_ff @ (posedge i_clk) begin
             default: o_err <= 1;
           endcase
         end
+        
+        // Check any results from adder
+        if (i_add_if.val && i_add_if.rdy) begin
+          eq_val[i_add_if.ctl[5:0]] <= 1;
+          case(i_add_if.ctl[5:0]) inside
+            16: i_p1_l.x <= i_add_if.dat;
+
+            default: o_err <= 1;
+          endcase
+        end        
 
         // Issue new multiplies
         if (~eq_wait[0]) begin                            // 0. A = i_p2.z*i_p2.z mod p
@@ -238,9 +263,9 @@ always_ff @ (posedge i_clk) begin
           multiply(23, o_p.z, B);
         end
 
-        // Additions we do in-module
-       if (eq_val[15] && eq_val[14] && ~eq_wait[16]) begin           // 16. i_p1.x = 2* i_p1.x mod p [eq15, eq14]
-          i_p1_l.x <= addition(16, i_p1_l.x, i_p1_l.x);
+        // Additions
+        if (eq_val[15] && eq_val[14] && ~eq_wait[16]) begin           // 16. i_p1.x = 2* i_p1.x mod p [eq15, eq14]
+          addition(16, i_p1_l.x, i_p1_l.x);
         end
 
         // Subtractions we do in-module
@@ -303,11 +328,15 @@ function logic [DAT_BITS-1:0] subtract(input int unsigned ctl, input logic [DAT_
 endfunction
 
 // Task for addition
-function logic [DAT_BITS-1:0] addition(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
-  eq_wait[ctl] <= 1;
-  eq_val[ctl] <= 1;
-  return (a + b - (b + a > P ? P : 0));
-endfunction
+task addition(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
+  if (~o_add_if.val || (o_add_if.val && o_add_if.rdy)) begin
+    o_add_if.val <= 1;
+    o_add_if.dat[0 +: DAT_BITS] <= a;
+    o_add_if.dat[DAT_BITS +: DAT_BITS] <= b;
+    o_add_if.ctl[5:0] <= ctl;
+    eq_wait[ctl] <= 1;
+  end
+endtask
 
 // Task for using multiplies
 task multiply(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
