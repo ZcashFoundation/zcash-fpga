@@ -22,18 +22,21 @@ package common_pkg;
   
   // Compare bytes and print if they do not match
   task compare_and_print(input logic [MAX_SIM_BYTS*8-1:0] data, expected);
+    logic start_print;
+    start_print = 0;
     if (data == expected) begin
       $display("%m %t INFO: Data matched", $time);
     end else begin
       $write("exp: 0x");
-      while(expected != 0) begin
-        $write("%x", expected[7:0]);
-        expected = expected >> 8;
+      for (int i = MAX_SIM_BYTS-1; i >= 0; i--) begin
+        if (expected[i*8 +: 8] != 0) start_print = 1;
+        if (start_print) $write("%x", expected[i*8 +: 8]);
       end
+      start_print = 0;
       $write("\nwas: 0x");
-      while(data != 0) begin
-        $write("%x", data[7:0]);
-        data = data >> 8;
+      for (int i = MAX_SIM_BYTS-1; i >= 0; i--) begin
+        if (data[i*8 +: 8] != 0) start_print = 1;
+        if (start_print) $write("%x", data[i*8 +: 8]);
       end
       $write("\n");
       $fatal(1, "%m %t ERROR: data did not match", $time);

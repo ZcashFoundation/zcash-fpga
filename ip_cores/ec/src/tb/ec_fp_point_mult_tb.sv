@@ -29,6 +29,11 @@ if_axi_stream #(.DAT_BYTS(384*3/8)) out_if(clk);
 
 if_axi_stream #(.DAT_BYTS(384*2/8), .CTL_BITS(16)) mult_in_if(clk);
 if_axi_stream #(.DAT_BYTS(384/8), .CTL_BITS(16)) mult_out_if(clk);
+if_axi_stream #(.DAT_BYTS(384*2/8), .CTL_BITS(16)) add_in_if(clk);
+if_axi_stream #(.DAT_BYTS(384/8), .CTL_BITS(16)) add_out_if(clk);
+if_axi_stream #(.DAT_BYTS(384*2/8), .CTL_BITS(16)) sub_in_if(clk);
+if_axi_stream #(.DAT_BYTS(384/8), .CTL_BITS(16)) sub_out_if(clk);
+
 
 logic [DAT_BITS-1:0] k_in;
 
@@ -62,6 +67,16 @@ always_comb begin
   mult_out_if.val = 0;
   mult_out_if.mod = 0;
   mult_in_if.rdy = 1;
+  add_out_if.sop = 1;
+  add_out_if.eop = 1;
+  add_out_if.val = 0;
+  add_out_if.mod = 0;
+  add_in_if.rdy = 1;
+  sub_out_if.sop = 1;
+  sub_out_if.eop = 1;
+  sub_out_if.val = 0;
+  sub_out_if.mod = 0;
+  sub_in_if.rdy = 1;
 end
 
 
@@ -69,7 +84,6 @@ ec_fp_point_mult #(
   .P          ( P ),
   .POINT_TYPE ( jb_point_t ),
   .DAT_BITS   ( DAT_BITS   ),
-  .MUL_BITS   ( MUL_BITS   ),
   .RESOURCE_SHARE ("NO")
 )
 ec_fp_point_mult (
@@ -85,58 +99,60 @@ ec_fp_point_mult (
   .o_err ( out_if.err ),
   .o_mult_if ( mult_in_if ),
   .i_mult_if ( mult_out_if ),
+  .o_add_if ( add_in_if ),
+  .i_add_if ( add_out_if ),
+  .o_sub_if ( sub_in_if ),
+  .i_sub_if ( sub_out_if ),  
   .i_p2_val ( 0),
   .i_p2 ( 0 )
 );
 
 
 // Test a point
-task test(input integer index, input logic [DAT_BITS-1:0] k, jb_point_t p_exp, p_in);
+task test(input logic [DAT_BITS-1:0] k);
 begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
   integer start_time, finish_time;
-  jb_point_t  p_out;
-  $display("Running test %d ...", index);
+  jb_point_t  p_out, p_exp;
+  $display("Running test with k= %d ...", k);
+  p_exp = point_mult(k, g_point);
   k_in = k;
   start_time = $time;
-  print_jb_point(p_in);
   fork
-    in_if.put_stream(p_in, 384*3/8);
+    in_if.put_stream(g_point, 384*3/8);
     out_if.get_stream(get_dat, get_len);
   join
   finish_time = $time;
 
   p_out = get_dat;
 
+
+  $display("Expected:");
+  print_jb_point(p_exp);
+  $display("Was:");
+  print_jb_point(p_out);
+  
   if (p_exp != p_out) begin
-    $display("Expected:");
-    print_jb_point(p_exp);
-    $display("Was:");
-    print_jb_point(p_out);
-    $fatal(1, "%m %t ERROR: test %d was wrong", $time, index);
+    $fatal(1, "%m %t ERROR: output was wrong", $time);
   end
 
-  $display("test %d PASSED in %d clocks", index, (finish_time-start_time)/CLK_PERIOD);
+  $display("test PASSED in %d clocks", (finish_time-start_time)/CLK_PERIOD);
 end
 endtask;
 
+jb_point_t point;
 
 initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
 
-  test(0,
-       1,
-       bls12_381_pkg::g_point,
-       bls12_381_pkg::g_point);
-
-  test(1,
-       4,
-       bls12_381_pkg::g_point,
-       bls12_381_pkg::g_point);
-       
+  test(381'h1);
+  test(381'h5);
+  test(381'h10);
+  test(381'h9f5193de96ab6e65e7c7df8adcec4e82b971dd5f54d1c62103776d3eef0255ae346eba9e29eb08c3a957e9a53afc3ce);
+    
   #1us $finish();
 end
 endmodule

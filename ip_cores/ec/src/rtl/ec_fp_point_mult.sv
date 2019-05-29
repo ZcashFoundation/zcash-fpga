@@ -36,9 +36,13 @@ module ec_fp_point_mult
   input logic       i_rdy,
   output logic      o_val,
   output logic      o_err,
-  // Interface to multiplier (mod p) (if RESOURCE_SHARE == "YES")
+  // Interface to shared logic (mod p) (if RESOURCE_SHARE == "YES")
   if_axi_stream.source o_mult_if,
   if_axi_stream.sink   i_mult_if,
+  if_axi_stream.source o_add_if,
+  if_axi_stream.sink   i_add_if,
+  if_axi_stream.source o_sub_if,
+  if_axi_stream.sink   i_sub_if,
   // We provide another input so that the final point addition can be done
   input POINT_TYPE i_p2,
   input            i_p2_val
@@ -47,6 +51,12 @@ module ec_fp_point_mult
 // [0] is connection from/to dbl block, [1] is add block, [2] is arbitrated value
 if_axi_stream #(.DAT_BITS(DAT_BITS*2), .CTL_BITS(16)) mult_in_if [2:0] (i_clk);
 if_axi_stream #(.DAT_BITS(DAT_BITS), .CTL_BITS(16)) mult_out_if [2:0] (i_clk);
+
+if_axi_stream #(.DAT_BITS(DAT_BITS*2), .CTL_BITS(16)) add_in_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BITS(DAT_BITS), .CTL_BITS(16)) add_out_if [2:0] (i_clk);
+
+if_axi_stream #(.DAT_BITS(DAT_BITS*2), .CTL_BITS(16)) sub_in_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BITS(DAT_BITS), .CTL_BITS(16)) sub_out_if [2:0] (i_clk);
 
 logic [DAT_BITS-1:0] k_l;
 POINT_TYPE p_n, p_q, p_dbl, p_add;
@@ -211,9 +221,13 @@ ec_fp_point_dbl (
   .o_err ( p_dbl_out_err ),
   .i_rdy ( p_dbl_out_rdy ),
   .o_val ( p_dbl_out_val ),
-  // Interfaces to shared multipliers
+  // Interfaces to shared logic
   .o_mult_if ( mult_in_if[0]  ),
-  .i_mult_if ( mult_out_if[0] )
+  .i_mult_if ( mult_out_if[0] ),
+  .o_add_if  ( add_in_if[0]   ),
+  .i_add_if  ( add_out_if[0]  ),
+  .o_sub_if  ( sub_in_if[0]   ),
+  .i_sub_if  ( sub_out_if[0]  )
 );
 
 ec_fp_point_add #(
@@ -233,9 +247,13 @@ ec_fp_point_add (
   .o_err ( p_add_out_err ),
   .i_rdy ( p_add_out_rdy ),
   .o_val ( p_add_out_val ),
-  // Interfaces to shared multipliers
+  // Interfaces to shared logic
   .o_mult_if ( mult_in_if[1]  ),
-  .i_mult_if ( mult_out_if[1] )
+  .i_mult_if ( mult_out_if[1] ),
+  .o_add_if  ( add_in_if[1]   ),
+  .i_add_if  ( add_out_if[1]  ),
+  .o_sub_if  ( sub_in_if[1]   ),
+  .i_sub_if  ( sub_out_if[1]  )
 );
 
 resource_share # (
@@ -252,29 +270,66 @@ resource_share_mult (
   .i_res ( mult_out_if[2]   ),
   .o_axi ( mult_out_if[1:0] )
 );
+
+resource_share # (
+  .NUM_IN ( 2 ),
+  .OVR_WRT_BIT ( 8 ),
+  .PIPELINE_IN ( 0 ),
+  .PIPELINE_OUT ( 0 )
+)
+resource_share_add (
+  .i_clk ( i_clk ),
+  .i_rst ( i_rst ),
+  .i_axi ( add_in_if[1:0]  ),
+  .o_res ( add_in_if[2]    ),
+  .i_res ( add_out_if[2]   ),
+  .o_axi ( add_out_if[1:0] )
+);
+
+resource_share # (
+  .NUM_IN ( 2 ),
+  .OVR_WRT_BIT ( 8 ),
+  .PIPELINE_IN ( 0 ),
+  .PIPELINE_OUT ( 0 )
+)
+resource_share_sub (
+  .i_clk ( i_clk ),
+  .i_rst ( i_rst ),
+  .i_axi ( sub_in_if[1:0]  ),
+  .o_res ( sub_in_if[2]    ),
+  .i_res ( sub_out_if[2]   ),
+  .o_axi ( sub_out_if[1:0] )
+);
 generate
   if (RESOURCE_SHARE == "YES") begin: RESOURCE_GEN
     always_comb begin
-      o_mult_if.val = mult_in_if[2].val;
-      o_mult_if.dat = mult_in_if[2].dat;
-      o_mult_if.ctl = mult_in_if[2].ctl;
-      o_mult_if.err = 0;
-      o_mult_if.mod = 0;
-      o_mult_if.sop = 1;
-      o_mult_if.eop = 1;
+      o_mult_if.copy_if_comb(mult_in_if[2].dat, mult_in_if[2].val, 1, 1, 0, 0, mult_in_if[2].ctl);
       mult_in_if[2].rdy = o_mult_if.rdy;
-
+      mult_out_if[2].copy_if_comb(i_mult_if.dat, i_mult_if.val, 1, 1, 0, 0, i_mult_if.ctl);
       i_mult_if.rdy = mult_out_if[2].rdy;
-      mult_out_if[2].val = i_mult_if.val;
-      mult_out_if[2].dat = i_mult_if.dat;
-      mult_out_if[2].ctl = i_mult_if.ctl;
-
+    end
+    always_comb begin
+      o_add_if.copy_if_comb(add_in_if[2].dat, add_in_if[2].val, 1, 1, 0, 0, add_in_if[2].ctl);
+      add_in_if[2].rdy = o_add_if.rdy;
+      add_out_if[2].copy_if_comb(i_add_if.dat, i_add_if.val, 1, 1, 0, 0, i_add_if.ctl);
+      i_add_if.rdy = add_out_if[2].rdy;
+    end
+    always_comb begin
+      o_sub_if.copy_if_comb(sub_in_if[2].dat, sub_in_if[2].val, 1, 1, 0, 0, sub_in_if[2].ctl);
+      sub_in_if[2].rdy = o_sub_if.rdy;
+      sub_out_if[2].copy_if_comb(i_sub_if.dat, i_sub_if.val, 1, 1, 0, 0, i_sub_if.ctl);
+      i_sub_if.rdy = sub_out_if[2].rdy;
     end
   end else begin
     always_comb begin
       o_mult_if.reset_source();
       i_mult_if.rdy = 0;
+      o_add_if.reset_source();
+      i_add_if.rdy = 0;
+      o_sub_if.reset_source();
+      i_sub_if.rdy = 0;
     end
+
 
     ec_fp_mult_mod #(
       .P             ( P  ),
@@ -293,6 +348,44 @@ generate
       .i_rdy ( mult_out_if[2].rdy ),
       .o_val ( mult_out_if[2].val ),
       .o_ctl ( mult_out_if[2].ctl )
+    );
+
+    adder_pipe # (
+      .P        ( P   ),
+      .CTL_BITS ( 16  ),
+      .LEVEL    ( 2   )
+    )
+    adder_pipe (
+      .i_clk( i_clk ),
+      .i_rst( i_rst ),
+      .i_dat_a ( add_in_if[2].dat[0 +: DAT_BITS]        ),
+      .i_dat_b ( add_in_if[2].dat[DAT_BITS +: DAT_BITS] ),
+      .i_ctl ( add_in_if[2].ctl ),
+      .i_val ( add_in_if[2].val  ),
+      .o_rdy ( add_in_if[2].rdy  ),
+      .o_dat ( add_out_if[2].dat ),
+      .o_val ( add_out_if[2].val ),
+      .o_ctl ( add_out_if[2].ctl ),
+      .i_rdy ( add_out_if[2].rdy )
+    );
+
+    subtractor_pipe # (
+      .P        ( P   ),
+      .CTL_BITS ( 16  ),
+      .LEVEL    ( 2   )
+    )
+    subtractor_pipe (
+      .i_clk( i_clk ),
+      .i_rst( i_rst ),
+      .i_dat_a ( sub_in_if[2].dat[0 +: DAT_BITS]        ),
+      .i_dat_b ( sub_in_if[2].dat[DAT_BITS +: DAT_BITS] ),
+      .i_ctl ( sub_in_if[2].ctl ),
+      .i_val ( sub_in_if[2].val  ),
+      .o_rdy ( sub_in_if[2].rdy  ),
+      .o_dat ( sub_out_if[2].dat ),
+      .o_val ( sub_out_if[2].val ),
+      .o_ctl ( sub_out_if[2].ctl ),
+      .i_rdy ( sub_out_if[2].rdy )
     );
 
   end
