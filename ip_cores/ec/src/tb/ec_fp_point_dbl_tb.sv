@@ -19,7 +19,6 @@
 module ec_fp_point_dbl_tb ();
 
 import common_pkg::*;
-//import secp256k1_pkg::*;
 import bls12_381_pkg::*;
 
 localparam DAT_BITS = 384;
@@ -33,6 +32,12 @@ if_axi_stream #(.DAT_BYTS(DAT_BITS*3/8)) out_if(clk);
 
 if_axi_stream #(.DAT_BITS(381*2), .CTL_BITS(8)) mult_in_if(clk);
 if_axi_stream #(.DAT_BITS(381), .CTL_BITS(8)) mult_out_if(clk);
+
+if_axi_stream #(.DAT_BITS(2*bls12_381_pkg::DAT_BITS), .CTL_BITS(8)) add_in_if(clk);
+if_axi_stream #(.DAT_BITS(bls12_381_pkg::DAT_BITS), .CTL_BITS(8)) add_out_if(clk);
+
+if_axi_stream #(.DAT_BITS(2*bls12_381_pkg::DAT_BITS), .CTL_BITS(8)) sub_in_if(clk);
+if_axi_stream #(.DAT_BITS(bls12_381_pkg::DAT_BITS), .CTL_BITS(8)) sub_out_if(clk);
 
 jb_point_t in_p, out_p;
 
@@ -78,7 +83,11 @@ ec_fp_point_dbl (
   .i_rdy ( out_if.rdy ),
   .o_val  ( out_if.val ) ,
   .o_mult_if ( mult_in_if ),
-  .i_mult_if ( mult_out_if )
+  .i_mult_if ( mult_out_if ),
+  .o_add_if ( add_in_if ),
+  .i_add_if ( add_out_if ),
+  .o_sub_if ( sub_in_if ),
+  .i_sub_if ( sub_out_if )
 );
 
 // Attach a mod reduction unit and multiply - mod unit
@@ -102,7 +111,62 @@ ec_fp_mult_mod (
   .o_ctl ( mult_out_if.ctl )
 );
 
-always_comb mult_out_if.err = 0;
+adder_pipe # (
+  .BITS     ( bls12_381_pkg::DAT_BITS ),
+  .P        ( P   ),
+  .CTL_BITS ( 8   ),
+  .LEVEL    ( 2   )
+)
+adder_pipe (
+  .i_clk ( clk        ),
+  .i_rst ( rst        ),
+  .i_dat_a ( add_in_if.dat[0 +: bls12_381_pkg::DAT_BITS] ),
+  .i_dat_b ( add_in_if.dat[bls12_381_pkg::DAT_BITS +: bls12_381_pkg::DAT_BITS] ),
+  .i_ctl ( add_in_if.ctl ),
+  .i_val ( add_in_if.val  ),
+  .o_rdy ( add_in_if.rdy  ),
+  .o_dat ( add_out_if.dat ),
+  .o_val ( add_out_if.val ),
+  .o_ctl ( add_out_if.ctl ),
+  .i_rdy ( add_out_if.rdy )
+);
+
+subtractor_pipe # (
+  .BITS     ( bls12_381_pkg::DAT_BITS ),
+  .P        ( P   ),
+  .CTL_BITS ( 8   ),
+  .LEVEL    ( 2   )
+)
+subtractor_pipe (
+  .i_clk ( clk        ),
+  .i_rst ( rst        ),
+  .i_dat_a ( sub_in_if.dat[0 +: bls12_381_pkg::DAT_BITS] ),
+  .i_dat_b ( sub_in_if.dat[bls12_381_pkg::DAT_BITS +: bls12_381_pkg::DAT_BITS] ),
+  .i_ctl ( sub_in_if.ctl ),
+  .i_val ( sub_in_if.val  ),
+  .o_rdy ( sub_in_if.rdy  ),
+  .o_dat ( sub_out_if.dat ),
+  .o_val ( sub_out_if.val ),
+  .o_ctl ( sub_out_if.ctl ),
+  .i_rdy ( sub_out_if.rdy )
+);
+
+always_comb begin
+  mult_out_if.sop = 1;
+  mult_out_if.eop = 1;
+  mult_out_if.err = 0;
+  mult_out_if.mod = 1;
+  
+  add_out_if.sop = 1;
+  add_out_if.eop = 1;
+  add_out_if.err = 0;
+  add_out_if.mod = 1;
+  
+  sub_out_if.sop = 1;
+  sub_out_if.eop = 1;
+  sub_out_if.err = 0;
+  sub_out_if.mod = 1;  
+end
 
 task test_0();
 begin

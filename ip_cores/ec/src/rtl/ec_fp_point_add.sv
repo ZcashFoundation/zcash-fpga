@@ -38,7 +38,10 @@ module ec_fp_point_add
   if_axi_stream.sink   i_mult_if,
   // Interface to adder (mod P)
   if_axi_stream.source o_add_if,
-  if_axi_stream.sink   i_add_if  
+  if_axi_stream.sink   i_add_if,
+  // Interface to subtractor (mod P)
+  if_axi_stream.source o_sub_if,
+  if_axi_stream.sink   i_sub_if    
 );
 
 localparam DAT_BITS = $clog2(P);
@@ -94,33 +97,18 @@ logic [23:0] eq_val, eq_wait;
 logic [DAT_BITS-1:0] A, B, C, D;
 POINT_TYPE i_p1_l, i_p2_l;
 
-
-always_comb begin
-  o_mult_if.sop = 1;
-  o_mult_if.eop = 1;
-  o_mult_if.err = 0;
-  o_mult_if.mod = 0;
-  
-  o_add_if.sop = 1;
-  o_add_if.eop = 1;
-  o_add_if.err = 0;
-  o_add_if.mod = 0;
-end
-
 enum {IDLE, START, FINISHED} state;
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     o_val <= 0;
     o_rdy <= 0;
     o_p <= 0;
-    o_mult_if.val <= 0;
-    o_mult_if.dat <= 0;
-    o_add_if.val <= 0;
-    o_add_if.dat <= 0;
-    o_add_if.ctl <= 0;
+    o_mult_if.copy_if(0, 0, 1, 1, 0, 0, 0);
+    o_add_if.copy_if(0, 0, 1, 1, 0, 0, 0);
+    o_sub_if.copy_if(0, 0, 1, 1, 0, 0, 0);
     i_add_if.rdy <= 0;
     i_mult_if.rdy <= 0;
-    o_mult_if.ctl <= 0;
+    i_sub_if.rdy <= 0;
     eq_val <= 0;
     state <= IDLE;
     eq_wait <= 0;
@@ -135,7 +123,8 @@ always_ff @ (posedge i_clk) begin
 
     if (o_mult_if.rdy) o_mult_if.val <= 0;
     if (o_add_if.rdy) o_add_if.val <= 0;
-
+    if (o_sub_if.rdy) o_sub_if.val <= 0;
+    
     case(state)
       {IDLE}: begin
         o_rdy <= 1;
@@ -144,6 +133,7 @@ always_ff @ (posedge i_clk) begin
         o_err <= 0;
         i_mult_if.rdy <= 1;
         i_add_if.rdy <= 1;
+        i_sub_if.rdy <= 1;
         i_p1_l <= i_p1;
         i_p2_l <= i_p2;
         A <= 0;
@@ -176,8 +166,6 @@ always_ff @ (posedge i_clk) begin
       // Just a big if tree where we issue equations if the required inputs
       // are valid
       {START}: begin
-        i_mult_if.rdy <= 1;
-        i_add_if.rdy <= 1;
 
         // Check any results from multiplier
         if (i_mult_if.val && i_mult_if.rdy) begin
@@ -208,10 +196,23 @@ always_ff @ (posedge i_clk) begin
           eq_val[i_add_if.ctl[5:0]] <= 1;
           case(i_add_if.ctl[5:0]) inside
             16: i_p1_l.x <= i_add_if.dat;
-
             default: o_err <= 1;
           endcase
         end        
+        
+        // Check any results from subtractor
+        if (i_sub_if.val && i_sub_if.rdy) begin
+          eq_val[i_sub_if.ctl[5:0]] <= 1;
+          case(i_sub_if.ctl[5:0]) inside
+            8: B <= i_sub_if.dat;
+            9: i_p2_l.y <= i_sub_if.dat;
+            13: o_p.x <= i_sub_if.dat;
+            17: o_p.x <= i_sub_if.dat;
+            18: o_p.y <= i_sub_if.dat;
+            21: o_p.y <= i_sub_if.dat;
+            default: o_err <= 1;
+          endcase
+        end     
 
         // Issue new multiplies
         if (~eq_wait[0]) begin                            // 0. A = i_p2.z*i_p2.z mod p
@@ -268,24 +269,24 @@ always_ff @ (posedge i_clk) begin
           addition(16, i_p1_l.x, i_p1_l.x);
         end
 
-        // Subtractions we do in-module
+        // Subtractions
         if (eq_val[1] && eq_val[3] && ~eq_wait[8]) begin                //8. B = i_p2.x - i_p1.x mod p [eq3, eq1]    .. H
-          B <= subtract(8, i_p2_l.x, i_p1_l.x);
-        end
+          subtraction(8, i_p2_l.x, i_p1_l.x);
+        end else
         if (eq_val[5] && eq_val[7] && ~eq_wait[9]) begin                              //9. i_p2.y = C - A mod p [eq5,eq7]    ... R
-          i_p2_l.y <= subtract(9, C, A);
-        end
+          subtraction(9, C, A);
+        end else
         if (eq_val[12] && eq_val[10] && ~eq_wait[13]) begin                          //13. o_p.x = o_p.x - i_p2.x mod p [eq12, eq10]
-          o_p.x <= subtract(13, o_p.x, i_p2_l.x);
-        end
+          subtraction(13, o_p.x, i_p2_l.x);
+        end else
         if (eq_val[16] && eq_val[13] && ~eq_wait[17]) begin                          //17. o_p.x = o_p.x - i_p1.x [eq16, eq13]
-          o_p.x <= subtract(17, o_p.x, i_p1_l.x);
-        end
+          subtraction(17, o_p.x, i_p1_l.x);
+        end else
         if (eq_val[17] && eq_val[15] && ~eq_wait[18]) begin                          //18. o_p.y = o_p.y - o_p.x mod p [eq17, eq15]
-          o_p.y <= subtract(18, o_p.y, o_p.x);
-        end
+          subtraction(18, o_p.y, o_p.x);
+        end else
         if (eq_val[20] && eq_val[19] && ~eq_wait[21]) begin                          //21. o_p.y = o_p.y - i_p2.x [eq20, eq19]
-          o_p.y <= subtract(21, o_p.y, i_p2_l.x);
+          subtraction(21, o_p.y, i_p2_l.x);
         end
 
         // Assignments
@@ -321,11 +322,15 @@ always_ff @ (posedge i_clk) begin
 end
 
 // Task for subtractions
-function logic [DAT_BITS-1:0] subtract(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
-  eq_wait[ctl] <= 1;
-  eq_val[ctl] <= 1;
-  return (a + (b > a ? P : 0) - b);
-endfunction
+task subtraction(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
+  if (~o_sub_if.val || (o_sub_if.val && o_sub_if.rdy)) begin
+    o_sub_if.val <= 1;
+    o_sub_if.dat[0 +: DAT_BITS] <= a;
+    o_sub_if.dat[DAT_BITS +: DAT_BITS] <= b;
+    o_sub_if.ctl[5:0] <= ctl;
+    eq_wait[ctl] <= 1;
+  end
+endtask
 
 // Task for addition
 task addition(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
