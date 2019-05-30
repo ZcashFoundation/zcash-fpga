@@ -44,7 +44,7 @@ interface if_axi_stream # (
                   import task reset_source(),
                   import task copy_if(dat_, val_, sop_, eop_, err_, mod_, ctl_),
                   import task copy_if_comb(dat_, val_, sop_, eop_, err_, mod_, ctl_),
-	  	  import task set_mod_from_keep(keep));
+        import task set_mod_from_keep(keep));
 
   // Task to reset a source interface signals to all 0
   task reset_source();
@@ -81,7 +81,7 @@ interface if_axi_stream # (
     mod = 0;
     for (int i = 0; i < DAT_BYTS; i++)
       if (keep[i])
-        mod += 1;	      
+        mod += 1;
   endtask
 
 
@@ -242,6 +242,27 @@ interface if_ram # (
     we <= 0;
     re <= 0;
     d <= 0;
+  endtask
+
+  task automatic write_data(input logic [$clog2(RAM_DEPTH)-1:0] addr,
+                            input logic [common_pkg::MAX_SIM_BYTS*8-1:0] data);
+                 
+    integer len_bits = $clog2(data);
+    
+    @(posedge i_clk);
+    a = addr;
+    while (len_bits > 0) begin
+      en = 1;
+      we = 1;
+      re = 0;
+      d = data;
+      data = data >> RAM_WIDTH;
+      @(posedge i_clk); // Go to next clock edge
+      len_bits = len_bits > RAM_WIDTH ? len_bits - RAM_WIDTH : 0;
+      a = a + 1;
+    end
+    en = 0;
+    we = 0;
   endtask
 
 endinterface

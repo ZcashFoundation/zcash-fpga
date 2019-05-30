@@ -16,25 +16,24 @@ module uram_reset #(
   if_ram.sink b
 );
 
-if_ram #(.RAM_WIDTH(a.RAM_WIDTH), .RAM_DEPTH(a.RAM_DEPTH)) if_ram_a(.i_clk(a.i_clk), .i_rst(a.i_rst));
+if_ram #(.RAM_WIDTH(RAM_WIDTH), .RAM_DEPTH(RAM_DEPTH)) if_ram_a(.i_clk(a.i_clk), .i_rst(a.i_rst));
 
 logic reset_done;
-logic [$clog2(RAM_WIDTH)-1:0] addr;
+logic [RAM_DEPTH-1:0] addr;
 
 always_ff @ (posedge a.i_clk) begin
   if (a.i_rst) begin
     reset_done <= 0;
     addr <= 0;
   end else begin
-    addr <= addr + 1;
-    if (&addr)
-      reset_done <= 1;
+    if (&addr) reset_done <= 1;
+    if (~reset_done) addr <= addr + 1;
   end
 end
 
 always_comb begin
   if_ram_a.a =  reset_done ? a.a : addr;
-  if_ram_a.en = a.en;
+  if_ram_a.en = reset_done ? a.en : 1'd1;
   if_ram_a.we = reset_done ? a.we : 1'd1;
   if_ram_a.re = a.re;
   if_ram_a.d =  reset_done ? a.d : {RAM_WIDTH{1'd0}};

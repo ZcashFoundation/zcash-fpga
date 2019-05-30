@@ -34,7 +34,7 @@ end
 
 always_comb begin
   if_ram_a.a =  reset_done ? a.a : addr;
-  if_ram_a.en = a.en;
+  if_ram_a.en = reset_done ? a.en : 1'd1;
   if_ram_a.we = reset_done ? a.we : 1'd1;
   if_ram_a.re = a.re;
   if_ram_a.d =  reset_done ? a.d : {RAM_WIDTH{1'd0}};

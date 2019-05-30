@@ -24,12 +24,36 @@ package bls12_381_pkg;
   localparam [DAT_BITS-1:0] Gx = 381'h17F1D3A73197D7942695638C4FA9AC0FC3688C4F9774B905A14E3A3F171BAC586C55E83FF97A1AEFFB3AF00ADB22C6BB;
   localparam [DAT_BITS-1:0] Gy = 381'h08B3F481E3AAA0F1A09E30ED741D8AE4FCF5E095D5D00AF600DB18CB2C04B3EDD03CC744A2888AE40CAA232946C5E7E1;
 
-  // Jacobian coordinates
+
+
+  // Jacobian coordinates for Fp elements
   typedef struct packed {
     logic [DAT_BITS-1:0] x, y, z;
   } jb_point_t;
 
-  jb_point_t g_point = {x:Gx, y:Gy, z:1};
+  // Jacobian coordinates for Fp^2 elements
+  typedef struct packed {
+    jb_point_t fp1_a, fp1_b;
+  } fp2_jb_point_t;
+
+  // Instruction codes
+  typedef enum logic [7:0] {
+    NOOP_WAIT = 8'h0,
+    FP_POINT_MULT = 8'h20
+  } code_t;
+
+  // Instruction format
+  typedef struct packed {
+    logic [15:0] c, b, a;
+    code_t code;
+  } inst_t;
+
+  localparam DATA_RAM_WIDTH = 381;
+  localparam DATA_RAM_DEPTH = $clog2(64);
+  localparam INST_RAM_WIDTH = $bits(inst_t);
+  localparam INST_RAM_DEPTH = $clog2(1024);
+
+  jb_point_t g_point = '{x:Gx, y:Gy, z:1};
 
   function is_zero(jb_point_t p);
     is_zero = (p.x == 0 && p.y == 0 && p.z == 1);
@@ -72,11 +96,11 @@ package bls12_381_pkg;
      if (p1.y == p2.y && p1.x == p2.x)
        return (dbl_jb_point(p1));
 
-     U1 = p1.x*p2.z % P;
-     U1 = U1*p2.z % P;
+     U1 = (p1.x*p2.z) % P;
+     U1 = (U1*p2.z) % P;
 
-     U2 = p2.x*p1.z % P;
-     U2 = U2 *p1.z % P;
+     U2 = (p2.x*p1.z) % P;
+     U2 = (U2 *p1.z) % P;
      S1 = p1.y *p2.z % P;
      S1 = (S1*p2.z % P) *p2.z % P;
      S2 = p2.y * p1.z % P;
@@ -100,6 +124,20 @@ package bls12_381_pkg;
 
      add_jb_point.y = A + (add_jb_point.y > A ? P : 0) - add_jb_point.y;
 
+   endfunction
+
+   function jb_point_t point_mult(logic [DAT_BITS-1:0] c, jb_point_t p);
+     jb_point_t result, addend;
+     result = 0;
+     addend = p;
+     while (c > 0) begin
+       if (c[0]) begin
+         result = add_jb_point(result, addend);
+       end
+       addend = dbl_jb_point(addend);
+       c = c >> 1;
+     end
+     return result;
    endfunction
 
    function on_curve(jb_point_t p);
