@@ -18,7 +18,7 @@
  */
 
 module adder_pipe # (
-  parameter  P,
+  parameter  P = bls12_381_pkg::P,
   parameter  BITS = $clog2(P),
   parameter  CTL_BITS = 8,
   parameter  LEVEL = 1     // If LEVEL == 1 this is just an add with registered output
@@ -60,7 +60,7 @@ always_comb begin
   result0[0] = 0;
   result1[0] = 0;
   o_val = val[LEVEL];
-  rdy[LEVEL] = ~o_val || (o_val && i_rdy);
+  rdy[LEVEL] = i_rdy;
   o_dat = carry_neg[LEVEL] ? result0[LEVEL] : result1[LEVEL];
   o_ctl = ctl[LEVEL];
   o_rdy = rdy[0];
@@ -78,7 +78,7 @@ genvar g;
     logic cn;
 
     always_comb begin
-      rdy[g] = ~val[g] || (val[g] && rdy[g]);
+      rdy[g] = ~val[g+1] || (val[g+1] && rdy[g+1]);
       add_res0 = a[g][g*BITS_LEVEL +: BITS_LEVEL] + 
                  b[g][g*BITS_LEVEL +: BITS_LEVEL] + 
                  result0[g][g*BITS_LEVEL];
@@ -106,7 +106,7 @@ genvar g;
         ctl[g+1] <= 0;
         carry_neg[g+1] <= 0;
       end else begin
-        if (rdy[g+1]) begin
+        if (rdy[g]) begin
           val[g+1] <= val[g];
           ctl[g+1] <= ctl[g];
           a[g+1] <= a[g];

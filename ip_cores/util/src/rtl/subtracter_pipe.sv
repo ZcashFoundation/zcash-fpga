@@ -61,7 +61,7 @@ always_comb begin
   result0[0] = 0;
   result1[0] = 0;
   o_val = val[LEVEL];
-  rdy[LEVEL] = ~o_val || (o_val && i_rdy);
+  rdy[LEVEL] = i_rdy;
   o_dat = carry_neg1[LEVEL] ? result0[LEVEL] : result1[LEVEL];
   o_ctl = ctl[LEVEL];
   o_rdy = rdy[0];
@@ -79,7 +79,7 @@ genvar g;
     logic cn0, cn1;
 
     always_comb begin
-      rdy[g] = ~val[g] || (val[g] && rdy[g]);
+      rdy[g] = ~val[g+1] || (val[g+1] && rdy[g+1]);
       
       sub_res0_ = a[g][g*BITS_LEVEL +: BITS_LEVEL] + P_[g*BITS_LEVEL +: BITS_LEVEL] + result0[g][g*BITS_LEVEL];
       sub_res0__ = b[g][g*BITS_LEVEL +: BITS_LEVEL] + carry_neg0[g];
@@ -115,7 +115,7 @@ genvar g;
         carry_neg0[g+1] <= 0;
         carry_neg1[g+1] <= 0;
       end else begin
-        if (rdy[g+1]) begin
+        if (rdy[g]) begin
           val[g+1] <= val[g];
           ctl[g+1] <= ctl[g];
           a[g+1] <= a[g];
