@@ -22,6 +22,11 @@
 #include <assert.h>
 #include <string.h>
 
+#include <stdlib.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <unistd.h>
+
 #include <fpga_pci.h>
 #include <fpga_mgmt.h>
 #include <utils/lcd.h>
@@ -58,7 +63,7 @@ int check_afi_ready(int slot_id);
  */
 int peek_poke_example(uint32_t value, int slot_id, int pf_id, int bar_id);
 
-int peek_register(uint64_t addr, &value, uint32_t int slot_id);
+int peek_register(uint64_t addr, uint32_t* value, int slot_id);
 
 void usage(char* program_name) {
     printf("usage: %s [--slot <slot-id>][<poke-value>]\n", program_name);
@@ -85,7 +90,7 @@ int main(int argc, char **argv) {
     int rc;
 
     // Process command line args
-    {
+/*    {
         int i;
         int value_set = 0;
         for (i = 1; i < argc; i++) {
@@ -107,20 +112,17 @@ int main(int argc, char **argv) {
             }
         }
     }
-
+*/
     /* initialize the fpga_pci library so we could have access to FPGA PCIe from this applications */
     rc = fpga_pci_init();
-    fail_on(rc, out, "Unable to initialize the fpga_pci library");
 
     rc = check_afi_ready(slot_id);
-    fail_on(rc, out, "AFI not ready");
 
     /* Accessing the CL registers via AppPF BAR0, which maps to sh_cl_ocl_ AXI-Lite bus between AWS FPGA Shell and the CL*/
 
     printf("===== Starting with peek_poke_example =====\n");
     //rc = peek_poke_example(value, slot_id, FPGA_APP_PF, APP_PF_BAR0);
     rc = peek_register(CL_SDE_CONFIG, &value, slot_id);
-    fail_on(rc, out, "peek-poke example failed");
 
 
     return rc;
@@ -132,12 +134,10 @@ int main(int argc, char **argv) {
 
    /* get local image description, contains status, vendor id, and device id. */
    rc = fpga_mgmt_describe_local_image(slot_id, &info,0);
-   fail_on(rc, out, "Unable to get AFI information from slot %d. Are you running as root?",slot_id);
 
    /* check to see if the slot is ready */
    if (info.status != FPGA_STATUS_LOADED) {
      rc = 1;
-     fail_on(rc, out, "AFI in Slot %d is not in READY state !", slot_id);
    }
 
    printf("AFI PCI  Vendor ID: 0x%x, Device ID 0x%x\n",
@@ -151,10 +151,8 @@ int main(int argc, char **argv) {
             "was just loaded, it might need a rescan. Rescanning now.\n");
 
      rc = fpga_pci_rescan_slot_app_pfs(slot_id);
-     fail_on(rc, out, "Unable to update PF for slot %d",slot_id);
      /* get local image description, contains status, vendor id, and device id. */
      rc = fpga_mgmt_describe_local_image(slot_id, &info,0);
-     fail_on(rc, out, "Unable to get AFI information from slot %d",slot_id);
 
      printf("AFI PCI  Vendor ID: 0x%x, Device ID 0x%x\n",
             info.spec.map[FPGA_APP_PF].vendor_id,
@@ -164,24 +162,18 @@ int main(int argc, char **argv) {
      if (info.spec.map[FPGA_APP_PF].vendor_id != pci_vendor_id ||
          info.spec.map[FPGA_APP_PF].device_id != pci_device_id) {
        rc = 1;
-       fail_on(rc, out, "The PCI vendor id and device of the loaded AFI are not "
-               "the expected values.");
      }
    }
 
    return rc;
- out:
-   return 1;
  }
 
-int peek_register(uint64_t addr, &value, uint32_t int slot_id) {
+int peek_register(uint64_t addr, uint32_t* value, int slot_id) {
   int rc;
   pci_bar_handle_t pci_bar_handle = PCI_BAR_HANDLE_INIT;
   rc = fpga_pci_attach(slot_id, FPGA_APP_PF, APP_PF_BAR0, 0, &pci_bar_handle);
-  fail_on(rc, out, "Unable to attach to the AFI on slot id %d", slot_id);
 
   rc = fpga_pci_peek(pci_bar_handle, addr, value);
-  fail_on(rc, out, "Unable to read read from the fpga !");
 
   printf("register: 0x%x\n", *value);
 
@@ -206,7 +198,6 @@ int peek_poke_example(uint32_t value, int slot_id, int pf_id, int bar_id) {
      */
 
     rc = fpga_pci_attach(slot_id, pf_id, bar_id, 0, &pci_bar_handle);
-    fail_on(rc, out, "Unable to attach to the AFI on slot id %d", slot_id);
 
 
     /* write a value into the mapped address space */
@@ -214,12 +205,10 @@ int peek_poke_example(uint32_t value, int slot_id, int pf_id, int bar_id) {
     printf("Writing 0x%08x to HELLO_WORLD register (0x%016lx)\n", value, HELLO_WORLD_REG_ADDR);
     rc = fpga_pci_poke(pci_bar_handle, HELLO_WORLD_REG_ADDR, value);
 
-    fail_on(rc, out, "Unable to write to the fpga !");
 
     /* read it back and print it out; you should expect the byte order to be
      * reversed (That's what this CL does) */
     rc = fpga_pci_peek(pci_bar_handle, HELLO_WORLD_REG_ADDR, &value);
-    fail_on(rc, out, "Unable to read read from the fpga !");
 
     printf("register: 0x%x\n", value);
 
@@ -255,7 +244,6 @@ int test_dma()
     char* dstBuf;
     int read_fd;
     int write_fd;
-    int i;
     int ret;
 
     srcBuf = (char*)malloc(BUF_SIZE * sizeof(char));
