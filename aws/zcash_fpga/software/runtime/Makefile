@@ -13,7 +13,7 @@
 # implied. See the License for the specific language governing permissions and
 # limitations under the License.
 
-export TEST ?= test_sde_loopback
+export TEST ?= main
 
 INCLUDES = -I$(SDK_DIR)/userspace/include
 
