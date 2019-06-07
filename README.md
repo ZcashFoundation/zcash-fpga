@@ -1,39 +1,49 @@
 # zcash-fpga
 
-Repo for Zcash FPGA projects code and documents.
+Repo for Zcash FPGA projects code and documents. Architecture document is [here]().
 
 ## Overview
 
 These have been designed targetted for Xilinx boards (US+) and therefore contain Xilinx-specific IP.
 
-## zcash_fpga_top
+## apps
 
-This is the top level for the Zcash FPGA. It targets both Xilinx Virtex UltraScale+ FPGA VCU118 Evaluation Kit, and Amazon EC2 F1 Instances.
+This contains general apps used in generating data / interfacing with the FPGA
 
-Architecture document is [here]()
+## aws
 
-It optionally contains the following top-level engines (you can optionally include in a build via parameters):
-* Equihash verification engine
-* EC secp256k1 signature verification engine
-  - Uses efficent endomorphism to reduce key bit size
-  - Signature verification calcultes multiple EC point operations in parallel, using a resource-shared single fully pipelined karabutsa multiplier and quick modulo reduction technique
-* EC bls12-381 co-processor
-  - Point multiplication in Fp and Fp^2
-  - ate Pairing
+This contains the top / project files for building on AWS (Amazon FPGA)
 
+## bittware_xupvvh
 
+This contains the top / project files for building on the Bittware VVH board
 
 ## ip_cores
 
-These contain custom IP cores used in the projects in this repo.
+These contain custom IP cores used by the projects in this repo.
 
-* blake2b - A simple implementation of blake2b and a pipline-unrolled version for high performance.
-* common - Packages and interfaces that are shared.
-* fifo - Fifo implementations
-* parsing - Blocks for parsing/processing streams, as well as testbench files.
+* Hashing
+  - Blake2b - single pipe implementation of blake2b and a pipline-unrolled version for high performance.
+  - SHA256 and SHA256d
+* Packages and interfaces that are shared
+* Fifo implementations
+* Blocks for parsing/processing streams, as well as testbench files
 * Karabutsa multiplier
-* Barret reduction
+* Barret reduction for modulo reduction when the modulus does not allow fast reduction
 * Resource arbitrators
 * General purpose elliptical curve point modules
-  - Supports point multiplication, addition, doubling
-  - For both Fp and Fp^2 
+  - Supports point multiplication, addition, doubling in Fp and Fp^2
+
+## zcash_fpga
+
+This is the top level for the Zcash FPGA. It targets both Xilinx Virtex UltraScale+ FPGA VCU118 Evaluation Kit, and Amazon EC2 F1 Instances.
+
+It optionally contains the following top-level engines (you can optionally include in a build via parameters):
+* Equihash verification engine
+  - Verifies the equihash solution and difficulty filters
+* EC secp256k1 signature verification engine
+  - Uses efficient endomorphism to reduce key bit size
+  - Signature verification calculates multiple EC point operations in parallel, using a resource-shared single fully pipelined karabutsa multiplier and quick modulo reduction technique
+* EC bls12-381 coprocessor
+  - Point multiplication in Fp and Fp^2
+  - ate Pairing
