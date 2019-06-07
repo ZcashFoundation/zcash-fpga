@@ -15,7 +15,12 @@ Architecture document is [here]()
 It optionally contains the following top-level engines (you can optionally include in a build via parameters):
 * Equihash verification engine
 * EC secp256k1 signature verification engine
+** Uses efficent endomorphism to reduce key bit size
+** Signature verification calcultes multiple EC point operations in parallel, using a resource-shared single fully pipelined karabutsa multiplier and quick modulo reduction technique
 * EC bls12-381 co-processor
+** Point multiplication in Fp and Fp^2
+** ate Pairing
+
 
 
 ## ip_cores
@@ -29,3 +34,6 @@ These contain custom IP cores used in the projects in this repo.
 * Karabutsa multiplier
 * Barret reduction
 * Resource arbitrators
+* General purpose elliptical curve point modules
+** Supports point multiplication, addition, doubling
+** For both Fp and Fp^2 
