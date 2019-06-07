@@ -118,6 +118,15 @@ ${CL_ROOT}/ip/axis_dwidth_converter_64_to_8/hdl/axis_register_slice_v1_1_vl_rfs.
 
 ${CL_ROOT}/ip/axis_dwidth_converter_8_to_64/sim/axis_dwidth_converter_8_to_64.v
 
+${CL_ROOT}/ip/axi_mm2s_mapper/sim/axi_mm2s_mapper.v
+#${CL_ROOT}/ip/axi_mm2s_mapper/hdl/axi_infrastructure_v1_1_0.vh
+${CL_ROOT}/ip/axi_mm2s_mapper/hdl/axi_infrastructure_v1_1_vl_rfs.v
+${CL_ROOT}/ip/axi_mm2s_mapper/hdl/axi_mm2s_mapper_v1_1_vl_rfs.v
+${CL_ROOT}/ip/axi_mm2s_mapper/hdl/axis_dwidth_converter_v1_1_vl_rfs.v
+${CL_ROOT}/ip/axi_mm2s_mapper/hdl/axis_infrastructure_v1_1_vl_rfs.v
+
+${CL_ROOT}/ip/axi_mm2s_mapper/hdl/axis_register_slice_v1_1_vl_rfs.v
+${CL_ROOT}/ip/axi_mm2s_mapper/hdl/axis_switch_v1_1_vl_rfs.v
 
 ${CL_ROOT}/design/zcash_aws_wrapper.sv
 
