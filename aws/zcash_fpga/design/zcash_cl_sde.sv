@@ -37,7 +37,7 @@ module zcash_cl_sde
    assign cl_sh_id0 = `CL_SH_ID0;
    assign cl_sh_id1 = `CL_SH_ID1;
 
-   logic h2c_axis_valid;
+   logic         h2c_axis_valid;
    logic [511:0] h2c_axis_data;
    logic [63:0]  h2c_axis_keep;
    logic         h2c_axis_last;
@@ -50,6 +50,20 @@ module zcash_cl_sde
    logic         c2h_axis_last;
    logic         c2h_axis_ready;
    logic [63:0]  c2h_axis_user;
+
+   logic         zcash_h2c_axis_valid;
+   logic [511:0] zcash_h2c_axis_data;
+   logic [63:0]  zcash_h2c_axis_keep;
+   logic         zcash_h2c_axis_last;
+   logic         zcash_h2c_axis_ready;
+   logic [2:0]   zcash_h2c_axis_id;
+
+   logic         zcash_c2h_axis_valid;
+   logic [511:0] zcash_c2h_axis_data;
+   logic [63:0]  zcash_c2h_axis_keep;
+   logic         zcash_c2h_axis_last;
+   logic         zcash_c2h_axis_ready;
+   logic [2:0]   zcash_c2h_axis_id;
 
    logic         sh_ocl_awvalid_q;
    logic [31:0]  sh_ocl_awaddr_q;
@@ -262,21 +276,6 @@ if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(1)) zcash_if_tx (clk_if);
 if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) aws_if_rx (clk_if);
 if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) aws_if_tx (clk_if);
 
-logic [63:0] aws_if_rx_keep;
-
-always_comb begin
-  aws_if_tx.dat = h2c_axis_data;
-  aws_if_tx.val = h2c_axis_valid && cfg_wire_zcash_enb;
-  aws_if_tx.eop = h2c_axis_last;
-  aws_if_tx.sop = 0;
-  aws_if_tx.err = 0;
-  aws_if_tx.ctl = 0;
-  aws_if_tx.set_mod_from_keep(h2c_axis_keep);
-
-  aws_if_rx.rdy = c2h_axis_ready;
-  aws_if_rx_keep = aws_if_rx.get_keep_from_mod();
-end
-
  zcash_aws_wrapper zcash_aws_wrapper (
   .i_rst ( rst_if ),
   .i_clk ( clk_if ),
@@ -285,7 +284,6 @@ end
   .rx_zcash_if ( zcash_if_tx ),
   .tx_zcash_if ( zcash_if_rx )
 );
-
 
 zcash_fpga_top #(
   .DAT_BYTS ( DAT_BYTS )
@@ -608,83 +606,195 @@ zcash_fpga_top (
 `define H2C_BUF_DEPTH 512
 `endif
 
-sde #(.C2H_BUF_DEPTH(`C2H_BUF_DEPTH),
-      .H2C_BUF_DEPTH(`H2C_BUF_DEPTH)) SDE
-  (.clk                (clk_main_a0),
-   .rst_n              (sde_rst_n  ),
 
-   .pcis_awid          (sh_cl_dma_pcis_awid_q2   ),
-   .pcis_awaddr        (sh_cl_dma_pcis_awaddr_q2 ),
-   .pcis_awlen         (sh_cl_dma_pcis_awlen_q2  ),
-   .pcis_awsize        (sh_cl_dma_pcis_awsize_q2 ),
-   .pcis_awvalid       (sh_cl_dma_pcis_awvalid_q2),
-   .pcis_awready       (cl_sh_dma_pcis_awready_q2),
-   .pcis_wdata         (sh_cl_dma_pcis_wdata_q2  ),
-   .pcis_wstrb         (sh_cl_dma_pcis_wstrb_q2  ),
-   .pcis_wlast         (sh_cl_dma_pcis_wlast_q2  ),
-   .pcis_wvalid        (sh_cl_dma_pcis_wvalid_q2 ),
-   .pcis_wready        (cl_sh_dma_pcis_wready_q2 ),
-   .pcis_bid           (cl_sh_dma_pcis_bid_q2    ),
-   .pcis_bresp         (cl_sh_dma_pcis_bresp_q2  ),
-   .pcis_bvalid        (cl_sh_dma_pcis_bvalid_q2 ),
-   .pcis_bready        (sh_cl_dma_pcis_bready_q2 ),
-   .pcis_arid          (sh_cl_dma_pcis_arid_q2   ),
-   .pcis_araddr        (sh_cl_dma_pcis_araddr_q2 ),
-   .pcis_arlen         (sh_cl_dma_pcis_arlen_q2  ),
-   .pcis_arsize        (sh_cl_dma_pcis_arsize_q2 ),
-   .pcis_arvalid       (sh_cl_dma_pcis_arvalid_q2),
-   .pcis_arready       (cl_sh_dma_pcis_arready_q2),
-   .pcis_rid           (cl_sh_dma_pcis_rid_q2    ),
-   .pcis_rdata         (cl_sh_dma_pcis_rdata_q2  ),
-   .pcis_rresp         (cl_sh_dma_pcis_rresp_q2  ),
-   .pcis_rlast         (cl_sh_dma_pcis_rlast_q2  ),
-   .pcis_rvalid        (cl_sh_dma_pcis_rvalid_q2 ),
-   .pcis_rready        (sh_cl_dma_pcis_rready_q2 ),
+`define NO_SDE
 
-   .pcim_awvalid        (sde_awvalid_q ),
-   .pcim_awid           (sde_awid_q    ),
-   .pcim_awaddr         (sde_awaddr_q  ),
-   .pcim_awlen          (sde_awlen_q   ),
-   .pcim_awsize         (sde_awsize_q  ),
-   .pcim_awready        (sde_awready_q ),
-   .pcim_wvalid         (sde_wvalid_q  ),
-   .pcim_wdata          (sde_wdata_q   ),
-   .pcim_wstrb          (sde_wstrb_q   ),
-   .pcim_wlast          (sde_wlast_q   ),
-   .pcim_wready         (sde_wready_q  ),
-   .pcim_bvalid         (sde_bvalid_q  ),
-   .pcim_bid            (sde_bid_q     ),
-   .pcim_bresp          (sde_bresp_q   ),
-   .pcim_bready         (sde_bready_q  ),
-   .pcim_arvalid        (sde_arvalid_q ),
-   .pcim_arid           (pre_sde_arid_q),
-   .pcim_araddr         (sde_araddr_q  ),
-   .pcim_arlen          (sde_arlen_q   ),
-   .pcim_arsize         (sde_arsize_q  ),
-   .pcim_arready        (sde_arready_q ),
-   .pcim_rvalid         (sde_rvalid_q  ),
-   .pcim_rid            (pre_sde_rid_q ),
-   .pcim_rdata          (sde_rdata_q   ),
-   .pcim_rresp          (sde_rresp_q   ),
-   .pcim_rlast          (sde_rlast_q   ),
-   .pcim_rready         (sde_rready_q  ),
+`ifdef NO_SDE
 
-   .c2h_axis_valid      (c2h_axis_valid ),
-   .c2h_axis_data       (c2h_axis_data  ),
-   .c2h_axis_keep       (c2h_axis_keep  ),
-   .c2h_axis_user       (c2h_axis_user  ),
-   .c2h_axis_last       (c2h_axis_last  ),
-   .c2h_axis_ready      (c2h_axis_ready ),
+  always_comb begin
+    sde_awvalid_q = 0;
+    sde_awid_q = 0;
+    sde_awaddr_q = 0;
+    sde_wvalid_q = 0;
 
-   .h2c_axis_valid      (h2c_axis_valid ),
-   .h2c_axis_data       (h2c_axis_data  ),
-   .h2c_axis_keep       (h2c_axis_keep  ),
-   .h2c_axis_user       (h2c_axis_user  ),
-   .h2c_axis_last       (h2c_axis_last  ),
-   .h2c_axis_ready      (h2c_axis_ready )
+    sde_bready_q = 0;
+    sde_arvalid_q = 0;
+    sde_rready_q = 0;
+  end
+
+  // Test loopback
+
+  always_comb begin
+    // Defaults
+    zcash_c2h_axis_valid = 0;
+    zcash_h2c_axis_ready = 1;
+
+    aws_if_tx.val = 0;
+    aws_if_rx.rdy = 1;
+
+    if (cfg_sde_wire_loopback) begin
+      zcash_c2h_axis_valid = zcash_h2c_axis_valid;
+      zcash_h2c_axis_ready = zcash_c2h_axis_ready;
+      zcash_c2h_axis_data = zcash_h2c_axis_data;
+      zcash_c2h_axis_keep = zcash_h2c_axis_keep;
+      zcash_c2h_axis_last = zcash_h2c_axis_last;
+      zcash_c2h_axis_id = zcash_h2c_axis_id;
+    end
+
+    if (cfg_wire_zcash_enb) begin
+      zcash_c2h_axis_valid = aws_if_rx.val;
+      aws_if_rx.rdy = zcash_c2h_axis_ready;
+      zcash_c2h_axis_data = aws_if_rx.dat;
+      zcash_c2h_axis_keep = aws_if_rx.get_keep_from_mod();
+      zcash_c2h_axis_last = aws_if_rx.eop;
+      zcash_c2h_axis_id = 3'd0;
+
+      aws_if_tx.val = zcash_h2c_axis_valid;
+      zcash_h2c_axis_ready = aws_if_tx.rdy;
+      aws_if_tx.dat = zcash_h2c_axis_data;
+      aws_if_tx.set_mod_from_keep(zcash_h2c_axis_keep);
+      aws_if_tx.eop = zcash_h2c_axis_last;
+    end
+  end
+
+  axi_mm2s_mapper axi_mm2s_mapper (
+    .aclk     ( clk_main_a0),                    // input wire aclk
+    .aresetn  ( sde_rst_n  ),              // input wire aresetn
+
+    .s_axi_awid   (sh_cl_dma_pcis_awid_q2),        // input wire [15 : 0] s_axi_awid
+    .s_axi_awaddr (sh_cl_dma_pcis_awaddr_q2),    // input wire [63 : 0] s_axi_awaddr
+    .s_axi_awlen  (sh_cl_dma_pcis_awlen_q2),      // input wire [7 : 0] s_axi_awlen
+    .s_axi_awsize (sh_cl_dma_pcis_awsize_q2),    // input wire [2 : 0] s_axi_awsize
+    .s_axi_awburst( 2'd0 ),  // input wire [1 : 0] s_axi_awburst
+    .s_axi_awlock ( 1'd0 ),    // input wire [0 : 0] s_axi_awlock
+    .s_axi_awcache( 4'd0 ),  // input wire [3 : 0] s_axi_awcache
+    .s_axi_awprot ( 3'd0 ),    // input wire [2 : 0] s_axi_awprot
+    .s_axi_awqos  ( 4'd0 ),      // input wire [3 : 0] s_axi_awqos
+    .s_axi_awvalid(sh_cl_dma_pcis_awvalid_q2),  // input wire s_axi_awvalid
+    .s_axi_awready(cl_sh_dma_pcis_awready_q2),  // output wire s_axi_awready
+    .s_axi_wdata  (sh_cl_dma_pcis_wdata_q2),      // input wire [511 : 0] s_axi_wdata
+    .s_axi_wstrb  (sh_cl_dma_pcis_wstrb_q2),      // input wire [63 : 0] s_axi_wstrb
+    .s_axi_wlast  (sh_cl_dma_pcis_wlast_q2),      // input wire s_axi_wlast
+    .s_axi_wvalid (sh_cl_dma_pcis_wvalid_q2),    // input wire s_axi_wvalid
+    .s_axi_wready (cl_sh_dma_pcis_wready_q2),    // output wire s_axi_wready
+    .s_axi_bid    (cl_sh_dma_pcis_bid_q2),          // output wire [15 : 0] s_axi_bid
+    .s_axi_bresp  (cl_sh_dma_pcis_bresp_q2),      // output wire [1 : 0] s_axi_bresp
+    .s_axi_bvalid (cl_sh_dma_pcis_bvalid_q2),    // output wire s_axi_bvalid
+    .s_axi_bready (sh_cl_dma_pcis_bready_q2),    // input wire s_axi_bready
+    .s_axi_arid   (sh_cl_dma_pcis_arid_q2),        // input wire [15 : 0] s_axi_arid
+    .s_axi_araddr (sh_cl_dma_pcis_araddr_q2),    // input wire [63 : 0] s_axi_araddr
+    .s_axi_arlen  (sh_cl_dma_pcis_arlen_q2),      // input wire [7 : 0] s_axi_arlen
+    .s_axi_arsize (sh_cl_dma_pcis_arsize_q2),    // input wire [2 : 0] s_axi_arsize
+    .s_axi_arburst( 2'd0 ),  // input wire [1 : 0] s_axi_arburst
+    .s_axi_arlock ( 1'd0 ),    // input wire [0 : 0] s_axi_arlock
+    .s_axi_arcache( 4'd0 ),  // input wire [3 : 0] s_axi_arcache
+    .s_axi_arprot ( 3'd0 ),    // input wire [2 : 0] s_axi_arprot
+    .s_axi_arqos  ( 4'd0 ),      // input wire [3 : 0] s_axi_arqos
+    .s_axi_arvalid(sh_cl_dma_pcis_arvalid_q2),  // input wire s_axi_arvalid
+    .s_axi_arready(cl_sh_dma_pcis_arready_q2),  // output wire s_axi_arready
+    .s_axi_rid    (cl_sh_dma_pcis_rid_q2),          // output wire [15 : 0] s_axi_rid
+    .s_axi_rdata  (cl_sh_dma_pcis_rdata_q2),      // output wire [511 : 0] s_axi_rdata
+    .s_axi_rresp  (cl_sh_dma_pcis_rresp_q2),      // output wire [1 : 0] s_axi_rresp
+    .s_axi_rlast  (cl_sh_dma_pcis_rlast_q2),      // output wire s_axi_rlast
+    .s_axi_rvalid (cl_sh_dma_pcis_rvalid_q2),    // output wire s_axi_rvalid
+    .s_axi_rready (sh_cl_dma_pcis_rready_q2),    // input wire s_axi_rready
+
+    .s_axis_tvalid  (zcash_c2h_axis_valid),  // input wire s_axis_tvalid
+    .s_axis_tready  (zcash_c2h_axis_ready),  // output wire s_axis_tready
+    .s_axis_tdata   (zcash_c2h_axis_data),    // input wire [511 : 0] s_axis_tdata
+    .s_axis_tkeep   (zcash_c2h_axis_keep),    // input wire [63 : 0] s_axis_tkeep
+    .s_axis_tlast   (zcash_c2h_axis_last),    // input wire s_axis_tlast
+    .s_axis_tid     (zcash_c2h_axis_id),        // input wire [2 : 0] s_axis_tid
+
+    .m_axis_tvalid  (zcash_h2c_axis_valid),  // output wire m_axis_tvalid
+    .m_axis_tready  (zcash_h2c_axis_ready),  // input wire m_axis_tready
+    .m_axis_tdata   (zcash_h2c_axis_data),    // output wire [511 : 0] m_axis_tdata
+    .m_axis_tkeep   (zcash_h2c_axis_keep),    // output wire [63 : 0] m_axis_tkeep
+    .m_axis_tlast   (zcash_h2c_axis_last),    // output wire m_axis_tlast
+    .m_axis_tid     (zcash_h2c_axis_id)        // output wire [2 : 0] m_axis_tid
+  );
+
+
+`else
+
+  sde #(.C2H_BUF_DEPTH(`C2H_BUF_DEPTH),
+        .H2C_BUF_DEPTH(`H2C_BUF_DEPTH)) SDE
+    (.clk                (clk_main_a0),
+     .rst_n              (sde_rst_n  ),
+
+     .pcis_awid          (sh_cl_dma_pcis_awid_q2   ),
+     .pcis_awaddr        (sh_cl_dma_pcis_awaddr_q2 ),
+     .pcis_awlen         (sh_cl_dma_pcis_awlen_q2  ),
+     .pcis_awsize        (sh_cl_dma_pcis_awsize_q2 ),
+     .pcis_awvalid       (sh_cl_dma_pcis_awvalid_q2),
+     .pcis_awready       (cl_sh_dma_pcis_awready_q2),
+     .pcis_wdata         (sh_cl_dma_pcis_wdata_q2  ),
+     .pcis_wstrb         (sh_cl_dma_pcis_wstrb_q2  ),
+     .pcis_wlast         (sh_cl_dma_pcis_wlast_q2  ),
+     .pcis_wvalid        (sh_cl_dma_pcis_wvalid_q2 ),
+     .pcis_wready        (cl_sh_dma_pcis_wready_q2 ),
+     .pcis_bid           (cl_sh_dma_pcis_bid_q2    ),
+     .pcis_bresp         (cl_sh_dma_pcis_bresp_q2  ),
+     .pcis_bvalid        (cl_sh_dma_pcis_bvalid_q2 ),
+     .pcis_bready        (sh_cl_dma_pcis_bready_q2 ),
+     .pcis_arid          (sh_cl_dma_pcis_arid_q2   ),
+     .pcis_araddr        (sh_cl_dma_pcis_araddr_q2 ),
+     .pcis_arlen         (sh_cl_dma_pcis_arlen_q2  ),
+     .pcis_arsize        (sh_cl_dma_pcis_arsize_q2 ),
+     .pcis_arvalid       (sh_cl_dma_pcis_arvalid_q2),
+     .pcis_arready       (cl_sh_dma_pcis_arready_q2),
+     .pcis_rid           (cl_sh_dma_pcis_rid_q2    ),
+     .pcis_rdata         (cl_sh_dma_pcis_rdata_q2  ),
+     .pcis_rresp         (cl_sh_dma_pcis_rresp_q2  ),
+     .pcis_rlast         (cl_sh_dma_pcis_rlast_q2  ),
+     .pcis_rvalid        (cl_sh_dma_pcis_rvalid_q2 ),
+     .pcis_rready        (sh_cl_dma_pcis_rready_q2 ),
+
+     .pcim_awvalid        (sde_awvalid_q ),
+     .pcim_awid           (sde_awid_q    ),
+     .pcim_awaddr         (sde_awaddr_q  ),
+     .pcim_awlen          (sde_awlen_q   ),
+     .pcim_awsize         (sde_awsize_q  ),
+     .pcim_awready        (sde_awready_q ),
+     .pcim_wvalid         (sde_wvalid_q  ),
+     .pcim_wdata          (sde_wdata_q   ),
+     .pcim_wstrb          (sde_wstrb_q   ),
+     .pcim_wlast          (sde_wlast_q   ),
+     .pcim_wready         (sde_wready_q  ),
+     .pcim_bvalid         (sde_bvalid_q  ),
+     .pcim_bid            (sde_bid_q     ),
+     .pcim_bresp          (sde_bresp_q   ),
+     .pcim_bready         (sde_bready_q  ),
+     .pcim_arvalid        (sde_arvalid_q ),
+     .pcim_arid           (pre_sde_arid_q),
+     .pcim_araddr         (sde_araddr_q  ),
+     .pcim_arlen          (sde_arlen_q   ),
+     .pcim_arsize         (sde_arsize_q  ),
+     .pcim_arready        (sde_arready_q ),
+     .pcim_rvalid         (sde_rvalid_q  ),
+     .pcim_rid            (pre_sde_rid_q ),
+     .pcim_rdata          (sde_rdata_q   ),
+     .pcim_rresp          (sde_rresp_q   ),
+     .pcim_rlast          (sde_rlast_q   ),
+     .pcim_rready         (sde_rready_q  ),
+
+     .c2h_axis_valid      (c2h_axis_valid ),
+     .c2h_axis_data       (c2h_axis_data  ),
+     .c2h_axis_keep       (c2h_axis_keep  ),
+     .c2h_axis_user       (c2h_axis_user  ),
+     .c2h_axis_last       (c2h_axis_last  ),
+     .c2h_axis_ready      (c2h_axis_ready ),
+
+     .h2c_axis_valid      (h2c_axis_valid ),
+     .h2c_axis_data       (h2c_axis_data  ),
+     .h2c_axis_keep       (h2c_axis_keep  ),
+     .h2c_axis_user       (h2c_axis_user  ),
+     .h2c_axis_last       (h2c_axis_last  ),
+     .h2c_axis_ready      (h2c_axis_ready )
 
    );
 
+`endif
 
    // Increment ID
    logic [5:0] pcim_arid;
@@ -780,15 +890,14 @@ cl_sde_srm CL_SDE_SRM (
 
    );
 
-//Mux between RTL and BFM stream blocks 
+//Mux between RTL and BFM stream blocks
 
-assign h2c_axis_ready = cfg_wire_zcash_enb ? aws_if_tx.rdy : cfg_sde_wire_loopback ? c2h_axis_ready : (use_stream_bfm)? bfm_h2c_axis_ready: srm_h2c_axis_ready;
-
-assign c2h_axis_valid = cfg_wire_zcash_enb ? aws_if_rx.val : cfg_sde_wire_loopback ? h2c_axis_valid : (use_stream_bfm)? bfm_c2h_axis_valid: srm_c2h_axis_valid;
-assign c2h_axis_data =  cfg_wire_zcash_enb ? aws_if_rx.dat : cfg_sde_wire_loopback ? h2c_axis_data  : (use_stream_bfm)? bfm_c2h_axis_data: srm_c2h_axis_data;
-assign c2h_axis_keep =  cfg_wire_zcash_enb ? aws_if_rx_keep : cfg_sde_wire_loopback ? h2c_axis_keep  : (use_stream_bfm)? bfm_c2h_axis_keep: srm_c2h_axis_keep;
-assign c2h_axis_user =  cfg_wire_zcash_enb ? 64'd0 : 	      cfg_sde_wire_loopback ? h2c_axis_user  : (use_stream_bfm)? bfm_c2h_axis_user: srm_c2h_axis_user;
-assign c2h_axis_last =  cfg_wire_zcash_enb ? aws_if_rx.eop :  cfg_sde_wire_loopback ? h2c_axis_last  : (use_stream_bfm)? bfm_c2h_axis_last: srm_c2h_axis_last;
+assign h2c_axis_ready = cfg_sde_wire_loopback ? c2h_axis_ready : (use_stream_bfm)? bfm_h2c_axis_ready: srm_h2c_axis_ready;
+assign c2h_axis_valid = cfg_sde_wire_loopback ? h2c_axis_valid : (use_stream_bfm)? bfm_c2h_axis_valid: srm_c2h_axis_valid;
+assign c2h_axis_data =  cfg_sde_wire_loopback ? h2c_axis_data  : (use_stream_bfm)? bfm_c2h_axis_data: srm_c2h_axis_data;
+assign c2h_axis_keep =  cfg_sde_wire_loopback ? h2c_axis_keep  : (use_stream_bfm)? bfm_c2h_axis_keep: srm_c2h_axis_keep;
+assign c2h_axis_user =  cfg_sde_wire_loopback ? h2c_axis_user  : (use_stream_bfm)? bfm_c2h_axis_user: srm_c2h_axis_user;
+assign c2h_axis_last =  cfg_sde_wire_loopback ? h2c_axis_last  : (use_stream_bfm)? bfm_c2h_axis_last: srm_c2h_axis_last;
 
 //-------------------------------------
 // OCL AXI-L Handling (CSRs)
@@ -971,7 +1080,7 @@ always @(posedge clk_main_a0)
       rdata  <= (cfg_srm_dec)?   srm_cfg_rdata:
                 cfg_chk_dec ? chk_cfg_rdata :
                 cfg_tst_dec ? tst_cfg_rdata :
-                cfg_ctl_reg[araddr_q[3:2]];
+                {16'hbeef, cfg_ctl_reg[araddr_q[3:2]][15:0]};
    end
 
 // assign rd_done = (rd_req && !cfg_srm_dec) || (rd_req_lvl && srm_cfg_ack);

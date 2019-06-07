@@ -13,6 +13,7 @@ ila_sde_ps/ila_sde_ps.xci
 ila_sde_wb/ila_sde_wb.xci
 axis_dwidth_converter_64_to_8/axis_dwidth_converter_64_to_8.xci
 axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci
+axi_mm2s_mapper/axi_mm2s_mapper.xci
 }
 
 upgrade_ip [get_ips *]
@@ -28,3 +29,4 @@ generate_target all [get_files  ila_sde_ps/ila_sde_ps.xci]
 generate_target all [get_files  ila_sde_wb/ila_sde_wb.xci]
 generate_target all [get_files  axis_dwidth_converter_64_to_8/axis_dwidth_converter_64_to_8.xci]
 generate_target all [get_files  axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci]
+generate_target all [get_files  axi_mm2s_mapper/axi_mm2s_mapper.xci]
