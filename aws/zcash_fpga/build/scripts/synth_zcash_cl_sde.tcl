@@ -67,16 +67,19 @@ puts "AWS FPGA: Reading IP blocks";
 # User IP
 read_ip [ list \
   $CL_DIR/ip/axis_dwidth_converter_64_to_8/axis_dwidth_converter_64_to_8.xci \
-  $CL_DIR/ip/axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci
+  $CL_DIR/ip/axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci \
+  $CL_DIR/ip/axi_mm2s_mapper/axi_mm2s_mapper.xci
 ]
 
 puts "AWS FPGA: Generating IP blocks";
 
 set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_64_to_8.xci]
 set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_8_to_64.xci]
+set_property generate_synth_checkpoint false [get_files axi_mm2s_mapper.xci]
 
 generate_target all [get_ips axis_dwidth_converter_64_to_8]
 generate_target all [get_ips axis_dwidth_converter_8_to_64]
+generate_target all [get_ips axi_mm2s_mapper]
 
 #Read DDR IP
 read_ip [ list \

@@ -25,7 +25,7 @@ package zcash_fpga_pkg;
   import equihash_pkg::K;
   import secp256k1_pkg::secp256k1_ver_t;
 
-  parameter FPGA_VERSION = 32'h01_00_00;  //v1.0.0
+  parameter FPGA_VERSION = 32'h01_00_01;  //v1.0.0
 
   // What features are enabled in this build
   parameter bit ENB_VERIFY_SECP256K1_SIG = 1;
