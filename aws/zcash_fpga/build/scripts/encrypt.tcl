@@ -18,7 +18,7 @@
 # Add check if /build and /build/src_port_encryption directories exist
 # Add check if the vivado_keyfile exist
 
-#set ZCASH_DIR $::env(ZCASH_DIR)
+set ZCASH_DIR $::env(ZCASH_DIR)
 #set HDK_SHELL_DIR $::env(HDK_SHELL_DIR)
 #set HDK_SHELL_DESIGN_DIR $::env(HDK_SHELL_DESIGN_DIR)
 #set CL_DIR $::env(CL_DIR)
