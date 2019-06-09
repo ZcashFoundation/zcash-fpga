@@ -160,6 +160,7 @@ interface if_axi_stream # (
 
 endinterface
 
+// This uses byte addressing
 interface if_axi_mm # (
   parameter D_BITS = 64,
   parameter A_BITS = 8
@@ -202,6 +203,19 @@ interface if_axi_mm # (
     reset_source();
   endtask
 
+  // For writing multiple words
+  task automatic put_data_multiple(input logic [common_pkg::MAX_SIM_BYTS*8-1:0] data,
+                                   input logic [A_BITS-1:0] addr);
+
+    while (data != 0) begin
+      put_data(data, addr);
+      data = data >> D_BITS;
+      addr = addr + D_BITS/8;
+    end
+
+  endtask
+
+
   task automatic get_data(ref logic [D_BITS-1:0] data, input logic [A_BITS-1:0] addr_in);
     reset_source();
     @(posedge i_clk);
@@ -221,14 +235,15 @@ endinterface
 
 interface if_ram # (
   parameter RAM_WIDTH = 32,
-  parameter RAM_DEPTH = 128
+  parameter RAM_DEPTH = 128,
+  parameter BYT_EN = 1
 )(
   input i_clk, i_rst
 );
 
-  logic [$clog2(RAM_DEPTH)-1:0] a;
+  logic [RAM_DEPTH-1:0] a;
   logic en;
-  logic we;
+  logic [BYT_EN -1:0] we;
   logic re;
   logic [RAM_WIDTH-1:0 ] d, q;
 
@@ -244,11 +259,11 @@ interface if_ram # (
     d <= 0;
   endtask
 
-  task automatic write_data(input logic [$clog2(RAM_DEPTH)-1:0] addr,
+  task automatic write_data(input logic [RAM_DEPTH-1:0] addr,
                             input logic [common_pkg::MAX_SIM_BYTS*8-1:0] data);
-                 
+
     integer len_bits = $clog2(data);
-    
+
     @(posedge i_clk);
     a = addr;
     while (len_bits > 0) begin

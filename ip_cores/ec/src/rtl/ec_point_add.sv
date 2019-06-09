@@ -17,22 +17,23 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-module ec_fp_point_add
+module ec_point_add
 #(
   parameter      P,
-  parameter type POINT_TYPE
+  parameter type FP_TYPE,
+  parameter type FE_TYPE
 )(
   input i_clk, i_rst,
   // Input points
-  input POINT_TYPE i_p1,
-  input POINT_TYPE i_p2,
-  input logic      i_val,
-  output logic     o_rdy,
+  input FP_TYPE i_p1,
+  input FP_TYPE i_p2,
+  input logic   i_val,
+  output logic  o_rdy,
   // Output point
-  output POINT_TYPE o_p,
-  input logic       i_rdy,
-  output logic      o_val,
-  output logic      o_err,
+  output FP_TYPE o_p,
+  input logic    i_rdy,
+  output logic   o_val,
+  output logic   o_err,
   // Interface to multiplier (mod P)
   if_axi_stream.source o_mult_if,
   if_axi_stream.sink   i_mult_if,
@@ -41,10 +42,9 @@ module ec_fp_point_add
   if_axi_stream.sink   i_add_if,
   // Interface to subtractor (mod P)
   if_axi_stream.source o_sub_if,
-  if_axi_stream.sink   i_sub_if    
+  if_axi_stream.sink   i_sub_if
 );
 
-localparam DAT_BITS = $clog2(P);
 
 /*
    These are the equations that need to be computed, they are issued as variables
@@ -94,8 +94,8 @@ localparam DAT_BITS = $clog2(P);
 logic [23:0] eq_val, eq_wait;
 
 // Temporary variables
-logic [DAT_BITS-1:0] A, B, C, D;
-POINT_TYPE i_p1_l, i_p2_l;
+FE_TYPE A, B, C, D;
+FP_TYPE i_p1_l, i_p2_l;
 
 enum {IDLE, START, FINISHED} state;
 always_ff @ (posedge i_clk) begin
@@ -124,7 +124,7 @@ always_ff @ (posedge i_clk) begin
     if (o_mult_if.rdy) o_mult_if.val <= 0;
     if (o_add_if.rdy) o_add_if.val <= 0;
     if (o_sub_if.rdy) o_sub_if.val <= 0;
-    
+
     case(state)
       {IDLE}: begin
         o_rdy <= 1;
@@ -190,7 +190,7 @@ always_ff @ (posedge i_clk) begin
             default: o_err <= 1;
           endcase
         end
-        
+
         // Check any results from adder
         if (i_add_if.val && i_add_if.rdy) begin
           eq_val[i_add_if.ctl[5:0]] <= 1;
@@ -198,8 +198,8 @@ always_ff @ (posedge i_clk) begin
             16: i_p1_l.x <= i_add_if.dat;
             default: o_err <= 1;
           endcase
-        end        
-        
+        end
+
         // Check any results from subtractor
         if (i_sub_if.val && i_sub_if.rdy) begin
           eq_val[i_sub_if.ctl[5:0]] <= 1;
@@ -212,7 +212,7 @@ always_ff @ (posedge i_clk) begin
             21: o_p.y <= i_sub_if.dat;
             default: o_err <= 1;
           endcase
-        end     
+        end
 
         // Issue new multiplies
         if (~eq_wait[0]) begin                            // 0. A = i_p2.z*i_p2.z mod p
@@ -322,33 +322,33 @@ always_ff @ (posedge i_clk) begin
 end
 
 // Task for subtractions
-task subtraction(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
+task subtraction(input int unsigned ctl, input FE_TYPE a, b);
   if (~o_sub_if.val || (o_sub_if.val && o_sub_if.rdy)) begin
     o_sub_if.val <= 1;
-    o_sub_if.dat[0 +: DAT_BITS] <= a;
-    o_sub_if.dat[DAT_BITS +: DAT_BITS] <= b;
+    o_sub_if.dat[0 +: $bits(FE_TYPE)] <= a;
+    o_sub_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b;
     o_sub_if.ctl[5:0] <= ctl;
     eq_wait[ctl] <= 1;
   end
 endtask
 
 // Task for addition
-task addition(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
+task addition(input int unsigned ctl, input FE_TYPE a, b);
   if (~o_add_if.val || (o_add_if.val && o_add_if.rdy)) begin
     o_add_if.val <= 1;
-    o_add_if.dat[0 +: DAT_BITS] <= a;
-    o_add_if.dat[DAT_BITS +: DAT_BITS] <= b;
+    o_add_if.dat[0 +: $bits(FE_TYPE)] <= a;
+    o_add_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b;
     o_add_if.ctl[5:0] <= ctl;
     eq_wait[ctl] <= 1;
   end
 endtask
 
 // Task for using multiplies
-task multiply(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
+task multiply(input int unsigned ctl, input FE_TYPE a, b);
   if (~o_mult_if.val || (o_mult_if.val && o_mult_if.rdy)) begin
     o_mult_if.val <= 1;
-    o_mult_if.dat[0 +: DAT_BITS] <= a;
-    o_mult_if.dat[DAT_BITS +: DAT_BITS] <= b;
+    o_mult_if.dat[0 +: $bits(FE_TYPE)] <= a;
+    o_mult_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b;
     o_mult_if.ctl[5:0] <= ctl;
     eq_wait[ctl] <= 1;
   end

@@ -2,10 +2,6 @@
 
 Repo for Zcash FPGA projects code and documents. Architecture document is [here]().
 
-## Overview
-
-These have been designed targetted for Xilinx boards (US+) and therefore contain Xilinx-specific IP.
-
 ## apps
 
 This contains general apps used in generating data / interfacing with the FPGA

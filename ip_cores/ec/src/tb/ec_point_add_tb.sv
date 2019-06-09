@@ -16,7 +16,7 @@
 */
 `timescale 1ps/1ps
 
-module ec_fp_point_add_tb ();
+module ec_point_add_tb ();
 import common_pkg::*;
 import bls12_381_pkg::*;
 
@@ -66,11 +66,12 @@ always_ff @ (posedge clk)
   if (out_if.val && out_if.err)
     $error(1, "%m %t ERROR: output .err asserted", $time);
 
-ec_fp_point_add #(
-  .P          ( P ),
-  .POINT_TYPE ( jb_point_t )
+ec_point_add #(
+  .P       ( P ),
+  .FP_TYPE ( jb_point_t ),
+  .FE_TPYE ( fe_t )
 )
-ec_fp_point_add (
+ec_point_add (
   .i_clk ( clk ),
   .i_rst ( rst ),
     // Input points
@@ -95,16 +96,16 @@ always_comb begin
   mult_out_if.eop = 1;
   mult_out_if.err = 0;
   mult_out_if.mod = 1;
-  
+
   add_out_if.sop = 1;
   add_out_if.eop = 1;
   add_out_if.err = 0;
   add_out_if.mod = 1;
-  
+
   sub_out_if.sop = 1;
   sub_out_if.eop = 1;
   sub_out_if.err = 0;
-  sub_out_if.mod = 1;  
+  sub_out_if.mod = 1;
 end
 
 
