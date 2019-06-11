@@ -333,7 +333,7 @@ generate
 
     ec_fp_mult_mod #(
       .P             ( P  ),
-      .KARATSUBA_LVL ( 3  ),
+      .KARATSUBA_LVL ( 2  ),
       .CTL_BITS      ( 16 )
     )
     ec_fp_mult_mod (

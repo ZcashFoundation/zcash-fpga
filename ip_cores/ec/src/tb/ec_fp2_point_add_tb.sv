@@ -16,7 +16,7 @@
 */
 `timescale 1ps/1ps
 
-module ec_point_add_tb ();
+module ec_fp2_point_add_tb ();
 import common_pkg::*;
 import bls12_381_pkg::*;
 
@@ -24,23 +24,23 @@ localparam CLK_PERIOD = 1000;
 
 logic clk, rst;
 
-if_axi_stream #(.DAT_BYTS((384*6)/8)) in_if(clk); // Two points
-if_axi_stream #(.DAT_BYTS((384*3)/8)) out_if(clk);
+if_axi_stream #(.DAT_BYTS(($bits(fp2_jb_point_t)*2+7)/8)) in_if(clk); // Two points
+if_axi_stream #(.DAT_BYTS(($bits(fp2_jb_point_t)+7)/8)) out_if(clk);
 
-if_axi_stream #(.DAT_BYTS(384*2/8), .CTL_BITS(8)) mult_in_if(clk);
-if_axi_stream #(.DAT_BITS(381), .CTL_BITS(8)) mult_out_if(clk);
+if_axi_stream #(.DAT_BITS(2*bls12_381_pkg::DAT_BITS), .CTL_BITS(16)) mult_in_if(clk);
+if_axi_stream #(.DAT_BITS(bls12_381_pkg::DAT_BITS), .CTL_BITS(16)) mult_out_if(clk);
 
-if_axi_stream #(.DAT_BITS(2*bls12_381_pkg::DAT_BITS), .CTL_BITS(8)) add_in_if(clk);
-if_axi_stream #(.DAT_BITS(bls12_381_pkg::DAT_BITS), .CTL_BITS(8)) add_out_if(clk);
+if_axi_stream #(.DAT_BITS(2*bls12_381_pkg::DAT_BITS), .CTL_BITS(16)) add_in_if(clk);
+if_axi_stream #(.DAT_BITS(bls12_381_pkg::DAT_BITS), .CTL_BITS(16)) add_out_if(clk);
 
-if_axi_stream #(.DAT_BITS(2*bls12_381_pkg::DAT_BITS), .CTL_BITS(8)) sub_in_if(clk);
-if_axi_stream #(.DAT_BITS(bls12_381_pkg::DAT_BITS), .CTL_BITS(8)) sub_out_if(clk);
+if_axi_stream #(.DAT_BITS(2*bls12_381_pkg::DAT_BITS), .CTL_BITS(16)) sub_in_if(clk);
+if_axi_stream #(.DAT_BITS(bls12_381_pkg::DAT_BITS), .CTL_BITS(16)) sub_out_if(clk);
 
-jb_point_t in_p1, in_p2, out_p;
+fp2_jb_point_t in_p1, in_p2, out_p;
 
 always_comb begin
-  in_p1 = in_if.dat[0 +: $bits(jb_point_t)];
-  in_p2 = in_if.dat[$bits(jb_point_t) +: $bits(jb_point_t)];
+  in_p1 = in_if.dat[0 +: $bits(fp2_jb_point_t)];
+  in_p2 = in_if.dat[$bits(fp2_jb_point_t) +: $bits(fp2_jb_point_t)];
   out_if.dat = out_p;
 end
 
@@ -66,24 +66,25 @@ always_ff @ (posedge clk)
   if (out_if.val && out_if.err)
     $error(1, "%m %t ERROR: output .err asserted", $time);
 
-ec_point_add #(
-  .FP_TYPE ( jb_point_t ),
-  .FE_TYPE ( fe_t )
+ec_fp2_point_add #(
+  .FP2_TYPE ( fp2_jb_point_t ),
+  .FE_TYPE  ( fe_t           ),
+  .FE2_TYPE ( fe2_t          )
 )
-ec_point_add (
+ec_fp2_point_add (
   .i_clk ( clk ),
   .i_rst ( rst ),
     // Input points
-  .i_p1   ( in_p1      ),
-  .i_p2   ( in_p2      ),
-  .i_val ( in_if.val ),
-  .o_rdy ( in_if.rdy ),
-  .o_p   ( out_p     ),
+  .i_p1  ( in_p1      ),
+  .i_p2  ( in_p2      ),
+  .i_val ( in_if.val  ),
+  .o_rdy ( in_if.rdy  ),
+  .o_p   ( out_p      ),
   .o_err ( out_if.err ),
   .i_rdy ( out_if.rdy ),
-  .o_val  ( out_if.val ) ,
-  .o_mult_if ( mult_in_if ),
-  .i_mult_if ( mult_out_if ),
+  .o_val ( out_if.val ) ,
+  .o_mul_if ( mult_in_if ),
+  .i_mul_if ( mult_out_if ),
   .o_add_if ( add_in_if ),
   .i_add_if ( add_out_if ),
   .o_sub_if ( sub_in_if ),
@@ -112,7 +113,7 @@ end
 ec_fp_mult_mod #(
   .P             ( P   ),
   .KARATSUBA_LVL ( 3   ),
-  .CTL_BITS      ( 8   )
+  .CTL_BITS      ( 16  )
 )
 ec_fp_mult_mod (
   .i_clk( clk         ),
@@ -131,7 +132,7 @@ ec_fp_mult_mod (
 adder_pipe # (
   .BITS     ( bls12_381_pkg::DAT_BITS ),
   .P        ( P   ),
-  .CTL_BITS ( 8   ),
+  .CTL_BITS ( 16  ),
   .LEVEL    ( 2   )
 )
 adder_pipe (
@@ -151,7 +152,7 @@ adder_pipe (
 subtractor_pipe # (
   .BITS     ( bls12_381_pkg::DAT_BITS ),
   .P        ( P   ),
-  .CTL_BITS ( 8   ),
+  .CTL_BITS ( 16  ),
   .LEVEL    ( 2   )
 )
 subtractor_pipe (
@@ -168,28 +169,25 @@ subtractor_pipe (
   .i_rdy ( sub_out_if.rdy )
 );
 
-task test();
+task test(input fp2_jb_point_t p1, p2, p_exp);
 begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
-  jb_point_t p1, p2, p_exp, p_out;
+  fp2_jb_point_t p_out;
   $display("Running test ...");
 
-  p1 = bls12_381_pkg::g_point;
-  p2 = add_jb_point(p1, p1);
-  p_exp = add_jb_point(p1, p2);
 
   fork
-    in_if.put_stream({p2, p1}, (384*6/8));
+    in_if.put_stream({p2, p1}, ((2*$bits(fp2_jb_point_t)+7)/8));
     out_if.get_stream(get_dat, get_len);
   join
 
   p_out = get_dat;
 
   $display("Expected:");
-  print_jb_point(p_exp);
+  print_fp2_jb_point(p_exp);
   $display("Was:");
-  print_jb_point(p_out);
+  print_fp2_jb_point(p_out);
 
   if (p_exp != p_out) begin
     $fatal(1, "%m %t ERROR: test_0 point was wrong", $time);
@@ -200,14 +198,28 @@ begin
 end
 endtask;
 
+fp2_jb_point_t one_point = '{x:FE2_one, y:FE2_one, z:FE2_one};
+fp2_jb_point_t two_point = '{x:'{c1:381'd2, c0:381'd2}, y:'{c1:381'd2, c0:381'd2}, z:FE2_one};
+
+fp2_jb_point_t g2_point_dbl = '{x:'{c0:381'd2004569552561385659566932407633616698939912674197491321901037400001042336021538860336682240104624979660689237563240,
+         c1:381'd3955604752108186662342584665293438104124851975447411601471797343177761394177049673802376047736772242152530202962941},
+         y:'{c0:381'd978142457653236052983988388396292566217089069272380812666116929298652861694202207333864830606577192738105844024927,
+         c1:381'd2248711152455689790114026331322133133284196260289964969465268080325775757898907753181154992709229860715480504777099},
+         z:'{c0:381'd3145673658656250241340817105688138628074744674635286712244193301767486380727788868972774468795689607869551989918920,
+         c1:381'd968254395890002185853925600926112283510369004782031018144050081533668188797348331621250985545304947843412000516197}};
 
 initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
 
- test();
-
+ test(g2_point, g2_point_dbl, add_fp2_jb_point(g2_point, g2_point_dbl)
+     /*'{x:'{c0:381'd2260316515795278483227354417550273673937385151660885802822200676798473320332386191812885909324314180009401590033496,
+        c1:381'd3157705674295752746643045744187038651144673626385096899515739718638356953289853357506730468806346866010850469607484},
+        y:'{c0:381'd3116406908094559010983016654096953279342014296159903648784769141704444407188785914041577477129027384530629024324101,
+        c1:381'd624739198846365065958511422206549337298084868949577950118937104460230094422413163466712508875838914229203179007739},
+        z:'{c0:381'd1372365362697527824661960056804989242334959973433633343888520294361286317391588271032081626721722944066233963018813,
+        c1:381'd135340553306575460225879133388402231094623862625345515492709522456301372944095308361691014711792956665222682354141}}*/);
 
   #1us $finish();
 end

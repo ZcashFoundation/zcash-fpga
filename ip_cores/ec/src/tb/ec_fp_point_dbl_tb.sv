@@ -16,7 +16,7 @@
 */
 `timescale 1ps/1ps
 
-module ec_fp_point_dbl_tb ();
+module ec_point_dbl_tb ();
 
 import common_pkg::*;
 import bls12_381_pkg::*;
@@ -68,11 +68,11 @@ always_ff @ (posedge clk)
   if (out_if.val && out_if.err)
     $error(1, "%m %t ERROR: output .err asserted", $time);
 
-ec_fp_point_dbl #(
-  .P          ( P ),
-  .POINT_TYPE ( jb_point_t )
+ec_point_dbl #(
+  .FP_TYPE ( jb_point_t ),
+  .FE_TYPE ( fe_t )
 )
-ec_fp_point_dbl (
+ec_point_dbl (
   .i_clk ( clk ),
   .i_rst ( rst ),
   .i_p   ( in_p ),
@@ -82,8 +82,8 @@ ec_fp_point_dbl (
   .o_err ( out_if.err ),
   .i_rdy ( out_if.rdy ),
   .o_val  ( out_if.val ) ,
-  .o_mult_if ( mult_in_if ),
-  .i_mult_if ( mult_out_if ),
+  .o_mul_if ( mult_in_if ),
+  .i_mul_if ( mult_out_if ),
   .o_add_if ( add_in_if ),
   .i_add_if ( add_out_if ),
   .o_sub_if ( sub_in_if ),
@@ -102,7 +102,6 @@ ec_fp_mult_mod (
   .i_dat_a ( mult_in_if.dat[0 +: 381] ),
   .i_dat_b ( mult_in_if.dat[381 +: 381] ),
   .i_val ( mult_in_if.val ),
-  .i_err ( mult_in_if.err ),
   .i_ctl ( mult_in_if.ctl ),
   .o_rdy ( mult_in_if.rdy ),
   .o_dat ( mult_out_if.dat ),
@@ -156,16 +155,16 @@ always_comb begin
   mult_out_if.eop = 1;
   mult_out_if.err = 0;
   mult_out_if.mod = 1;
-  
+
   add_out_if.sop = 1;
   add_out_if.eop = 1;
   add_out_if.err = 0;
   add_out_if.mod = 1;
-  
+
   sub_out_if.sop = 1;
   sub_out_if.eop = 1;
   sub_out_if.err = 0;
-  sub_out_if.mod = 1;  
+  sub_out_if.mod = 1;
 end
 
 task test_0();
@@ -200,14 +199,13 @@ begin
 end
 endtask;
 
-function compare_point();
-
-endfunction
-
 initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
+  
+  print_jb_point(to_affine(g_point));
+  print_jb_point(to_affine(dbl_jb_point(g_point)));
 
   test_0();
 

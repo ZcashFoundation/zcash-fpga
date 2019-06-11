@@ -17,31 +17,30 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-module ec_fp_point_dbl
+module ec_point_dbl
 #(
-  parameter      P,
-  parameter type POINT_TYPE
+  parameter type FP_TYPE,
+  parameter type FE_TYPE
 )(
   input i_clk, i_rst,
   // Input point
-  input POINT_TYPE i_p,
-  input logic      i_val,
-  output logic     o_rdy,
+  input FP_TYPE i_p,
+  input logic   i_val,
+  output logic  o_rdy,
   // Output point
-  output POINT_TYPE o_p,
-  input logic       i_rdy,
-  output logic      o_val,
-  output logic      o_err,
+  output FP_TYPE o_p,
+  input logic    i_rdy,
+  output logic   o_val,
+  output logic   o_err,
   // Interface to multiplier (mod p)
-  if_axi_stream.source o_mult_if,
-  if_axi_stream.sink   i_mult_if,
+  if_axi_stream.source o_mul_if,
+  if_axi_stream.sink   i_mul_if,
   if_axi_stream.source o_add_if,
   if_axi_stream.sink   i_add_if,
   if_axi_stream.source o_sub_if,
   if_axi_stream.sink   i_sub_if
 );
 
-localparam DAT_BITS = $clog2(P);
 /*
  * These are the equations that need to be computed, they are issued as variables
  * become valid. We have a bitmask to track what equation results are valid which
@@ -66,8 +65,8 @@ localparam DAT_BITS = $clog2(P);
 logic [14:0] eq_val, eq_wait;
 
 // Temporary variables
-logic [DAT_BITS-1:0] A, B, C, D, E;
-POINT_TYPE i_p_l;
+FE_TYPE A, B, C, D, E;
+FP_TYPE i_p_l;
 
 
 enum {IDLE, START, FINISHED} state;
@@ -76,12 +75,12 @@ always_ff @ (posedge i_clk) begin
     o_val <= 0;
     o_rdy <= 0;
     o_p <= 0;
-    o_mult_if.copy_if(0, 0, 1, 1, 0, 0, 0);
+    o_mul_if.copy_if(0, 0, 1, 1, 0, 0, 0);
     o_add_if.copy_if(0, 0, 1, 1, 0, 0, 0);
     o_sub_if.copy_if(0, 0, 1, 1, 0, 0, 0);
-    i_mult_if.rdy <= 0;
-    i_add_if.rdy <= 0; 
-    i_sub_if.rdy <= 0;  
+    i_mul_if.rdy <= 0;
+    i_add_if.rdy <= 0;
+    i_sub_if.rdy <= 0;
     eq_val <= 0;
     state <= IDLE;
     eq_wait <= 0;
@@ -94,7 +93,7 @@ always_ff @ (posedge i_clk) begin
     E <= 0;
   end else begin
 
-    if (o_mult_if.rdy) o_mult_if.val <= 0;
+    if (o_mul_if.rdy) o_mul_if.val <= 0;
     if (o_add_if.rdy) o_add_if.val <= 0;
     if (o_sub_if.rdy) o_sub_if.val <= 0;
 
@@ -104,7 +103,7 @@ always_ff @ (posedge i_clk) begin
         eq_val <= 0;
         eq_wait <= 0;
         o_err <= 0;
-        i_mult_if.rdy <= 1;
+        i_mul_if.rdy <= 1;
         i_add_if.rdy <= 1;
         i_sub_if.rdy <= 1;
         i_p_l <= i_p;
@@ -127,26 +126,26 @@ always_ff @ (posedge i_clk) begin
       // Just a big if tree where we issue equations if the required inputs
       // are valid
       {START}: begin
-        i_mult_if.rdy <= 1;
+        i_mul_if.rdy <= 1;
 
         // Check any results from multiplier
-        if (i_mult_if.val && i_mult_if.rdy) begin
-          eq_val[i_mult_if.ctl[5:0]] <= 1;
-          case(i_mult_if.ctl[5:0]) inside
-            0: A <= i_mult_if.dat;
-            1: B <= i_mult_if.dat;
-            2: B <= i_mult_if.dat;
-            3: C <= i_mult_if.dat;
-            4: C <= i_mult_if.dat;
-            5: D <= i_mult_if.dat;
-            6: D <= i_mult_if.dat;
-            7: o_p.x <= i_mult_if.dat;
-            11: o_p.y <= i_mult_if.dat;
-            14: o_p.z <= i_mult_if.dat;
+        if (i_mul_if.val && i_mul_if.rdy) begin
+          eq_val[i_mul_if.ctl[5:0]] <= 1;
+          case(i_mul_if.ctl[5:0]) inside
+            0: A <= i_mul_if.dat;
+            1: B <= i_mul_if.dat;
+            2: B <= i_mul_if.dat;
+            3: C <= i_mul_if.dat;
+            4: C <= i_mul_if.dat;
+            5: D <= i_mul_if.dat;
+            6: D <= i_mul_if.dat;
+            7: o_p.x <= i_mul_if.dat;
+            11: o_p.y <= i_mul_if.dat;
+            14: o_p.z <= i_mul_if.dat;
             default: o_err <= 1;
           endcase
         end
-        
+
         // Check any results from adder
         if (i_add_if.val && i_add_if.rdy) begin
           eq_val[i_add_if.ctl[5:0]] <= 1;
@@ -156,7 +155,7 @@ always_ff @ (posedge i_clk) begin
             default: o_err <= 1;
           endcase
         end
-        
+
         // Check any results from subtractor
         if (i_sub_if.val && i_sub_if.rdy) begin
           eq_val[i_sub_if.ctl[5:0]] <= 1;
@@ -219,9 +218,6 @@ always_ff @ (posedge i_clk) begin
           addition(13, i_p_l.y, i_p_l.y);
         end
 
-
-
-
         if (&eq_val) begin
           state <= FINISHED;
           o_val <= 1;
@@ -248,38 +244,36 @@ always_ff @ (posedge i_clk) begin
 end
 
 // Task for subtractions
-task subtraction(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
+task subtraction(input int unsigned ctl, input FE_TYPE a, b);
   if (~o_sub_if.val || (o_sub_if.val && o_sub_if.rdy)) begin
     o_sub_if.val <= 1;
-    o_sub_if.dat[0 +: DAT_BITS] <= a;
-    o_sub_if.dat[DAT_BITS +: DAT_BITS] <= b;
+    o_sub_if.dat[0 +: $bits(FE_TYPE)] <= a;
+    o_sub_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b;
     o_sub_if.ctl[5:0] <= ctl;
     eq_wait[ctl] <= 1;
   end
 endtask
 
 // Task for addition
-task addition(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
+task addition(input int unsigned ctl, input FE_TYPE a, b);
   if (~o_add_if.val || (o_add_if.val && o_add_if.rdy)) begin
     o_add_if.val <= 1;
-    o_add_if.dat[0 +: DAT_BITS] <= a;
-    o_add_if.dat[DAT_BITS +: DAT_BITS] <= b;
+    o_add_if.dat[0 +: $bits(FE_TYPE)] <= a;
+    o_add_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b;
     o_add_if.ctl[5:0] <= ctl;
     eq_wait[ctl] <= 1;
   end
 endtask
 
 // Task for using multiplies
-task multiply(input int unsigned ctl, input logic [DAT_BITS-1:0] a, b);
-  if (~o_mult_if.val || (o_mult_if.val && o_mult_if.rdy)) begin
-    o_mult_if.val <= 1;
-    o_mult_if.dat[0 +: DAT_BITS] <= a;
-    o_mult_if.dat[DAT_BITS +: DAT_BITS] <= b;
-    o_mult_if.ctl[5:0] <= ctl;
+task multiply(input int unsigned ctl, input FE_TYPE a, b);
+  if (~o_mul_if.val || (o_mul_if.val && o_mul_if.rdy)) begin
+    o_mul_if.val <= 1;
+    o_mul_if.dat[0 +: $bits(FE_TYPE)] <= a;
+    o_mul_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b;
+    o_mul_if.ctl[5:0] <= ctl;
     eq_wait[ctl] <= 1;
   end
 endtask
-
-
 
 endmodule

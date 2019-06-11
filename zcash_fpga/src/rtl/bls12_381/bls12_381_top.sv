@@ -26,8 +26,8 @@ module bls12_381_top
   // Only tx interface is used to send messages to SW on a SEND-INTERRUPT instruction
   if_axi_stream.source tx_if,
   // User access to the instruction and register RAM
-  if_ram.sink          inst_ram_usr_if,
-  if_ram.sink          data_ram_usr_if,
+  if_axi_mm.sink       inst_usr_if,
+  if_axi_mm.sink       data_usr_if,
   // Configuration memory
   if_axi_mm.sink       cfg_usr_if
 );
@@ -35,19 +35,22 @@ module bls12_381_top
 localparam DAT_BITS = bls12_381_pkg::DAT_BITS;
 
 // Instruction RAM
-localparam INST_READ_CYCLE = 3;
-logic [INST_READ_CYCLE:0] inst_ram_read;
-localparam DATA_READ_CYCLE = 3;
-logic [INST_READ_CYCLE:0] data_ram_read;
+localparam READ_CYCLE = 3;
+logic [READ_CYCLE:0] inst_ram_read, inst_usr_ram_read;
+logic [READ_CYCLE:0] data_ram_read, data_usr_ram_read;
+
 if_ram #(.RAM_WIDTH(bls12_381_pkg::INST_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::INST_RAM_DEPTH)) inst_ram_sys_if(.i_clk(i_clk), .i_rst(i_rst));
+if_ram #(.RAM_WIDTH(bls12_381_pkg::INST_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::INST_RAM_DEPTH)) inst_ram_usr_if(.i_clk(i_clk), .i_rst(i_rst));
 inst_t curr_inst;
 
 // Data RAM
-if_ram #(.RAM_WIDTH(bls12_381_pkg::DATA_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::DATA_RAM_DEPTH)) data_ram_sys_if(.i_clk(i_clk), .i_rst(i_rst));
+if_ram #(.RAM_WIDTH(bls12_381_pkg::DATA_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::DATA_RAM_DEPTH), .BYT_EN(48)) data_ram_sys_if(.i_clk(i_clk), .i_rst(i_rst));
+if_ram #(.RAM_WIDTH(bls12_381_pkg::DATA_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::DATA_RAM_DEPTH), .BYT_EN(48)) data_ram_usr_if(.i_clk(i_clk), .i_rst(i_rst));
 
 // Fp point multiplication
 if_axi_stream #(.DAT_BITS(DAT_BITS*3)) fp_pt_mult_in_if(i_clk);
 if_axi_stream #(.DAT_BITS(DAT_BITS*3)) fp_pt_mult_out_if(i_clk);
+
 
 logic [DAT_BITS-1:0] k_fp_in;
 logic [7:0] cnt;
@@ -74,12 +77,12 @@ always_ff @ (posedge i_clk) begin
     inst_ram_sys_if.re <= 1;
     inst_ram_sys_if.en <= 1;
     inst_ram_read <= inst_ram_read << 1;
-    
+
     data_ram_sys_if.re <= 1;
     data_ram_sys_if.en <= 1;
     data_ram_sys_if.we <= 0;
     data_ram_read <= data_ram_read << 1;
-    
+
     if (fp_pt_mult_in_if.val && fp_pt_mult_in_if.rdy) fp_pt_mult_in_if.val <= 0;
     fp_pt_mult_out_if.rdy <= 1;
 
@@ -87,8 +90,26 @@ always_ff @ (posedge i_clk) begin
       {NOOP_WAIT}: begin
         // Wait in this state
         inst_state <= curr_inst.code;
+        cnt <= 0;
       end
-      {FP_POINT_MULT}: begin
+      {COPY_REG}: begin
+        inst_ram_sys_if.a <= inst_ram_sys_if.a + 1;
+        inst_ram_read[0] <= 1;
+
+        data_ram_sys_if.a <= curr_inst.a;
+        data_ram_read[0] <= 1;
+
+        if (data_ram_read[READ_CYCLE]) begin
+          data_ram_sys_if.a <=  curr_inst.b;
+          data_ram_sys_if.d <= data_ram_sys_if.q;
+          data_ram_sys_if.we <= -1;
+        end
+
+        if (inst_ram_read[READ_CYCLE]) begin
+          inst_state <= curr_inst.code;
+        end
+      end
+      {FP_FPOINT_MULT}: begin
         case(cnt) inside
           0: begin
             data_ram_sys_if.a <= curr_inst.a;
@@ -96,9 +117,9 @@ always_ff @ (posedge i_clk) begin
             cnt <= cnt + 1;
           end
           1: begin
-            if (data_ram_read[DATA_READ_CYCLE]) begin
+            if (data_ram_read[READ_CYCLE]) begin
               data_ram_sys_if.a <= curr_inst.b;
-              k_fp_in <= data_ram_sys_if.q;    
+              k_fp_in <= data_ram_sys_if.q;
               fp_pt_mult_in_if.dat <= bls12_381_pkg::g_point;
               fp_pt_mult_in_if.val <= 1;
               data_ram_read[0] <= 1;
@@ -110,7 +131,7 @@ always_ff @ (posedge i_clk) begin
             fp_pt_mult_out_if.rdy <= 0;
             if (fp_pt_mult_out_if.val) begin
                data_ram_sys_if.d <= fp_pt_mult_out_if.dat;
-               data_ram_sys_if.we <= 1;
+               data_ram_sys_if.we <= -1;
                cnt <= cnt + 1;
             end
           end
@@ -118,40 +139,99 @@ always_ff @ (posedge i_clk) begin
             fp_pt_mult_out_if.rdy <= 0;
             data_ram_sys_if.d <= fp_pt_mult_out_if.dat >> DAT_BITS;
             data_ram_sys_if.a <= data_ram_sys_if.a + 1;
-            data_ram_sys_if.we <= 1;
+            data_ram_sys_if.we <= -1;
             cnt <= cnt + 1;
           end
           4: begin
             data_ram_sys_if.d <= fp_pt_mult_out_if.dat >> (2*DAT_BITS);
-            data_ram_sys_if.we <= 1;
+            data_ram_sys_if.we <= -1;
             data_ram_sys_if.a <= data_ram_sys_if.a + 1;
             cnt <= cnt + 1;
             inst_ram_sys_if.a <= inst_ram_sys_if.a + 1;
             inst_ram_read[0] <= 1;
           end
           5: begin
-            if (inst_ram_read[INST_READ_CYCLE]) begin
+            if (inst_ram_read[READ_CYCLE]) begin
               inst_state <= curr_inst.code;
+              cnt <= 0;
             end
           end
-          
+
         endcase
       end
     endcase
   end
 end
 
-// Configuration registers
+// Configuration registers, instruction, data RAM
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     cfg_usr_if.reset_sink();
-  end else begin
-    cfg_usr_if.rd_dat_val <= 0;
-    if (cfg_usr_if.wr) begin
+    inst_usr_if.reset_sink();
+    data_usr_if.reset_sink();
 
+    inst_ram_usr_if.reset_source();
+    data_ram_usr_if.reset_source();
+
+    inst_usr_ram_read <= 0;
+    data_usr_ram_read <= 0;
+
+  end else begin
+
+    data_usr_ram_read <= data_usr_ram_read << 1;
+    inst_usr_ram_read <= inst_usr_ram_read << 1;
+
+    cfg_usr_if.rd_dat_val <= 0;
+
+    data_usr_if.rd_dat <= data_ram_usr_if.q;
+    inst_usr_if.rd_dat <= inst_ram_usr_if.q;
+
+    data_usr_if.rd_dat_val <= data_usr_ram_read[READ_CYCLE];
+    inst_usr_if.rd_dat_val <= inst_usr_ram_read[READ_CYCLE];
+
+    inst_ram_usr_if.en <= 1;
+    inst_ram_usr_if.re <= 1;
+    inst_ram_usr_if.we <= 0;
+
+    data_ram_usr_if.en <= 1;
+    data_ram_usr_if.re <= 1;
+    data_ram_usr_if.we <= 0;
+
+    // Write access
+    if (data_usr_if.wr) begin
+      data_ram_usr_if.a <= data_usr_if.addr >> DATA_RAM_ALIGN_BYTE/DATA_RAM_USR_WIDTH;
+      data_ram_usr_if.d <= data_usr_if.wr_dat << (data_usr_if.addr % DATA_RAM_ALIGN_BYTE)*8;
+      data_ram_usr_if.we <= {8{1'd1}}  << (data_usr_if.addr % DATA_RAM_ALIGN_BYTE);
     end
+
+    if (inst_usr_if.wr) begin
+      inst_ram_usr_if.a <= inst_usr_if.addr >> INST_RAM_ALIGN_BYTE/INST_RAM_USR_WIDTH;
+      inst_ram_usr_if.d <= inst_usr_if.wr_dat;
+      inst_ram_usr_if.we <= 1;
+    end
+
+    if (cfg_usr_if.wr) begin
+    // Currently no write supported
+    end
+
+    // Read access
+    if (data_usr_if.rd) begin
+      data_usr_ram_read[0] <= 1;
+      data_ram_usr_if.a <= data_usr_if.addr >> DATA_RAM_ALIGN_BYTE/DATA_RAM_USR_WIDTH;
+    end
+
+    if (inst_usr_if.rd) begin
+      inst_usr_ram_read[0] <= 1;
+      inst_ram_usr_if.a <= inst_usr_if.addr >> INST_RAM_ALIGN_BYTE/INST_RAM_USR_WIDTH;
+    end
+
     if (cfg_usr_if.rd) begin
       cfg_usr_if.rd_dat_val <= 1;
+      case(cfg_usr_if.addr)
+        0: begin
+          cfg_usr_if.rd_dat <= inst_ram_sys_if.a;
+        end
+      endcase
     end
   end
 end
@@ -159,7 +239,7 @@ end
 uram_reset #(
   .RAM_WIDTH(bls12_381_pkg::INST_RAM_WIDTH),
   .RAM_DEPTH(bls12_381_pkg::INST_RAM_DEPTH),
-  .PIPELINES( INST_READ_CYCLE - 2 )
+  .PIPELINES( READ_CYCLE - 2 )
 )
 inst_uram_reset (
   .a ( inst_ram_usr_if ),
@@ -169,7 +249,7 @@ inst_uram_reset (
 uram_reset #(
   .RAM_WIDTH(bls12_381_pkg::DATA_RAM_WIDTH),
   .RAM_DEPTH(bls12_381_pkg::DATA_RAM_DEPTH),
-  .PIPELINES( DATA_READ_CYCLE - 2 )
+  .PIPELINES( READ_CYCLE - 2 )
 )
 data_uram_reset (
   .a ( data_ram_usr_if ),

@@ -148,9 +148,10 @@ initial begin
   in_if.val = 0;
   #(40*CLK_PERIOD);
 
-  test(381'h1);
+  /*test(381'h1);
   test(381'h5);
-  test(381'h10);
+  test(381'h10);*/
+  //test(1 << 380);
   test(381'h9f5193de96ab6e65e7c7df8adcec4e82b971dd5f54d1c62103776d3eef0255ae346eba9e29eb08c3a957e9a53afc3ce);
     
   #1us $finish();

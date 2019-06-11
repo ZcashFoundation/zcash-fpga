@@ -19,7 +19,6 @@
 
 module ec_point_add
 #(
-  parameter      P,
   parameter type FP_TYPE,
   parameter type FE_TYPE
 )(
@@ -35,8 +34,8 @@ module ec_point_add
   output logic   o_val,
   output logic   o_err,
   // Interface to multiplier (mod P)
-  if_axi_stream.source o_mult_if,
-  if_axi_stream.sink   i_mult_if,
+  if_axi_stream.source o_mul_if,
+  if_axi_stream.sink   i_mul_if,
   // Interface to adder (mod P)
   if_axi_stream.source o_add_if,
   if_axi_stream.sink   i_add_if,
@@ -103,11 +102,11 @@ always_ff @ (posedge i_clk) begin
     o_val <= 0;
     o_rdy <= 0;
     o_p <= 0;
-    o_mult_if.copy_if(0, 0, 1, 1, 0, 0, 0);
+    o_mul_if.copy_if(0, 0, 1, 1, 0, 0, 0);
     o_add_if.copy_if(0, 0, 1, 1, 0, 0, 0);
     o_sub_if.copy_if(0, 0, 1, 1, 0, 0, 0);
     i_add_if.rdy <= 0;
-    i_mult_if.rdy <= 0;
+    i_mul_if.rdy <= 0;
     i_sub_if.rdy <= 0;
     eq_val <= 0;
     state <= IDLE;
@@ -121,7 +120,7 @@ always_ff @ (posedge i_clk) begin
     D <= 0;
   end else begin
 
-    if (o_mult_if.rdy) o_mult_if.val <= 0;
+    if (o_mul_if.rdy) o_mul_if.val <= 0;
     if (o_add_if.rdy) o_add_if.val <= 0;
     if (o_sub_if.rdy) o_sub_if.val <= 0;
 
@@ -131,7 +130,7 @@ always_ff @ (posedge i_clk) begin
         eq_val <= 0;
         eq_wait <= 0;
         o_err <= 0;
-        i_mult_if.rdy <= 1;
+        i_mul_if.rdy <= 1;
         i_add_if.rdy <= 1;
         i_sub_if.rdy <= 1;
         i_p1_l <= i_p1;
@@ -168,25 +167,25 @@ always_ff @ (posedge i_clk) begin
       {START}: begin
 
         // Check any results from multiplier
-        if (i_mult_if.val && i_mult_if.rdy) begin
-          eq_val[i_mult_if.ctl[5:0]] <= 1;
-          case(i_mult_if.ctl[5:0]) inside
-            0: A <= i_mult_if.dat;
-            1: i_p1_l.x <= i_mult_if.dat;
-            2: C <= i_mult_if.dat;
-            3: i_p2_l.x <= i_mult_if.dat;
-            4: A <= i_mult_if.dat;
-            5: A <= i_mult_if.dat;
-            6: C <= i_mult_if.dat;
-            7: C <= i_mult_if.dat;
-            10: o_p.x <= i_mult_if.dat;
-            11: D <= i_mult_if.dat;
-            12: i_p2_l.x <= i_mult_if.dat;
-            14: i_p1_l.x <= i_mult_if.dat;
-            19: o_p.y <= i_mult_if.dat;
-            20: i_p2_l.x <= i_mult_if.dat;
-            22: o_p.z <= i_mult_if.dat;
-            23: o_p.z <= i_mult_if.dat;
+        if (i_mul_if.val && i_mul_if.rdy) begin
+          eq_val[i_mul_if.ctl[5:0]] <= 1;
+          case(i_mul_if.ctl[5:0]) inside
+            0: A <= FE_TYPE'(i_mul_if.dat);
+            1: i_p1_l.x <= i_mul_if.dat;
+            2: C <= i_mul_if.dat;
+            3: i_p2_l.x <= i_mul_if.dat;
+            4: A <= i_mul_if.dat;
+            5: A <= i_mul_if.dat;
+            6: C <= i_mul_if.dat;
+            7: C <= i_mul_if.dat;
+            10: o_p.x <= i_mul_if.dat;
+            11: D <= i_mul_if.dat;
+            12: i_p2_l.x <= i_mul_if.dat;
+            14: i_p1_l.x <= i_mul_if.dat;
+            19: o_p.y <= i_mul_if.dat;
+            20: i_p2_l.x <= i_mul_if.dat;
+            22: o_p.z <= i_mul_if.dat;
+            23: o_p.z <= i_mul_if.dat;
             default: o_err <= 1;
           endcase
         end
@@ -345,11 +344,11 @@ endtask
 
 // Task for using multiplies
 task multiply(input int unsigned ctl, input FE_TYPE a, b);
-  if (~o_mult_if.val || (o_mult_if.val && o_mult_if.rdy)) begin
-    o_mult_if.val <= 1;
-    o_mult_if.dat[0 +: $bits(FE_TYPE)] <= a;
-    o_mult_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b;
-    o_mult_if.ctl[5:0] <= ctl;
+  if (~o_mul_if.val || (o_mul_if.val && o_mul_if.rdy)) begin
+    o_mul_if.val <= 1;
+    o_mul_if.dat[0 +: $bits(FE_TYPE)] <= a;
+    o_mul_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b;
+    o_mul_if.ctl[5:0] <= ctl;
     eq_wait[ctl] <= 1;
   end
 endtask
