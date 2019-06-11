@@ -331,7 +331,7 @@ package bls12_381_pkg;
      to_affine.z = 1;
      to_affine.x = fe_mul(p.x, fe_inv(z_));
      z_ = fe_mul(z_, p.z);
-     to_affine.y = fe_mul(p.x, fe_inv(z_));
+     to_affine.y = fe_mul(p.y, fe_inv(z_));
    endfunction
    
    function print_jb_point(jb_point_t p);

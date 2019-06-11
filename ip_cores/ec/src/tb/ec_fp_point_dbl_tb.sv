@@ -203,10 +203,7 @@ initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
-  
-  print_jb_point(to_affine(g_point));
-  print_jb_point(to_affine(dbl_jb_point(g_point)));
-
+ 
   test_0();
 
   #1us $finish();
