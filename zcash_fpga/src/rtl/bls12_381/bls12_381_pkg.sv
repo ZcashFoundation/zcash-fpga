@@ -211,7 +211,7 @@ package bls12_381_pkg;
      D = fe2_mul(fe2_mul(3, I_X), I_X);
      X = fe2_mul(D, D);
      X = fe2_sub(X, fe2_mul(2, B));
-  
+
      Y = fe2_mul(D, fe2_sub(B, X));
      Y = fe2_sub(Y, C);
      Z = fe2_mul(fe2_mul(2, I_Y), I_Z);
@@ -332,6 +332,15 @@ package bls12_381_pkg;
      to_affine.x = fe_mul(p.x, fe_inv(z_));
      z_ = fe_mul(z_, p.z);
      to_affine.y = fe_mul(p.y, fe_inv(z_));
+   endfunction
+   
+   function fp2_jb_point_t fp2_to_affine(fp2_jb_point_t p);
+     fe2_t z_;
+     z_ = fe2_mul(p.z, p.z);
+     fp2_to_affine.z = FE2_one;
+     fp2_to_affine.x = fe2_mul(p.x, fe2_inv(z_));
+     z_ = fe2_mul(z_, p.z);
+     fp2_to_affine.y = fe2_mul(p.y, fe2_inv(z_));
    endfunction
    
    function print_jb_point(jb_point_t p);
