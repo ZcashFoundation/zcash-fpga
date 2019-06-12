@@ -99,7 +99,7 @@ package bls12_381_pkg;
   endfunction
 
    function jb_point_t add_jb_point(jb_point_t p1, p2);
-     logic signed [1023:0] A, U1, U2, S1, S2, H, H3, R;
+     fe_t A, U1, U2, S1, S2, H, H3, R;
 
      if (p1.z == 0) return p2;
      if (p2.z == 0) return p1;
@@ -107,33 +107,33 @@ package bls12_381_pkg;
      if (p1.y == p2.y && p1.x == p2.x)
        return (dbl_jb_point(p1));
 
-     U1 = (p1.x*p2.z) % P;
-     U1 = (U1*p2.z) % P;
+     U1 = fe_mul(p1.x, p2.z);
+     U1 = fe_mul(U1, p2.z);
 
-     U2 = (p2.x*p1.z) % P;
-     U2 = (U2 *p1.z) % P;
-     S1 = p1.y *p2.z % P;
-     S1 = (S1*p2.z % P) *p2.z % P;
-     S2 = p2.y * p1.z % P;
-     S2 = (S2*p1.z  % P) *p1.z % P;
+     U2 = fe_mul(p2.x, p1.z);
+     U2 = fe_mul(U2, p1.z);
+     S1 = fe_mul(p1.y, p2.z);
+     S1 = fe_mul(fe_mul(S1, p2.z), p2.z);
+     S2 = fe_mul(p2.y, p1.z);
+     S2 = fe_mul(fe_mul(S2, p1.z), p1.z);
 
-     H = U2 + (U1 > U2 ? P : 0) -U1;
-     R = S2 + (S1 > S2 ? P : 0) -S1;
-     H3 = ((H * H %P ) * H ) % P;
-     A = (((2*U1 % P) *H % P) * H % P);
+     H = fe_sub(U2, U1);
+     R = fe_sub(S2, S1);
+     H3 = fe_mul(fe_mul(H, H), H);
+     A = fe_mul(fe_mul(fe_mul(2, U1), H), H);
 
-     add_jb_point.z = ((H * p1.z % P) * p2.z) % P;
-     add_jb_point.x = R*R % P;
+     add_jb_point.z = fe_mul(fe_mul(H, p1.z), p2.z);
+     add_jb_point.x = fe_mul(R, R);
 
-     add_jb_point.x = add_jb_point.x + (H3 > add_jb_point.x ? P : 0) - H3;
-     add_jb_point.x = add_jb_point.x + (A > add_jb_point.x ? P : 0) - A;
+     add_jb_point.x = fe_sub(add_jb_point.x, H3);
+     add_jb_point.x = fe_sub(add_jb_point.x, A);
 
-     A = (U1*H % P) * H % P;
-     A = A + (add_jb_point.x > A ? P : 0) - add_jb_point.x;
-     A = A*R % P;
-     add_jb_point.y = S1*H3 % P;
+     A = fe_mul(fe_mul(U1, H), H);
+     A = fe_sub(A, add_jb_point.x);
+     A = fe_mul(A, R);
+     add_jb_point.y = fe_mul(S1, H3);
 
-     add_jb_point.y = A + (add_jb_point.y > A ? P : 0) - add_jb_point.y;
+     add_jb_point.y = fe_sub(A, add_jb_point.y);
 
    endfunction
    
@@ -223,39 +223,43 @@ package bls12_381_pkg;
    endfunction 
    
   function fp2_jb_point_t add_fp2_jb_point(fp2_jb_point_t p1, p2);
-      fe2_t A, U1, U2, S1, S2, H, H3, R;
+    fe2_t A, U1, U2, S1, S2, H, H3, R;
+
+    if (p1.z == 0) return p2;
+    if (p2.z == 0) return p1;
+  
+    if (p1.y == p2.y && p1.x == p2.x)
+      return (dbl_fp2_jb_point(p1));
+  
+    U1 = fe2_mul(p1.x, p2.z);
+    U1 = fe2_mul(U1, p2.z);
+  
+    U2 = fe2_mul(p2.x, p1.z);
+    U2 = fe2_mul(U2, p1.z);
+    S1 = fe2_mul(p1.y, p2.z);
+    S1 = fe2_mul(fe2_mul(S1, p2.z), p2.z);
+    S2 = fe2_mul(p2.y, p1.z);
+    S2 = fe2_mul(fe2_mul(S2, p1.z), p1.z);
+  
+    H = fe2_sub(U2, U1);
+    R = fe2_sub(S2, S1);
+    H3 = fe2_mul(fe2_mul(H, H), H);
+    A = fe2_mul(fe2_mul(fe2_mul(2, U1), H), H);
+  
+    add_fp2_jb_point.z = fe2_mul(fe2_mul(H, p1.z), p2.z);
+    add_fp2_jb_point.x = fe2_mul(R, R);
+  
+    add_fp2_jb_point.x = fe2_sub(add_fp2_jb_point.x, H3);
+    add_fp2_jb_point.x = fe2_sub(add_fp2_jb_point.x, A);
+  
+    A = fe2_mul(fe2_mul(U1, H), H);
+    A = fe2_sub(A, add_fp2_jb_point.x);
+    A = fe2_mul(A, R);
+    add_fp2_jb_point.y = fe2_mul(S1, H3);
+  
+    add_fp2_jb_point.y = fe2_sub(A, add_fp2_jb_point.y);
  
-      if (p1.y == p2.y && p1.x == p2.x)
-        return (dbl_fp2_jb_point(p1));
- 
-      U1 = fe2_mul(p1.x, p2.z);
-      U1 = fe2_mul(U1, p2.z);
- 
-      U2 = fe2_mul(p2.x, p1.z);
-      U2 = fe2_mul(U2, p1.z);
-      S1 = fe2_mul(p1.y, p2.z);
-      S1 = fe2_mul(fe2_mul(S1, p2.z), p2.z);
-      S2 = fe2_mul(p2.y, p1.z);
-      S2 = fe2_mul(fe2_mul(S2, p1.z), p1.z);
-      H = fe2_sub(U2, U1);
-      R = fe2_sub(S2, S1);
-      H3 = fe2_mul(fe2_mul(H, H), H);
-      A = fe2_mul(fe2_mul(fe2_mul(2, U1), H), H);
- 
-      add_fp2_jb_point.z = fe2_mul(fe2_mul(H, p1.z), p2.z);
-      add_fp2_jb_point.x = fe2_mul(R, R);
- 
-      add_fp2_jb_point.x = fe2_add(add_fp2_jb_point.x, H3);
-      add_fp2_jb_point.x = fe2_sub(add_fp2_jb_point.x, A);
- 
-      A = fe2_mul(fe2_mul(U1, H), H);
-      A = fe2_sub(A, add_fp2_jb_point.x);
-      A = fe2_mul(A, R);
-      add_fp2_jb_point.y = fe2_mul(S1, H3);
- 
-      add_fp2_jb_point.y = fe2_sub(A, add_fp2_jb_point.y);
- 
-    endfunction
+  endfunction
    
    function jb_point_t point_mult(logic [DAT_BITS-1:0] c, jb_point_t p);
      jb_point_t result, addend;
