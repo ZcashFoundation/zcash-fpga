@@ -204,7 +204,8 @@ initial begin
   in_if.val = 0;
   #(40*CLK_PERIOD);
 
- test(g2_point, dbl_fp2_jb_point(g2_point));
+  test(g2_point, dbl_fp2_jb_point(g2_point));
+  test(dbl_fp2_jb_point(g2_point), dbl_fp2_jb_point(dbl_fp2_jb_point(g2_point)));
 
   #1us $finish();
 end

@@ -119,7 +119,7 @@ end
 // Point subtractions are simple subtractions on each of the Fp elements
 enum {SUB0, SUB1} sub_state;
 always_comb begin
-  sub_if_fe2_i.rdy = sub_state == ADD1 && (~sub_if_fe_o[0].val || (sub_if_fe_o[0].val && sub_if_fe_o[0].rdy));
+  sub_if_fe2_i.rdy = sub_state == SUB1 && (~sub_if_fe_o[0].val || (sub_if_fe_o[0].val && sub_if_fe_o[0].rdy));
   sub_if_fe_i[0].rdy = ~sub_if_fe2_o.val || (sub_if_fe2_o.val && sub_if_fe2_o.rdy);
 end
 
@@ -137,8 +137,8 @@ always_ff @ (posedge i_clk) begin
     case(sub_state)
       SUB0: begin
         if (~sub_if_fe_o[0].val || (sub_if_fe_o[0].val && sub_if_fe_o[0].rdy)) begin
-          sub_if_fe_o[0].copy_if({sub_if_fe2_i.dat[0 +: $bits(FE_TYPE)],
-                                  sub_if_fe2_i.dat[$bits(FE2_TYPE) +: $bits(FE_TYPE)]},
+          sub_if_fe_o[0].copy_if({sub_if_fe2_i.dat[$bits(FE2_TYPE) +: $bits(FE_TYPE)],
+                                  sub_if_fe2_i.dat[0 +: $bits(FE_TYPE)]},
                                   sub_if_fe2_i.val, 1, 1, sub_if_fe2_i.err, sub_if_fe2_i.mod, sub_if_fe2_i.ctl);
           sub_if_fe_o[0].ctl[ADD_CTL_BIT] <= 0;
           if (sub_if_fe2_i.val) sub_state <= SUB1;
@@ -146,9 +146,9 @@ always_ff @ (posedge i_clk) begin
       end
       SUB1: begin
         if (~sub_if_fe_o[0].val || (sub_if_fe_o[0].val && sub_if_fe_o[0].rdy)) begin
-          sub_if_fe_o[0].copy_if({sub_if_fe2_i.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)],
-                                sub_if_fe2_i.dat[$bits(FE_TYPE) + $bits(FE2_TYPE) +: $bits(FE_TYPE)]},
-                                sub_if_fe2_i.val, 1, 1, sub_if_fe2_i.err, sub_if_fe2_i.mod, sub_if_fe2_i.ctl);
+          sub_if_fe_o[0].copy_if({sub_if_fe2_i.dat[$bits(FE_TYPE) + $bits(FE2_TYPE) +: $bits(FE_TYPE)],
+                                  sub_if_fe2_i.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)]},
+                                  sub_if_fe2_i.val, 1, 1, sub_if_fe2_i.err, sub_if_fe2_i.mod, sub_if_fe2_i.ctl);
           sub_if_fe_o[0].ctl[ADD_CTL_BIT] <= 1;
           if (sub_if_fe2_i.val) sub_state <= SUB0;
         end
