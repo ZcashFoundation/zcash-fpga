@@ -1,6 +1,8 @@
 /*
   This provides the interface to perform
-  Fp^2 point logic (adding, subtracting, multiplication)
+  Fp^2 point logic (adding, subtracting, multiplication).
+
+  Improvements would be a control to bypass the Fp2 logic so we implement Fp faster.
 
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -21,7 +23,8 @@
 module ec_fe2_arithmetic
 #(
   parameter type FE_TYPE,
-  parameter type FE2_TYPE
+  parameter type FE2_TYPE,
+  parameter CTL_BIT = 8        // From this bit 2 bits are used for control
 )(
   input i_clk, i_rst,
   // Interface to FE_TYPE multiplier (mod P)
@@ -44,7 +47,6 @@ module ec_fe2_arithmetic
   if_axi_stream.sink   i_sub_fe2_if
 );
 
-localparam ADD_CTL_BIT = 8;
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(16))   add_if_fe_i [2] (i_clk);
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(16)) add_if_fe_o [2] (i_clk);
 
@@ -76,7 +78,7 @@ always_ff @ (posedge i_clk) begin
           add_if_fe_o[0].copy_if({i_add_fe2_if.dat[0 +: $bits(FE_TYPE)],
                                   i_add_fe2_if.dat[$bits(FE2_TYPE) +: $bits(FE_TYPE)]},
                                   i_add_fe2_if.val, 1, 1, i_add_fe2_if.err, i_add_fe2_if.mod, i_add_fe2_if.ctl);
-          add_if_fe_o[0].ctl[ADD_CTL_BIT] <= 0;
+          add_if_fe_o[0].ctl[CTL_BIT] <= 0;
           if (i_add_fe2_if.val) add_state <= ADD1;
         end
       end
@@ -85,7 +87,7 @@ always_ff @ (posedge i_clk) begin
           add_if_fe_o[0].copy_if({i_add_fe2_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)],
                                 i_add_fe2_if.dat[$bits(FE2_TYPE)+$bits(FE_TYPE) +: $bits(FE_TYPE)]},
                                 i_add_fe2_if.val, 1, 1, i_add_fe2_if.err, i_add_fe2_if.mod, i_add_fe2_if.ctl);
-          add_if_fe_o[0].ctl[ADD_CTL_BIT] <= 1;
+          add_if_fe_o[0].ctl[CTL_BIT] <= 1;
           if (i_add_fe2_if.val) add_state <= ADD0;
         end
       end
@@ -94,7 +96,7 @@ always_ff @ (posedge i_clk) begin
     // One process to assign outputs
     if (~o_add_fe2_if.val || (o_add_fe2_if.val && o_add_fe2_if.rdy)) begin
       o_add_fe2_if.ctl <= add_if_fe_i[0].ctl;
-      if (add_if_fe_i[0].ctl[ADD_CTL_BIT] == 0) begin
+      if (add_if_fe_i[0].ctl[CTL_BIT] == 0) begin
         if (add_if_fe_i[0].val)
           o_add_fe2_if.dat[0 +: $bits(FE_TYPE)] <= add_if_fe_i[0].dat;
       end else begin
@@ -129,7 +131,7 @@ always_ff @ (posedge i_clk) begin
           sub_if_fe_o[0].copy_if({i_sub_fe2_if.dat[$bits(FE2_TYPE) +: $bits(FE_TYPE)],
                                   i_sub_fe2_if.dat[0 +: $bits(FE_TYPE)]},
                                   i_sub_fe2_if.val, 1, 1, i_sub_fe2_if.err, i_sub_fe2_if.mod, i_sub_fe2_if.ctl);
-          sub_if_fe_o[0].ctl[ADD_CTL_BIT] <= 0;
+          sub_if_fe_o[0].ctl[CTL_BIT] <= 0;
           if (i_sub_fe2_if.val) sub_state <= SUB1;
         end
       end
@@ -138,7 +140,7 @@ always_ff @ (posedge i_clk) begin
           sub_if_fe_o[0].copy_if({i_sub_fe2_if.dat[$bits(FE_TYPE) + $bits(FE2_TYPE) +: $bits(FE_TYPE)],
                                   i_sub_fe2_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)]},
                                   i_sub_fe2_if.val, 1, 1, i_sub_fe2_if.err, i_sub_fe2_if.mod, i_sub_fe2_if.ctl);
-          sub_if_fe_o[0].ctl[ADD_CTL_BIT] <= 1;
+          sub_if_fe_o[0].ctl[CTL_BIT] <= 1;
           if (i_sub_fe2_if.val) sub_state <= SUB0;
         end
       end
@@ -147,7 +149,7 @@ always_ff @ (posedge i_clk) begin
     // One process to assign outputs
     if (~o_sub_fe2_if.val || (o_sub_fe2_if.val && o_sub_fe2_if.rdy)) begin
       o_sub_fe2_if.ctl <= sub_if_fe_i[0].ctl;
-      if (sub_if_fe_i[0].ctl[ADD_CTL_BIT] == 0) begin
+      if (sub_if_fe_i[0].ctl[CTL_BIT] == 0) begin
         if (sub_if_fe_i[0].val)
           o_sub_fe2_if.dat[0 +: $bits(FE_TYPE)] <= sub_if_fe_i[0].dat;
       end else begin
@@ -165,7 +167,7 @@ logic [1:0] add_sub_val;
 always_comb begin
   mul_if_fe2_i.rdy = mul_state == MUL3 && (~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy));
 
-  i_mul_fe_if.rdy = (i_mul_fe_if.ctl[ADD_CTL_BIT +: 2] == 0 || i_mul_fe_if.ctl[ADD_CTL_BIT +: 2] == 1) ?
+  i_mul_fe_if.rdy = (i_mul_fe_if.ctl[CTL_BIT +: 2] == 0 || i_mul_fe_if.ctl[CTL_BIT +: 2] == 1) ?
                   (~sub_if_fe_o[1].val || (sub_if_fe_o[1].val && sub_if_fe_o[1].rdy)) :
                   (~add_if_fe_o[1].val || (add_if_fe_o[1].val && add_if_fe_o[1].rdy));
 
@@ -202,28 +204,28 @@ always_ff @ (posedge i_clk) begin
           o_mul_fe_if.copy_if({mul_if_fe2_i.dat[0 +: $bits(FE_TYPE)],
                             mul_if_fe2_i.dat[$bits(FE2_TYPE)  +: $bits(FE_TYPE)]},
                             mul_if_fe2_i.val, 1, 1, mul_if_fe2_i.err, mul_if_fe2_i.mod, mul_if_fe2_i.ctl);
-          o_mul_fe_if.ctl[ADD_CTL_BIT +: 2] <= 0;
+          o_mul_fe_if.ctl[CTL_BIT +: 2] <= 0;
           if (mul_if_fe2_i.val) mul_state <= MUL1;
         end
         MUL1: begin
           o_mul_fe_if.copy_if({mul_if_fe2_i.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)],
                             mul_if_fe2_i.dat[$bits(FE2_TYPE) + $bits(FE_TYPE) +: $bits(FE_TYPE)]},
                             mul_if_fe2_i.val, 1, 1, mul_if_fe2_i.err, mul_if_fe2_i.mod, mul_if_fe2_i.ctl);
-          o_mul_fe_if.ctl[ADD_CTL_BIT +: 2] <= 1;
+          o_mul_fe_if.ctl[CTL_BIT +: 2] <= 1;
           if (mul_if_fe2_i.val) mul_state <= MUL2;
         end
         MUL2: begin
           o_mul_fe_if.copy_if({mul_if_fe2_i.dat[0 +: $bits(FE_TYPE)],
                             mul_if_fe2_i.dat[$bits(FE2_TYPE) + $bits(FE_TYPE) +: $bits(FE_TYPE)]},
                             mul_if_fe2_i.val, 1, 1, mul_if_fe2_i.err, mul_if_fe2_i.mod, mul_if_fe2_i.ctl);
-          o_mul_fe_if.ctl[ADD_CTL_BIT +: 2] <= 2;
+          o_mul_fe_if.ctl[CTL_BIT +: 2] <= 2;
           if (mul_if_fe2_i.val) mul_state <= MUL3;
         end
         MUL3: begin
           o_mul_fe_if.copy_if({mul_if_fe2_i.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)],
                             mul_if_fe2_i.dat[$bits(FE2_TYPE)  +: $bits(FE_TYPE)]},
                             mul_if_fe2_i.val, 1, 1, mul_if_fe2_i.err, mul_if_fe2_i.mod, mul_if_fe2_i.ctl);
-          o_mul_fe_if.ctl[ADD_CTL_BIT +: 2] <= 3;
+          o_mul_fe_if.ctl[CTL_BIT +: 2] <= 3;
           if (mul_if_fe2_i.val) mul_state <= MUL0;
         end
       endcase
@@ -231,10 +233,10 @@ always_ff @ (posedge i_clk) begin
 
     // Process multiplications and do subtraction
     if (~sub_if_fe_o[1].val || (sub_if_fe_o[1].val && sub_if_fe_o[1].rdy)) begin
-      if (i_mul_fe_if.ctl[ADD_CTL_BIT +: 2] == 0) begin
+      if (i_mul_fe_if.ctl[CTL_BIT +: 2] == 0) begin
         if (i_mul_fe_if.val) sub_if_fe_o[1].dat[0 +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
       end
-      if (i_mul_fe_if.ctl[ADD_CTL_BIT +: 2] == 1) begin
+      if (i_mul_fe_if.ctl[CTL_BIT +: 2] == 1) begin
         sub_if_fe_o[1].val <= i_mul_fe_if.val;
         sub_if_fe_o[1].dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
       end
@@ -243,10 +245,10 @@ always_ff @ (posedge i_clk) begin
 
     // Process multiplications and do addition
     if (~add_if_fe_o[1].val || (add_if_fe_o[1].val && add_if_fe_o[1].rdy)) begin
-      if (i_mul_fe_if.ctl[ADD_CTL_BIT +: 2] == 2) begin
+      if (i_mul_fe_if.ctl[CTL_BIT +: 2] == 2) begin
         if (i_mul_fe_if.val) add_if_fe_o[1].dat[0 +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
       end
-      if (i_mul_fe_if.ctl[ADD_CTL_BIT +: 2] == 3) begin
+      if (i_mul_fe_if.ctl[CTL_BIT +: 2] == 3) begin
         add_if_fe_o[1].val <= i_mul_fe_if.val;
         add_if_fe_o[1].dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
       end

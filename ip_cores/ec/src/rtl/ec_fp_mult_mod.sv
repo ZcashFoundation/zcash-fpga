@@ -27,17 +27,8 @@ module ec_fp_mult_mod #(
   parameter                CTL_BITS = 16
 )(
   input i_clk, i_rst,
-  // Input value
-  input [DAT_BITS-1:0] i_dat_a,
-  input [DAT_BITS-1:0] i_dat_b,
-  input                i_val,
-  input [CTL_BITS-1:0] i_ctl,
-  output logic         o_rdy,
-  // output
-  output logic [DAT_BITS-1:0] o_dat,
-  output logic [CTL_BITS-1:0] o_ctl,
-  input                       i_rdy,
-  output logic                o_val
+  if_axi_stream.sink   i_mul,
+  if_axi_stream.source o_mul
 );
 
 // The reduction mod takes DAT_BITS + 1 bits, but we also need to make sure we are a multiple of KARATSUBA_LVL*2
@@ -54,12 +45,12 @@ karatsuba_ofman_mult # (
 karatsuba_ofman_mult_0 (
   .i_clk  ( i_clk ),
   .i_rst  ( i_rst ),
-  .i_ctl  ( i_ctl ),
-  .i_dat_a( {3'd0, i_dat_a}  ),
-  .i_dat_b( {3'd0, i_dat_b} ),
-  .i_val  ( i_val ),
-  .o_rdy  ( o_rdy ),
-  .o_dat  ( mult_if[0].dat ),
+  .i_ctl  ( i_mul.ctl ),
+  .i_dat_a( {{(MLT_BITS-DAT_BITS){1'd0}}, i_mul.dat[0 +: DAT_BITS]}  ),
+  .i_dat_b( {{(MLT_BITS-DAT_BITS){1'd0}}, i_mul.dat[DAT_BITS +: DAT_BITS]} ),
+  .i_val  ( i_mul.val ),
+  .o_rdy  ( i_mul.rdy ),
+  .o_dat  ( mult_if[0].dat  ),
   .o_val  ( mult_if[0].val ),
   .i_rdy  ( mult_if[0].rdy ),
   .o_ctl  ( mult_if[0].ctl )
@@ -114,11 +105,11 @@ barret_mod_pipe (
   .i_dat ( mult_if[0].dat ),
   .i_val ( mult_if[0].val ),
   .i_ctl ( mult_if[0].ctl ),
-  .o_ctl ( o_ctl ),
+  .o_ctl ( o_mul.ctl ),
   .o_rdy ( mult_if[0].rdy ),
-  .o_dat ( o_dat ),
-  .o_val ( o_val ),
-  .i_rdy ( i_rdy ),
+  .o_dat ( o_mul.dat ),
+  .o_val ( o_mul.val ),
+  .i_rdy ( o_mul.rdy ),
   .o_mult_if_0 ( mult_if[1]  ),
   .i_mult_if_0 ( mult_if[2] ),
   .o_mult_if_1 ( mult_if[3]  ),

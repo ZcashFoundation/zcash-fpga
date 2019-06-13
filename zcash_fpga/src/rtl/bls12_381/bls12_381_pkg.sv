@@ -44,7 +44,7 @@ package bls12_381_pkg;
   } jb_point_t;
 
   typedef struct packed {
-    fe_t c1, c0;   
+    fe_t c1, c0;
   } fe2_t;
 
   fe2_t G2x = '{c0:381'd352701069587466618187139116011060144890029952792775240219908644239793785735715026873347600343865175952761926303160,
@@ -136,40 +136,40 @@ package bls12_381_pkg;
      add_jb_point.y = fe_sub(A, add_jb_point.y);
 
    endfunction
-   
+
    function fe_t fe_add(fe_t a, b);
      logic [$bits(fe_t):0] a_, b_;
      a_ = a;
      b_ = b;
      fe_add = a_ + b_ >= P ? a_ + b_ - P : a_ + b_;
-   endfunction   
-   
+   endfunction
+
    function fe2_t fe2_add(fe2_t a, b);
      fe2_add.c0 = fe_add(a.c0,b.c0);
      fe2_add.c1 = fe_add(a.c1,b.c1);
    endfunction
-   
+
    function fe_t fe_sub(fe_t a, b);
      logic [$bits(fe_t):0] a_, b_;
      a_ = a;
      b_ = b;
      fe_sub = b_ > a_ ? a_- b_ + P : a_ - b_;
-   endfunction  
-   
+   endfunction
+
    function fe2_t fe2_sub(fe2_t a, b);
      fe2_sub.c0 = fe_sub(a.c0, b.c0);
      fe2_sub.c1 = fe_sub(a.c1, b.c1);
-   endfunction  
-  
+   endfunction
+
    function fe_t fe_mul(fe2_t a, b);
      fe_mul = (a * b) % P;
-   endfunction  
-    
+   endfunction
+
    function fe2_t fe2_mul(fe2_t a, b);
      fe2_mul.c0 = fe_sub(fe_mul(a.c0, b.c0), fe_mul(a.c1, b.c1));
      fe2_mul.c1 = fe_add(fe_mul(a.c0, b.c1), fe_mul(a.c1, b.c0));
-   endfunction  
-   
+   endfunction
+
       // Function to double point in Jacobian coordinates (for comparison in testbench)
    // Here a is 0, and we also mod the result
    function jb_point_t dbl_jb_point(input jb_point_t p);
@@ -196,12 +196,12 @@ package bls12_381_pkg;
      dbl_jb_point.z = Z;
      return dbl_jb_point;
    endfunction
-   
+
    function fp2_jb_point_t dbl_fp2_jb_point(input fp2_jb_point_t p);
      fe2_t I_X, I_Y, I_Z, A, B, C, D, X, Y, Z;
 
      if (p.z == 0) return p;
-  
+
      I_X = p.x;
      I_Y = p.y;
      I_Z = p.z;
@@ -215,52 +215,52 @@ package bls12_381_pkg;
      Y = fe2_mul(D, fe2_sub(B, X));
      Y = fe2_sub(Y, C);
      Z = fe2_mul(fe2_mul(2, I_Y), I_Z);
-  
+
      dbl_fp2_jb_point.x = X;
      dbl_fp2_jb_point.y = Y;
      dbl_fp2_jb_point.z = Z;
      return dbl_fp2_jb_point;
-   endfunction 
-   
+   endfunction
+
   function fp2_jb_point_t add_fp2_jb_point(fp2_jb_point_t p1, p2);
     fe2_t A, U1, U2, S1, S2, H, H3, R;
 
     if (p1.z == 0) return p2;
     if (p2.z == 0) return p1;
-  
+
     if (p1.y == p2.y && p1.x == p2.x)
       return (dbl_fp2_jb_point(p1));
-  
+
     U1 = fe2_mul(p1.x, p2.z);
     U1 = fe2_mul(U1, p2.z);
-  
+
     U2 = fe2_mul(p2.x, p1.z);
     U2 = fe2_mul(U2, p1.z);
     S1 = fe2_mul(p1.y, p2.z);
     S1 = fe2_mul(fe2_mul(S1, p2.z), p2.z);
     S2 = fe2_mul(p2.y, p1.z);
     S2 = fe2_mul(fe2_mul(S2, p1.z), p1.z);
-  
+
     H = fe2_sub(U2, U1);
     R = fe2_sub(S2, S1);
     H3 = fe2_mul(fe2_mul(H, H), H);
     A = fe2_mul(fe2_mul(fe2_mul(2, U1), H), H);
-  
+
     add_fp2_jb_point.z = fe2_mul(fe2_mul(H, p1.z), p2.z);
     add_fp2_jb_point.x = fe2_mul(R, R);
-  
+
     add_fp2_jb_point.x = fe2_sub(add_fp2_jb_point.x, H3);
     add_fp2_jb_point.x = fe2_sub(add_fp2_jb_point.x, A);
-  
+
     A = fe2_mul(fe2_mul(U1, H), H);
     A = fe2_sub(A, add_fp2_jb_point.x);
     A = fe2_mul(A, R);
     add_fp2_jb_point.y = fe2_mul(S1, H3);
-  
+
     add_fp2_jb_point.y = fe2_sub(A, add_fp2_jb_point.y);
- 
+
   endfunction
-   
+
    function jb_point_t point_mult(logic [DAT_BITS-1:0] c, jb_point_t p);
      jb_point_t result, addend;
      result = 0;
@@ -275,15 +275,29 @@ package bls12_381_pkg;
      return result;
    endfunction
 
+   function fp2_jb_point_t fp2_point_mult(logic [DAT_BITS-1:0] c, fp2_jb_point_t p);
+     fp2_jb_point_t result, addend;
+     result = 0;
+     addend = p;
+     while (c > 0) begin
+       if (c[0]) begin
+         result = add_fp2_jb_point(result, addend);
+       end
+       addend = dbl_fp2_jb_point(addend);
+       c = c >> 1;
+     end
+     return result;
+   endfunction
+
    function on_curve(jb_point_t p);
      return (p.y*p.y - p.x*p.x*p.x - secp256k1_pkg::a*p.x*p.z*p.z*p.z*p.z - secp256k1_pkg::b*p.z*p.z*p.z*p.z*p.z*p.z);
    endfunction
-   
+
    // Inversion using extended euclidean algorithm
    function fe_t fe_inv(fe_t a, b = 1);
       fe_t u, v;
       logic [$bits(fe_t):0] x1, x2;
-      
+
       u = a; v = P;
       x1 = b; x2 = 0;
       while (u != 1 && v != 1) begin
@@ -299,7 +313,7 @@ package bls12_381_pkg;
           if (x2 % 2 == 0)
             x2 = x2 / 2;
          else
-           x2 = (x2 + P) / 2;      
+           x2 = (x2 + P) / 2;
         end
         if (u >= v) begin
           u = u - v;
@@ -311,15 +325,15 @@ package bls12_381_pkg;
       end
       if (u == 1)
         return x1;
-      else 
+      else
         return x2;
-   endfunction 
-   
+   endfunction
+
    // This algorithm can also be used for division
    function fe_t fe_div(fe_t a, b);
      return fe_inv(a, b);
    endfunction
-   
+
    function fe2_t fe2_inv(fe2_t a);
      fe_t factor, t0, t1;
      t0 = fe_mul(a.c0, a.c0);
@@ -328,7 +342,7 @@ package bls12_381_pkg;
      fe2_inv.c0 = fe_mul(a.c0, factor);
      fe2_inv.c1 = fe_mul(fe_sub(P, a.c1), factor);
    endfunction
-   
+
    function jb_point_t to_affine(jb_point_t p);
      fe_t z_;
      z_ = fe_mul(p.z, p.z);
@@ -337,7 +351,7 @@ package bls12_381_pkg;
      z_ = fe_mul(z_, p.z);
      to_affine.y = fe_mul(p.y, fe_inv(z_));
    endfunction
-   
+
    function fp2_jb_point_t fp2_to_affine(fp2_jb_point_t p);
      fe2_t z_;
      z_ = fe2_mul(p.z, p.z);
@@ -346,19 +360,19 @@ package bls12_381_pkg;
      z_ = fe2_mul(z_, p.z);
      fp2_to_affine.y = fe2_mul(p.y, fe2_inv(z_));
    endfunction
-   
+
    function print_jb_point(jb_point_t p);
      $display("x:%h", p.x);
      $display("y:%h", p.y);
      $display("z:%h", p.z);
      return;
    endfunction
-   
+
    function print_fp2_jb_point(fp2_jb_point_t p);
      $display("x:(c1:%h, c0:%h)", p.x.c1, p.x.c0);
      $display("y:(c1:%h, c0:%h)", p.y.c1, p.y.c0);
      $display("z:(c1:%h, c0:%h)", p.z.c1, p.z.c0);
      return;
-   endfunction   
+   endfunction
 
 endpackage

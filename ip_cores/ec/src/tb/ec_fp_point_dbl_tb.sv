@@ -97,17 +97,10 @@ ec_fp_mult_mod #(
   .CTL_BITS      ( 8   )
 )
 ec_fp_mult_mod (
-  .i_clk( clk         ),
-  .i_rst( rst         ),
-  .i_dat_a ( mult_in_if.dat[0 +: 381] ),
-  .i_dat_b ( mult_in_if.dat[381 +: 381] ),
-  .i_val ( mult_in_if.val ),
-  .i_ctl ( mult_in_if.ctl ),
-  .o_rdy ( mult_in_if.rdy ),
-  .o_dat ( mult_out_if.dat ),
-  .i_rdy ( mult_out_if.rdy ),
-  .o_val ( mult_out_if.val ),
-  .o_ctl ( mult_out_if.ctl )
+  .i_clk( clk          ),
+  .i_rst( rst          ),
+  .i_mul ( mult_in_if  ),
+  .o_mul ( mult_out_if )
 );
 
 adder_pipe # (
@@ -119,15 +112,8 @@ adder_pipe # (
 adder_pipe (
   .i_clk ( clk        ),
   .i_rst ( rst        ),
-  .i_dat_a ( add_in_if.dat[0 +: bls12_381_pkg::DAT_BITS] ),
-  .i_dat_b ( add_in_if.dat[bls12_381_pkg::DAT_BITS +: bls12_381_pkg::DAT_BITS] ),
-  .i_ctl ( add_in_if.ctl ),
-  .i_val ( add_in_if.val  ),
-  .o_rdy ( add_in_if.rdy  ),
-  .o_dat ( add_out_if.dat ),
-  .o_val ( add_out_if.val ),
-  .o_ctl ( add_out_if.ctl ),
-  .i_rdy ( add_out_if.rdy )
+  .i_add ( add_in_if  ),
+  .o_add ( add_out_if )
 );
 
 subtractor_pipe # (
@@ -139,33 +125,10 @@ subtractor_pipe # (
 subtractor_pipe (
   .i_clk ( clk        ),
   .i_rst ( rst        ),
-  .i_dat_a ( sub_in_if.dat[0 +: bls12_381_pkg::DAT_BITS] ),
-  .i_dat_b ( sub_in_if.dat[bls12_381_pkg::DAT_BITS +: bls12_381_pkg::DAT_BITS] ),
-  .i_ctl ( sub_in_if.ctl ),
-  .i_val ( sub_in_if.val  ),
-  .o_rdy ( sub_in_if.rdy  ),
-  .o_dat ( sub_out_if.dat ),
-  .o_val ( sub_out_if.val ),
-  .o_ctl ( sub_out_if.ctl ),
-  .i_rdy ( sub_out_if.rdy )
+  .i_sub ( sub_in_if  ),
+  .o_sub ( sub_out_if )
 );
 
-always_comb begin
-  mult_out_if.sop = 1;
-  mult_out_if.eop = 1;
-  mult_out_if.err = 0;
-  mult_out_if.mod = 1;
-
-  add_out_if.sop = 1;
-  add_out_if.eop = 1;
-  add_out_if.err = 0;
-  add_out_if.mod = 1;
-
-  sub_out_if.sop = 1;
-  sub_out_if.eop = 1;
-  sub_out_if.err = 0;
-  sub_out_if.mod = 1;
-end
 
 task test_0();
 begin

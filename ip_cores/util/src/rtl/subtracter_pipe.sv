@@ -23,17 +23,10 @@ module subtractor_pipe # (
   parameter  CTL_BITS = 8,
   parameter  LEVEL = 1     // If LEVEL == 1 this is just an add with registered output
 ) (
-  input                       i_clk,
-  input                       i_rst,
-  input [BITS-1:0]            i_dat_a,
-  input [BITS-1:0]            i_dat_b,
-  input                       i_val,
-  input [CTL_BITS-1:0]        i_ctl,
-  input                       i_rdy,
-  output logic                o_rdy,
-  output logic                o_val,
-  output logic [CTL_BITS-1:0] o_ctl,
-  output logic [BITS-1:0]     o_dat
+  input                i_clk,
+  input                i_rst,
+  if_axi_stream.sink   i_sub,
+  if_axi_stream.source o_sub
 );
 
 // Internally we want to use a even divisor for BITS of BITS/LEVEL
@@ -54,21 +47,18 @@ always_comb begin
   P_ = P;
   carry_neg0[0] = 0;
   carry_neg1[0] = 0;
-  val[0] = i_val;
-  ctl[0] = i_ctl;
-  a[0] = i_dat_a;
-  b[0] = i_dat_b;
+  val[0] = i_sub.val;
+  ctl[0] = i_sub.ctl;
+  a[0] = 0;
+  a[0] = i_sub.dat[0 +: BITS];
+  b[0] = 0;
+  b[0] = i_sub.dat[BITS +: BITS];
   result0[0] = 0;
   result1[0] = 0;
-  o_val = val[LEVEL];
-  rdy[LEVEL] = i_rdy;
-  o_dat = carry_neg1[LEVEL] ? result0[LEVEL] : result1[LEVEL];
-  o_ctl = ctl[LEVEL];
-  o_rdy = rdy[0];
-end
-
-always_comb begin
-
+  rdy[LEVEL] = o_sub.rdy;
+  i_sub.rdy = rdy[0];
+  o_sub.dat = carry_neg1[LEVEL] ? result0[LEVEL] : result1[LEVEL];
+  o_sub.copy_if_comb(carry_neg1[LEVEL] ? result0[LEVEL] : result1[LEVEL], val[LEVEL], 1, 1, 1, 0, ctl[LEVEL]);
 end
 
 generate
@@ -80,10 +70,10 @@ genvar g;
 
     always_comb begin
       rdy[g] = ~val[g+1] || (val[g+1] && rdy[g+1]);
-      
+
       sub_res0_ = a[g][g*BITS_LEVEL +: BITS_LEVEL] + P_[g*BITS_LEVEL +: BITS_LEVEL] + result0[g][g*BITS_LEVEL];
       sub_res0__ = b[g][g*BITS_LEVEL +: BITS_LEVEL] + carry_neg0[g];
-      
+
       if (sub_res0_ < sub_res0__) begin
          cn0 = 1;
          sub_res0 = sub_res0_ - sub_res0__ + (1 << BITS_LEVEL);
@@ -94,7 +84,7 @@ genvar g;
 
       sub_res1_ = a[g][g*BITS_LEVEL +: BITS_LEVEL] + result1[g][g*BITS_LEVEL];
       sub_res1__ = b[g][g*BITS_LEVEL +: BITS_LEVEL] + carry_neg1[g];
-      
+
       if (sub_res1_ < sub_res1__) begin
         cn1 = 1;
         sub_res1 = sub_res1_ - sub_res1__ + (1 << BITS_LEVEL);

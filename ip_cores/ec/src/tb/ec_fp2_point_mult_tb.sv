@@ -16,7 +16,7 @@
 */
 `timescale 1ps/1ps
 
-module ec_fp_point_mult_tb ();
+module ec_fp2_point_mult_tb ();
 import common_pkg::*;
 import bls12_381_pkg::*;
 
@@ -24,14 +24,15 @@ localparam CLK_PERIOD = 1000;
 
 logic clk, rst;
 
-parameter type FP_TYPE = bls12_381_pkg::jb_point_t;
-parameter type FE_TYPE = bls12_381_pkg::fe_t;
-parameter KEY_BITS     = bls12_381_pkg::DAT_BITS;
-parameter P            = bls12_381_pkg::P;
+parameter type FP_TYPE  = bls12_381_pkg::fp2_jb_point_t;
+parameter type FE_TYPE  = bls12_381_pkg::fe_t;
+parameter type FE2_TYPE = bls12_381_pkg::fe2_t;
+parameter KEY_BITS      = bls12_381_pkg::DAT_BITS;
+parameter P             = bls12_381_pkg::P;
 
-`define MULT_FUNC(K, IN_POINT) point_mult(K, IN_POINT);
-`define PRINT_FUNC(IN_POINT)   print_jb_point(IN_POINT);
-`define G_POINT                bls12_381_pkg::g_point
+`define MULT_FUNC(K, IN_POINT) fp2_point_mult(K, IN_POINT);
+`define PRINT_FUNC(IN_POINT)   print_fp2_jb_point(IN_POINT);
+`define G_POINT                bls12_381_pkg::g2_point
 
 if_axi_stream #(.DAT_BYTS(($bits(FP_TYPE)+7)/8), .CTL_BITS(KEY_BITS)) in_if(clk);
 if_axi_stream #(.DAT_BYTS(($bits(FP_TYPE)+7)/8)) out_if(clk);
@@ -90,11 +91,12 @@ ec_point_mult (
   .i_add ( add_o_if )
 );
 
-ec_point_add #(
-  .FP_TYPE ( FP_TYPE ),
-  .FE_TYPE ( FE_TYPE )
+ec_fp2_point_add #(
+  .FP2_TYPE ( FP_TYPE  ),
+  .FE_TYPE  ( FE_TYPE  ),
+  .FE2_TYPE ( FE2_TYPE )
 )
-ec_point_add (
+ec_fp2_point_add (
   .i_clk ( clk ),
   .i_rst ( rst ),
     // Input points
@@ -114,11 +116,12 @@ ec_point_add (
   .i_sub_if ( sub_out_if[0] )
 );
 
-ec_point_dbl #(
-  .FP_TYPE ( FP_TYPE ),
-  .FE_TYPE ( FE_TYPE )
+ec_fp2_point_dbl #(
+ .FP2_TYPE ( FP_TYPE  ),
+ .FE_TYPE  ( FE_TYPE  ),
+ .FE2_TYPE ( FE2_TYPE )
 )
-ec_point_dbl (
+ec_fp2_point_dbl (
   .i_clk ( clk ),
   .i_rst ( rst ),
   .i_p  ( dbl_i_if.dat),
@@ -254,11 +257,11 @@ initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
-
+   test(4);
    in_k = P-1;
-   test(381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa);
-   test(in_k);
-   
+   //test(381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa);
+   //test(in_k);
+
   #1us $finish();
 end
 endmodule

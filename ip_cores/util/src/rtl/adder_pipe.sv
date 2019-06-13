@@ -23,17 +23,10 @@ module adder_pipe # (
   parameter  CTL_BITS = 8,
   parameter  LEVEL = 1     // If LEVEL == 1 this is just an add with registered output
 ) (
-  input                       i_clk,
-  input                       i_rst,
-  input [BITS-1:0]            i_dat_a,
-  input [BITS-1:0]            i_dat_b,
-  input                       i_val,
-  input [CTL_BITS-1:0]        i_ctl,
-  input                       i_rdy,
-  output logic                o_rdy,
-  output logic                o_val,
-  output logic [CTL_BITS-1:0] o_ctl,
-  output logic [BITS-1:0]     o_dat
+  input                i_clk,
+  input                i_rst,
+  if_axi_stream.sink   i_add,
+  if_axi_stream.source o_add
 );
 
 // Internally we want to use a even divisor for BITS of BITS/LEVEL
@@ -53,47 +46,43 @@ always_comb begin
   P_ = 0;
   P_ = P;
   carry_neg[0] = 0;
-  val[0] = i_val;
-  ctl[0] = i_ctl;
-  a[0] = i_dat_a;
-  b[0] = i_dat_b;
+  val[0] = i_add.val;
+  ctl[0] = i_add.ctl;
+  a[0] = 0;
+  a[0] = i_add.dat[0 +: BITS];
+  b[0] = 0;
+  b[0] = i_add.dat[BITS +: BITS];
   result0[0] = 0;
   result1[0] = 0;
-  o_val = val[LEVEL];
-  rdy[LEVEL] = i_rdy;
-  o_dat = carry_neg[LEVEL] ? result0[LEVEL] : result1[LEVEL];
-  o_ctl = ctl[LEVEL];
-  o_rdy = rdy[0];
-end
-
-always_comb begin
-
+  rdy[LEVEL] = o_add.rdy;
+  i_add.rdy = rdy[0];
+  o_add.copy_if_comb(carry_neg[LEVEL] ? result0[LEVEL] : result1[LEVEL], val[LEVEL], 1, 1, 1, 0, ctl[LEVEL]);
 end
 
 generate
 genvar g;
   for (g = 0; g < LEVEL; g++) begin: ADDER_GEN
-  
+
     logic [BITS_LEVEL:0] add_res0, add_res0_, add_res1;
     logic cn;
 
     always_comb begin
       rdy[g] = ~val[g+1] || (val[g+1] && rdy[g+1]);
-      add_res0 = a[g][g*BITS_LEVEL +: BITS_LEVEL] + 
-                 b[g][g*BITS_LEVEL +: BITS_LEVEL] + 
+      add_res0 = a[g][g*BITS_LEVEL +: BITS_LEVEL] +
+                 b[g][g*BITS_LEVEL +: BITS_LEVEL] +
                  result0[g][g*BITS_LEVEL];
-                 
-      add_res0_ = a[g][g*BITS_LEVEL +: BITS_LEVEL] + 
-                  b[g][g*BITS_LEVEL +: BITS_LEVEL] + 
+
+      add_res0_ = a[g][g*BITS_LEVEL +: BITS_LEVEL] +
+                  b[g][g*BITS_LEVEL +: BITS_LEVEL] +
                   result1[g][g*BITS_LEVEL];
-                 
+
       if (add_res0_ < (P_[g*BITS_LEVEL +: BITS_LEVEL] + carry_neg[g])) begin
         cn = 1;
         add_res1 = add_res0_ - P_[g*BITS_LEVEL +: BITS_LEVEL] + (1 << BITS_LEVEL) - carry_neg[g];
       end else begin
         cn = 0;
         add_res1 = add_res0_ - P_[g*BITS_LEVEL +: BITS_LEVEL] - carry_neg[g];
-      end             
+      end
     end
 
     always_ff @ (posedge i_clk) begin
@@ -111,13 +100,13 @@ genvar g;
           ctl[g+1] <= ctl[g];
           a[g+1] <= a[g];
           b[g+1] <= b[g];
-          
+
           result0[g+1] <= result0[g];
           result0[g+1][g*BITS_LEVEL +: BITS_LEVEL + 1] <= add_res0;
 
           result1[g+1] <= result1[g];
           result1[g+1][g*BITS_LEVEL +: BITS_LEVEL + 1] <= add_res1;
-                    
+
           carry_neg[g+1] <= cn;
         end
       end
