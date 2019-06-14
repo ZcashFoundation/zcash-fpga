@@ -33,6 +33,7 @@ parameter P             = bls12_381_pkg::P;
 `define MULT_FUNC(K, IN_POINT) fp2_point_mult(K, IN_POINT);
 `define PRINT_FUNC(IN_POINT)   print_fp2_jb_point(IN_POINT);
 `define G_POINT                bls12_381_pkg::g2_point
+`define TO_AFFINE              bls12_381_pkg::fp2_to_affine
 
 if_axi_stream #(.DAT_BYTS(($bits(FP_TYPE)+7)/8), .CTL_BITS(KEY_BITS)) in_if(clk);
 if_axi_stream #(.DAT_BYTS(($bits(FP_TYPE)+7)/8)) out_if(clk);
@@ -141,7 +142,7 @@ ec_fp2_point_dbl (
 
 resource_share # (
   .NUM_IN ( 2 ),
-  .OVR_WRT_BIT ( 12 ),
+  .OVR_WRT_BIT ( 14 ),
   .PIPELINE_IN ( 0  ),
   .PIPELINE_OUT ( 0 )
 )
@@ -156,9 +157,9 @@ resource_share_mul (
 
 resource_share # (
   .NUM_IN ( 2 ),
-  .OVR_WRT_BIT ( 12 ),
-  .PIPELINE_IN ( 0  ),
-  .PIPELINE_OUT ( 0 )
+  .OVR_WRT_BIT ( 14 ),
+  .PIPELINE_IN ( 2  ),
+  .PIPELINE_OUT ( 2 )
 )
 resource_share_sub (
   .i_clk ( clk ),
@@ -171,9 +172,9 @@ resource_share_sub (
 
 resource_share # (
   .NUM_IN ( 2 ),
-  .OVR_WRT_BIT ( 12 ),
-  .PIPELINE_IN ( 0  ),
-  .PIPELINE_OUT ( 0 )
+  .OVR_WRT_BIT ( 14 ),
+  .PIPELINE_IN ( 1  ),
+  .PIPELINE_OUT ( 1 )
 )
 resource_share_add (
   .i_clk ( clk ),
@@ -239,9 +240,9 @@ begin
   p_out = get_dat;
 
   $display("Expected:");
-  `PRINT_FUNC(p_exp);
+  `PRINT_FUNC(`TO_AFFINE(p_exp));
   $display("Was:");
-  `PRINT_FUNC(p_out);
+  `PRINT_FUNC(`TO_AFFINE(p_out));
 
   if (p_exp != p_out) begin
     $fatal(1, "%m %t ERROR: output was wrong", $time);
@@ -257,10 +258,8 @@ initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
-   test(4);
-   in_k = P-1;
-   //test(381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa);
-   //test(in_k);
+  //test(381'd50);
+  test(381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa);
 
   #1us $finish();
 end

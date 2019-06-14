@@ -54,10 +54,11 @@ logic rdy;
 
 if_axi_stream #(.DAT_BYTS(DAT_BITS/8)) fifo_in_if(i_clk);
 if_axi_stream #(.DAT_BYTS(DAT_BITS/8)) fifo_out_if(i_clk);
+logic fifo_out_full;
 
 // Stage 1 multiplication
 always_comb begin
-  o_rdy = ~o_mult_if_0.val || (o_mult_if_0.val && o_mult_if_0.rdy);
+  o_rdy = (~o_mult_if_0.val || (o_mult_if_0.val && o_mult_if_0.rdy)) && fifo_in_if.rdy;
 end
 
 always_ff @ (posedge i_clk) begin
@@ -72,9 +73,9 @@ always_ff @ (posedge i_clk) begin
       o_mult_if_0.ctl <= i_ctl;
       o_mult_if_0.dat[0 +: DAT_BITS] <= i_dat >> (2*K - 2);
       o_mult_if_0.dat[DAT_BITS +: DAT_BITS] <= U;
+      fifo_in_if.dat <= i_dat % (1 << (2*K + 2)); 
+      fifo_in_if.val <= i_val;
     end
-    fifo_in_if.dat <= i_dat % (1 << (2*K + 2)); 
-    fifo_in_if.val <= i_val && o_rdy;
   end
 end
 
@@ -133,20 +134,21 @@ always_ff @ (posedge i_clk) begin
       if (dat > P*2)
         o_err <= 1;
     end
+    if (fifo_out_full && fifo_in_if.val)  o_err <= 1;
   end
 end
 
 // Fifo to store inputs (as we need to do final subtraction)
 axi_stream_fifo #(
-  .SIZE     ( 16       ),
+  .SIZE     ( 32       ),
   .DAT_BITS ( DAT_BITS )
 )
 axi_stream_fifo (
-  .i_clk ( i_clk      ),
-  .i_rst ( i_rst      ),
-  .i_axi( fifo_in_if  ),
-  .o_axi( fifo_out_if ),
-  .o_full(),
+  .i_clk ( i_clk         ),
+  .i_rst ( i_rst         ),
+  .i_axi ( fifo_in_if    ),
+  .o_axi ( fifo_out_if   ),
+  .o_full( fifo_out_full ),
   .o_emp()
 );
 

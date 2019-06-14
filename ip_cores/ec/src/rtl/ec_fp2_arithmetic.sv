@@ -271,7 +271,7 @@ end
 
 resource_share # (
   .NUM_IN ( 2 ),
-  .OVR_WRT_BIT ( 10 ),
+  .OVR_WRT_BIT ( 12 ),
   .PIPELINE_IN ( 0  ),
   .PIPELINE_OUT ( 0 )
 )
@@ -286,7 +286,7 @@ resource_share_sub (
 
 resource_share # (
   .NUM_IN ( 2 ),
-  .OVR_WRT_BIT ( 10 ),
+  .OVR_WRT_BIT ( 12 ),
   .PIPELINE_IN ( 0  ),
   .PIPELINE_OUT ( 0 )
 )
