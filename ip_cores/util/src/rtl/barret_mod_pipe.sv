@@ -61,6 +61,7 @@ always_comb begin
   o_rdy = (~o_mult_if_0.val || (o_mult_if_0.val && o_mult_if_0.rdy)) && fifo_in_if.rdy;
 end
 
+
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     o_mult_if_0.reset_source();
@@ -140,7 +141,7 @@ end
 
 // Fifo to store inputs (as we need to do final subtraction)
 axi_stream_fifo #(
-  .SIZE     ( 32       ),
+  .SIZE     ( 32      ),
   .DAT_BITS ( DAT_BITS )
 )
 axi_stream_fifo (

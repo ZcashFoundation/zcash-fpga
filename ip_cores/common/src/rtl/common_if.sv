@@ -1,6 +1,8 @@
 /*
-  Commonly used interfaces:
+  Commonly used interfaces and tasks:
     - AXI stream
+    - AXI 4
+    - AXI lite
     - RAM
 
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
@@ -19,6 +21,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+// This is a simplified version of axi stream
 interface if_axi_stream # (
   parameter DAT_BYTS = 8,
   parameter DAT_BITS = DAT_BYTS*8,
@@ -160,64 +163,73 @@ interface if_axi_stream # (
 
 endinterface
 
-// This uses byte addressing
-interface if_axi_mm # (
-  parameter D_BITS = 64,
-  parameter A_BITS = 8
+
+interface if_axi_lite # (
+  parameter A_BITS = 32
 )(
   input i_clk
 );
 
-  logic [A_BITS-1:0] addr;
-  logic [D_BITS-1:0] rd_dat;
-  logic [D_BITS-1:0] wr_dat;
-  logic              wr;
-  logic              rd;
-  logic              rd_dat_val;
-  logic              wait_rq;
+  logic [A_BITS-1:0] awaddr;
+  logic              awvalid;
+  logic              awready;
+  logic [31:0]       wdata;
+  logic [3:0]        wstrb;
+  logic              wvalid;
+  logic              wready;
+  logic [1:0]        bresp;
+  logic              bvalid;
+  logic              bready;
+  logic [A_BITS-1:0] araddr;
+  logic              arvalid;
+  logic              arready;
+  logic [31:0]       rdata;
+  logic [1:0]        rresp;
+  logic              rvalid;
+  logic              rready;
 
-  modport sink (input addr, wr_dat, wr, rd, i_clk, output rd_dat, rd_dat_val, wait_rq, import task reset_sink());
-  modport source (input rd_dat, rd_dat_val, wait_rq , i_clk, output addr, wr_dat, wr, rd, import task reset_source());
+  modport sink (input awaddr, awvalid, wdata, wstrb, wvalid, bready, araddr, arvalid, rready,
+                output awready, wready, bresp, bvalid, arready, rdata, rresp, rvalid);
+  modport source (input awready, wready, bresp, bvalid, arready, rdata, rresp, rvalid,
+                  output awaddr, awvalid, wdata, wstrb, wvalid, bready, araddr, arvalid, rready);
 
   task reset_source();
-    addr <= 0;
-    wr_dat <= 0;
-    wr <= 0;
-    rd <= 0;
+    awaddr <= 0;
+    awvalid <= 0;
+    wdata <= 0;
+    wstrb <= 0;
+    wvalid <= 0;
+    bready <= 0;
+    araddr <= 0;
+    arvalid <= 0;
+    rready <= 0;
   endtask
 
   task reset_sink();
-    rd_dat <= 0;
-    rd_dat_val <= 0;
-    wait_rq <= 0;
+    awready <= 0;
+    wready <= 0;
+    bresp <= 0;
+    bvalid <= 0;
+    arready <= 0;
+    rdata <= 0;
+    rresp <= 0;
+    rvalid <= 0;
   endtask
 
-  task automatic put_data(input logic [D_BITS-1:0] data, [A_BITS-1:0] addr_in);
-    reset_source();
+  task automatic poke(input logic [31:0] data, [A_BITS-1:0] addr_in);
+  /*  reset_source();
     @(posedge i_clk);
     wr = 1;
     wr_dat = data;
     addr = addr_in;
     @(posedge i_clk); // Go to next clock edge
     while (wait_rq) @(posedge i_clk); // If not rdy then wait here
-    reset_source();
-  endtask
-
-  // For writing multiple words
-  task automatic put_data_multiple(input logic [common_pkg::MAX_SIM_BYTS*8-1:0] data,
-                                   input logic [A_BITS-1:0] addr);
-
-    while (data != 0) begin
-      put_data(data, addr);
-      data = data >> D_BITS;
-      addr = addr + D_BITS/8;
-    end
-
+    reset_source();*/
   endtask
 
 
-  task automatic get_data(ref logic [D_BITS-1:0] data, input logic [A_BITS-1:0] addr_in);
-    reset_source();
+  task automatic peek(ref logic [31:0] data, input logic [A_BITS-1:0] addr_in);
+   /* reset_source();
     @(posedge i_clk);
     rd = 1;
     addr = addr_in;
@@ -228,7 +240,7 @@ interface if_axi_mm # (
       @(posedge i_clk);
     end
     data = rd_dat;
-    reset_source();
+    reset_source();*/
   endtask
 
 endinterface
@@ -279,5 +291,60 @@ interface if_ram # (
     en = 0;
     we = 0;
   endtask
+
+endinterface
+
+
+interface if_axi4 # (
+  A_WIDTH = 64,
+  D_WIDTH = 512,
+  ID_WIDTH = 1
+);
+
+  logic [ID_WIDTH-1:0]  awid;
+  logic [A_WIDTH-1:0]   awaddr;
+  logic [7:0]           awlen;
+  logic [2:0]           awsize;
+  logic [1:0]           awburst;
+  logic                 awlock;
+  logic [3:0]           awcache;
+  logic [2:0]           awprot;
+  logic                 awvalid;
+  logic                 awready;
+  logic [D_WIDTH-1:0]   wdata;
+  logic [D_WIDTH/8-1:0] wstrb;
+  logic                 wlast;
+  logic                 wvalid;
+  logic                 wready;
+  logic [ID_WIDTH-1:0]  bid;
+  logic [1:0]           bresp;
+  logic                 bvalid;
+  logic                 bready;
+  logic                 arid;
+  logic [A_WIDTH-1:0]   araddr;
+  logic [7:0]           arlen;
+  logic [2:0]           arsize;
+  logic [1:0]           arburst;
+  logic                 arlock;
+  logic [3:0]           arcache;
+  logic [2:0]           arprot;
+  logic                 arvalid;
+  logic                 arready;
+  logic [ID_WIDTH-1:0]  rid;
+  logic [D_WIDTH-1:0]   rdata;
+  logic [1:0]           rresp;
+  logic                 rlast;
+  logic                 rvalid;
+  logic                 rready;
+
+  modport sink (input awid, awaddr, awlen, awsize, awburst, awlock, awcache, awprot, awvalid, wdata,
+                      wstrb, wlast, wvalid, bready, arid, araddr, arlen, arsize, arburst, arlock,
+                      arcache, arprot, arvalid, rready,
+                output awready, wready, bid, bresp, bvalid, arready, rid, rdata, rresp, rlast, rvalid);
+
+  modport source (output awid, awaddr, awlen, awsize, awburst, awlock, awcache, awprot, awvalid, wdata,
+                         wstrb, wlast, wvalid, bready, arid, araddr, arlen, arsize, arburst, arlock,
+                         arcache, arprot, arvalid, rready,
+                  input awready, wready, bid, bresp, bvalid, arready, rid, rdata, rresp, rlast, rvalid);
 
 endinterface

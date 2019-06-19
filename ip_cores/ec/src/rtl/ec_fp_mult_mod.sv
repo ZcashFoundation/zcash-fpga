@@ -116,4 +116,11 @@ barret_mod_pipe (
   .i_mult_if_1 ( mult_if[4] )
 );
 
+always_comb begin
+  o_mul.err = 0;
+  o_mul.sop = 1;
+  o_mul.eop = 1;
+  o_mul.mod = 0;
+end
+
 endmodule

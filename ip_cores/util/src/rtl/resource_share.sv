@@ -21,6 +21,9 @@
 
 module resource_share # (
   parameter NUM_IN = 4,
+  parameter CTL_BITS = 16,
+  parameter DAT_BYTS = 8,
+  parameter DAT_BITS = DAT_BYTS*8,
   parameter OVR_WRT_BIT = 0,
   parameter PIPELINE_IN = 0,
   parameter PIPELINE_OUT = 0,
@@ -37,11 +40,11 @@ module resource_share # (
 
 // Arbitratation to the resource
 packet_arb # (
-  .DAT_BITS    ( i_axi[0].DAT_BITS ),
-  .DAT_BYTS    ( i_axi[0].DAT_BYTS ),
-  .CTL_BITS    ( i_axi[0].CTL_BITS ),
-  .NUM_IN      ( NUM_IN       ),
-  .OVR_WRT_BIT ( OVR_WRT_BIT  ),
+  .DAT_BITS    ( DAT_BITS ),
+  .DAT_BYTS    ( DAT_BYTS ),
+  .CTL_BITS    ( CTL_BITS ),
+  .NUM_IN      ( NUM_IN      ),
+  .OVR_WRT_BIT ( OVR_WRT_BIT ),
   .PIPELINE    ( PIPELINE_IN ),
   .PRIORITY_IN ( PRIORITY_IN )
 )
@@ -53,7 +56,7 @@ packet_arb_mult (
 );
 
 // Demuxing
-if_axi_stream #(.DAT_BYTS(i_res.DAT_BYTS), .DAT_BITS(i_res.DAT_BITS), .CTL_BITS(i_res.CTL_BITS)) int_axi [NUM_IN-1:0] (i_res.i_clk);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .DAT_BITS(DAT_BITS), .CTL_BITS(CTL_BITS)) int_axi [NUM_IN-1:0] (i_clk);
 
 genvar gen0;
 logic [NUM_IN-1:0] rdy;
@@ -67,10 +70,10 @@ generate
     end 
     
     pipeline_if  #(
-      .DAT_BITS   ( i_res.DAT_BITS ),
-      .DAT_BYTS   ( i_res.DAT_BYTS ),
-      .CTL_BITS   ( i_res.CTL_BITS ),
-      .NUM_STAGES ( PIPELINE_OUT   )
+      .DAT_BITS   ( DAT_BITS ),
+      .DAT_BYTS   ( DAT_BYTS ),
+      .CTL_BITS   ( CTL_BITS ),
+      .NUM_STAGES ( PIPELINE_OUT )
     )
     pipeline_if (
       .i_rst ( i_rst         ),

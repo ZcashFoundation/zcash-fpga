@@ -43,17 +43,17 @@ package bls12_381_pkg;
     fe_t x, y, z;
   } jb_point_t;
 
-  typedef struct packed {
-    fe_t c1, c0;
-  } fe2_t;
+  typedef fe_t  [1:0] fe2_t;
+  typedef fe2_t [2:0] fe6_t;
+  typedef fe6_t [1:0] fe12_t;
 
-  fe2_t G2x = '{c0:381'd352701069587466618187139116011060144890029952792775240219908644239793785735715026873347600343865175952761926303160,
-                c1:381'd3059144344244213709971259814753781636986470325476647558659373206291635324768958432433509563104347017837885763365758};
+  fe2_t G2x = {381'd3059144344244213709971259814753781636986470325476647558659373206291635324768958432433509563104347017837885763365758,
+               381'd352701069587466618187139116011060144890029952792775240219908644239793785735715026873347600343865175952761926303160};
 
-  fe2_t G2y = '{c0:381'd1985150602287291935568054521177171638300868978215655730859378665066344726373823718423869104263333984641494340347905,
-                c1:381'd927553665492332455747201965776037880757740193453592970025027978793976877002675564980949289727957565575433344219582};
+  fe2_t G2y = {381'd927553665492332455747201965776037880757740193453592970025027978793976877002675564980949289727957565575433344219582,
+               381'd1985150602287291935568054521177171638300868978215655730859378665066344726373823718423869104263333984641494340347905};
 
-  fe2_t FE2_one =  '{c0:381'd1, c1:381'd0};
+  fe2_t FE2_one =  {381'd0, 381'd1};
 
   jb_point_t g_point = '{x:Gx, y:Gy, z:381'd1};
 
@@ -69,7 +69,12 @@ package bls12_381_pkg;
   typedef enum logic [7:0] {
     NOOP_WAIT       = 8'h0,
     COPY_REG        = 8'h1,
-    FP_FPOINT_MULT  = 8'h26
+
+    SCALAR_INV      = 8'h13,
+
+    POINT_MULT     = 8'h24,
+    FP_FPOINT_MULT = 8'h25,
+    FP2_FPOINT_MULT = 8'h26
   } code_t;
 
   // Instruction format
@@ -78,7 +83,12 @@ package bls12_381_pkg;
     code_t code;
   } inst_t;
 
-  localparam DATA_RAM_WIDTH = $bits(point_type_t) + DAT_BITS;
+  typedef struct packed {
+    fe_t dat;
+    point_type_t pt;
+  } data_t;
+
+  localparam DATA_RAM_WIDTH = $bits(data_t);
   localparam DATA_RAM_ALIGN_BYTE = 64;
   localparam DATA_RAM_DEPTH = 8;
   localparam DATA_RAM_USR_WIDTH = 4;
@@ -89,9 +99,6 @@ package bls12_381_pkg;
   localparam INST_RAM_DEPTH = 8;
   localparam INST_RAM_USR_WIDTH = 4;
   localparam INST_RAM_USR_DEPTH = INST_RAM_DEPTH*INST_RAM_ALIGN_BYTE/INST_RAM_USR_WIDTH;
-
-
-
 
   function is_zero(jb_point_t p);
     is_zero = (p.x == 0 && p.y == 0 && p.z == 1);
@@ -145,8 +152,8 @@ package bls12_381_pkg;
    endfunction
 
    function fe2_t fe2_add(fe2_t a, b);
-     fe2_add.c0 = fe_add(a.c0,b.c0);
-     fe2_add.c1 = fe_add(a.c1,b.c1);
+     fe2_add[0] = fe_add(a[0], b[0]);
+     fe2_add[1] = fe_add(a[1] ,b[1]);
    endfunction
 
    function fe_t fe_sub(fe_t a, b);
@@ -157,8 +164,8 @@ package bls12_381_pkg;
    endfunction
 
    function fe2_t fe2_sub(fe2_t a, b);
-     fe2_sub.c0 = fe_sub(a.c0, b.c0);
-     fe2_sub.c1 = fe_sub(a.c1, b.c1);
+     fe2_sub[0] = fe_sub(a[0], b[0]);
+     fe2_sub[1] = fe_sub(a[1], b[1]);
    endfunction
 
    function fe_t fe_mul(fe2_t a, b);
@@ -166,8 +173,8 @@ package bls12_381_pkg;
    endfunction
 
    function fe2_t fe2_mul(fe2_t a, b);
-     fe2_mul.c0 = fe_sub(fe_mul(a.c0, b.c0), fe_mul(a.c1, b.c1));
-     fe2_mul.c1 = fe_add(fe_mul(a.c0, b.c1), fe_mul(a.c1, b.c0));
+     fe2_mul[0] = fe_sub(fe_mul(a[0], b[0]), fe_mul(a[1], b[1]));
+     fe2_mul[1] = fe_add(fe_mul(a[0], b[1]), fe_mul(a[1], b[0]));
    endfunction
 
       // Function to double point in Jacobian coordinates (for comparison in testbench)
@@ -336,11 +343,11 @@ package bls12_381_pkg;
 
    function fe2_t fe2_inv(fe2_t a);
      fe_t factor, t0, t1;
-     t0 = fe_mul(a.c0, a.c0);
-     t1 = fe_mul(a.c1, a.c1);
+     t0 = fe_mul(a[0], a[0]);
+     t1 = fe_mul(a[1], a[1]);
      factor = fe_inv(fe_add(t0, t1));
-     fe2_inv.c0 = fe_mul(a.c0, factor);
-     fe2_inv.c1 = fe_mul(fe_sub(P, a.c1), factor);
+     fe2_inv[0]= fe_mul(a[0], factor);
+     fe2_inv[1] = fe_mul(fe_sub(P, a[1]), factor);
    endfunction
 
    function jb_point_t to_affine(jb_point_t p);
@@ -369,9 +376,9 @@ package bls12_381_pkg;
    endfunction
 
    function print_fp2_jb_point(fp2_jb_point_t p);
-     $display("x:(c1:%h, c0:%h)", p.x.c1, p.x.c0);
-     $display("y:(c1:%h, c0:%h)", p.y.c1, p.y.c0);
-     $display("z:(c1:%h, c0:%h)", p.z.c1, p.z.c0);
+     $display("x:(c1:%h, c0:%h)", p.x[1], p.x[0]);
+     $display("y:(c1:%h, c0:%h)", p.y[1], p.y[0]);
+     $display("z:(c1:%h, c0:%h)", p.z[1], p.z[0]);
      return;
    endfunction
 
