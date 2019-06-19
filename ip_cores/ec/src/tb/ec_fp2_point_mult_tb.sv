@@ -54,7 +54,7 @@ if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(16)) sub_out_if [2:0] (clk)
 
 initial begin
   rst = 0;
-  repeat(2) #(20*CLK_PERIOD) rst = ~rst;
+  repeat(2) #(10*CLK_PERIOD) rst = ~rst;
 end
 
 initial begin
@@ -141,10 +141,12 @@ ec_fp2_point_dbl (
 );
 
 resource_share # (
-  .NUM_IN ( 2 ),
-  .OVR_WRT_BIT ( 14 ),
-  .PIPELINE_IN ( 0  ),
-  .PIPELINE_OUT ( 0 )
+  .NUM_IN       ( 2                ),
+  .DAT_BITS     ( 2*$bits(FE_TYPE) ),
+  .CTL_BITS     ( 16               ),
+  .OVR_WRT_BIT  ( 14               ),
+  .PIPELINE_IN  ( 0                ),
+  .PIPELINE_OUT ( 0                )
 )
 resource_share_mul (
   .i_clk ( clk ),
@@ -156,10 +158,12 @@ resource_share_mul (
 );
 
 resource_share # (
-  .NUM_IN ( 2 ),
-  .OVR_WRT_BIT ( 14 ),
-  .PIPELINE_IN ( 2  ),
-  .PIPELINE_OUT ( 2 )
+  .NUM_IN       ( 2                ),
+  .DAT_BITS     ( 2*$bits(FE_TYPE) ),
+  .CTL_BITS     ( 16               ),
+  .OVR_WRT_BIT  ( 14               ),
+  .PIPELINE_IN  ( 0                ),
+  .PIPELINE_OUT ( 0                )
 )
 resource_share_sub (
   .i_clk ( clk ),
@@ -171,10 +175,12 @@ resource_share_sub (
 );
 
 resource_share # (
-  .NUM_IN ( 2 ),
-  .OVR_WRT_BIT ( 14 ),
-  .PIPELINE_IN ( 1  ),
-  .PIPELINE_OUT ( 1 )
+  .NUM_IN       ( 2                ),
+  .DAT_BITS     ( 2*$bits(FE_TYPE) ),
+  .CTL_BITS     ( 16               ),
+  .OVR_WRT_BIT  ( 14               ),
+  .PIPELINE_IN  ( 0                ),
+  .PIPELINE_OUT ( 0                )
 )
 resource_share_add (
   .i_clk ( clk ),
@@ -258,7 +264,7 @@ initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
-  //test(381'd50);
+  test(381'd2);
   test(381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa);
 
   #1us $finish();
