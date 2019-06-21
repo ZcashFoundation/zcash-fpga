@@ -299,6 +299,8 @@ interface if_axi4 # (
   A_WIDTH = 64,
   D_WIDTH = 512,
   ID_WIDTH = 1
+) (
+  input i_clk
 );
 
   logic [ID_WIDTH-1:0]  awid;

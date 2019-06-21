@@ -61,8 +61,8 @@ if_axi_stream #(.DAT_BYTS(DAT_BYTS)) difficulty_if_in(i_clk_300);
 // We write the block into a port as it comes in and then read from the b port
 localparam EQUIHASH_SOL_BRAM_DEPTH = 1 + SOL_LIST_BYTS/DAT_BYTS;
 localparam EQUIHASH_SOL_BRAM_WIDTH = DAT_BITS;
-if_ram #(.RAM_WIDTH(EQUIHASH_SOL_BRAM_WIDTH), .RAM_DEPTH(EQUIHASH_SOL_BRAM_DEPTH)) equihash_sol_bram_if_a (i_clk, i_rst);
-if_ram #(.RAM_WIDTH(EQUIHASH_SOL_BRAM_WIDTH), .RAM_DEPTH(EQUIHASH_SOL_BRAM_DEPTH)) equihash_sol_bram_if_b (i_clk, i_rst);
+if_ram #(.RAM_WIDTH(EQUIHASH_SOL_BRAM_WIDTH), .RAM_DEPTH($clog2(EQUIHASH_SOL_BRAM_DEPTH))) equihash_sol_bram_if_a (i_clk, i_rst);
+if_ram #(.RAM_WIDTH(EQUIHASH_SOL_BRAM_WIDTH), .RAM_DEPTH($clog2(EQUIHASH_SOL_BRAM_DEPTH))) equihash_sol_bram_if_b (i_clk, i_rst);
 
 logic [DAT_BITS-1:0]   equihash_sol_bram_if_b_l;
 logic [2*DAT_BITS-1:0] equihash_sol_bram_if_b_l_comb, equihash_sol_bram_if_b_l_comb_flip;
@@ -505,7 +505,7 @@ blake2b_pipe_top_i (
 // one port for writing and one port for reading
 bram #(
   .RAM_WIDTH       ( EQUIHASH_SOL_BRAM_WIDTH ),
-  .RAM_DEPTH       ( EQUIHASH_SOL_BRAM_DEPTH ),
+  .RAM_DEPTH       ( $clog2(EQUIHASH_SOL_BRAM_DEPTH) ),
   .RAM_PERFORMANCE ( "LOW_LATENCY"          )  // Select "HIGH_PERFORMANCE" or "LOW_LATENCY"
 ) equihash_sol_bram (
   .a ( equihash_sol_bram_if_a ),

@@ -66,13 +66,13 @@ logic free_mem_fifo_emp, pre_node_coll;
 if_axi_stream #(.DAT_BITS($clog2(LL_MEM_SIZE)), .CTL_BITS(1), .MOD_BITS(1)) free_mem_fifo_if_in(i_clk); 
 if_axi_stream #(.DAT_BITS($clog2(LL_MEM_SIZE)), .CTL_BITS(1), .MOD_BITS(1)) free_mem_fifo_if_out(i_clk); 
 
-if_ram #(.RAM_WIDTH($bits(hash_map_node_t)), .RAM_DEPTH(HASH_MEM_SIZE)) coll_bram_if_a (i_clk, i_rst);
-if_ram #(.RAM_WIDTH($bits(hash_map_node_t)), .RAM_DEPTH(HASH_MEM_SIZE)) coll_bram_if_b (i_clk, i_rst);
+if_ram #(.RAM_WIDTH($bits(hash_map_node_t)), .RAM_DEPTH($clog2(HASH_MEM_SIZE))) coll_bram_if_a (i_clk, i_rst);
+if_ram #(.RAM_WIDTH($bits(hash_map_node_t)), .RAM_DEPTH($clog2(HASH_MEM_SIZE))) coll_bram_if_b (i_clk, i_rst);
 
 logic [$clog2(HASH_MEM_SIZE)-1:0] coll_bram_if_a_cfg;
 
-if_ram #(.RAM_WIDTH($bits(hash_map_node_t)), .RAM_DEPTH(LL_MEM_SIZE)) ll_bram_if_a (i_clk, i_rst);
-if_ram #(.RAM_WIDTH($bits(hash_map_node_t)), .RAM_DEPTH(LL_MEM_SIZE)) ll_bram_if_b (i_clk, i_rst);
+if_ram #(.RAM_WIDTH($bits(hash_map_node_t)), .RAM_DEPTH($clog2(LL_MEM_SIZE))) ll_bram_if_a (i_clk, i_rst);
+if_ram #(.RAM_WIDTH($bits(hash_map_node_t)), .RAM_DEPTH($clog2(LL_MEM_SIZE))) ll_bram_if_b (i_clk, i_rst);
 
 hash_map_node_t coll_node_rd, ll_node_rd, coll_node_wr, ll_node_wr;
 
@@ -464,7 +464,7 @@ free_mem_fifo (
 // RAM to store first level collision
 bram #(
   .RAM_WIDTH       ( $bits(hash_map_node_t) ),
-  .RAM_DEPTH       ( HASH_MEM_SIZE          ),
+  .RAM_DEPTH       ( $clog2(HASH_MEM_SIZE)  ),
   .RAM_PERFORMANCE ( "LOW_LATENCY"          )
 ) coll_bram (
   .a ( coll_bram_if_a ),
@@ -474,7 +474,7 @@ bram #(
 // Spill over linked list memory
 bram #(
   .RAM_WIDTH       ( $bits(hash_map_node_t) ),
-  .RAM_DEPTH       ( LL_MEM_SIZE            ),
+  .RAM_DEPTH       ( $clog2(LL_MEM_SIZE)    ),
   .RAM_PERFORMANCE ( "LOW_LATENCY"          )
 ) ll_bram (
   .a ( ll_bram_if_a ),

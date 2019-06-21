@@ -20,7 +20,7 @@
 */
 
 module axi_stream_fifo #(
-  parameter SIZE,
+  parameter SIZE,           // Number of entries
   parameter DAT_BITS,
   parameter MOD_BITS = $clog2(DAT_BITS/8),
   parameter CTL_BITS = 8,
@@ -55,12 +55,12 @@ generate
   
   end else begin
   
-    if_ram #(.RAM_WIDTH(RAM_WIDTH), .RAM_DEPTH(SIZE)) bram_if_rd (i_clk, i_rst);
-    if_ram #(.RAM_WIDTH(RAM_WIDTH), .RAM_DEPTH(SIZE)) bram_if_wr (i_clk, i_rst);
+    if_ram #(.RAM_WIDTH(RAM_WIDTH), .RAM_DEPTH($clog2(SIZE))) bram_if_rd (i_clk, i_rst);
+    if_ram #(.RAM_WIDTH(RAM_WIDTH), .RAM_DEPTH($clog2(SIZE))) bram_if_wr (i_clk, i_rst);
     
     bram #(
       .RAM_WIDTH       ( RAM_WIDTH     ),
-      .RAM_DEPTH       ( SIZE          ),
+      .RAM_DEPTH       ( $clog2(SIZE)  ),
       .RAM_PERFORMANCE ( "LOW_LATENCY" )
     ) bram_i (
       .a ( bram_if_rd ),

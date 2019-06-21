@@ -8,7 +8,7 @@
 
 module bram_reset #(
   parameter RAM_WIDTH = 18,
-  parameter RAM_DEPTH = 1024,
+  parameter RAM_DEPTH = 64,
   parameter RAM_PERFORMANCE = "HIGH_PERFORMANCE",
   parameter INIT_FILE = ""
 ) (
@@ -19,7 +19,7 @@ module bram_reset #(
 if_ram #(.RAM_WIDTH(a.RAM_WIDTH), .RAM_DEPTH(a.RAM_DEPTH)) if_ram_a(.i_clk(a.i_clk), .i_rst(a.i_rst));
 
 logic reset_done;
-logic [$clog2(RAM_WIDTH)-1:0] addr;
+logic [RAM_DEPTH-1:0] addr;
 
 always_ff @ (posedge a.i_clk) begin
   if (a.i_rst) begin
@@ -67,14 +67,14 @@ module bram #(
   // Check RAM sizes match the interface
   initial begin
     assert ($bits(a.d) == RAM_WIDTH) else $fatal(1, "%m %t ERROR: bram RAM_WIDTH (%d) does not match interface a (%d)", $time, RAM_WIDTH, $bits(a.d));
-    assert ($bits(a.a) == $clog2(RAM_DEPTH)) else $fatal(1, "%m %t ERROR: bram $clog2(RAM_DEPTH) (%d) does not match interface a (%d)", $time, $clog2(RAM_DEPTH), $bits(a.a));
+    assert ($bits(a.a) == RAM_DEPTH) else $fatal(1, "%m %t ERROR: bram RAM_DEPTH (%d) does not match interface a (%d)", $time, RAM_DEPTH, $bits(a.a));
     assert ($bits(b.d) == RAM_WIDTH) else $fatal(1, "%m %t ERROR: bram RAM_WIDTH (%d) does not match interface b (%d)", $time, RAM_WIDTH, $bits(b.d));
-    assert ($bits(b.a) == $clog2(RAM_DEPTH)) else $fatal(1, "%m %t ERROR: bram $clog2(RAM_DEPTH) (%d) does not match interface b (%d)", $time, $clog2(RAM_DEPTH), $bits(b.a));
+    assert ($bits(b.a) == RAM_DEPTH) else $fatal(1, "%m %t ERROR: bram RAM_DEPTH (%d) does not match interface b (%d)", $time, RAM_DEPTH, $bits(b.a));
   end
 
   xilinx_true_dual_port_no_change_2_clock_ram #(
     .RAM_WIDTH(RAM_WIDTH),                       // Specify RAM data width
-    .RAM_DEPTH($clog2(RAM_DEPTH)),                       // Specify RAM depth (number of entries)
+    .RAM_DEPTH(1 << RAM_DEPTH),                  // Specify RAM depth (number of entries)
     .RAM_PERFORMANCE(RAM_PERFORMANCE),           // Select "HIGH_PERFORMANCE" or "LOW_LATENCY"
     .INIT_FILE(INIT_FILE)                        // Specify name/location of RAM initialization file if using one (leave blank if not)
   )

@@ -76,12 +76,12 @@ generate
     
     logic [DAT_BITS-1:0] dat_b;
     logic [1:0] read_cyc;
-    if_ram #(.RAM_WIDTH(DAT_BITS), .RAM_DEPTH(SIZE)) bram_if_rd (i_clk_b, i_rst_b);
-    if_ram #(.RAM_WIDTH(DAT_BITS), .RAM_DEPTH(SIZE)) bram_if_wr (i_clk_a, i_rst_a);
+    if_ram #(.RAM_WIDTH(DAT_BITS), .RAM_DEPTH($clog2(SIZE))) bram_if_rd (i_clk_b, i_rst_b);
+    if_ram #(.RAM_WIDTH(DAT_BITS), .RAM_DEPTH($clog2(SIZE))) bram_if_wr (i_clk_a, i_rst_a);
     
     bram #(
       .RAM_WIDTH       ( DAT_BITS        ),
-      .RAM_DEPTH       ( SIZE            ),
+      .RAM_DEPTH       ( $clog2(SIZE)    ),
       .RAM_PERFORMANCE ( RAM_PERFORMANCE )
     ) bram_i (
       .a ( bram_if_rd ),
