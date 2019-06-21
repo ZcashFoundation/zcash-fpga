@@ -55,7 +55,7 @@ initial begin
     while(!$feof(fp)) begin            
       r = $fread(dat, fp);
       if (r < DAT_BYTS) dat = dat << (DAT_BYTS-r)*8;
-      o_axi.val = 1; // TODO
+      o_axi.val = 1;
       o_axi.sop = ~sop_l;
       sop_l = 1;
       o_axi.eop = $feof(fp);
