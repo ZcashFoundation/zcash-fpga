@@ -1,6 +1,9 @@
 /*
   This performs point multiplication. We use the standard double
   and add algorithm.
+  
+  Same as ec_point_mult but also has additional input for adding points
+  which is needed in secp256k1 key verification.
 
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -37,10 +40,6 @@ module secp256k1_point_mult
   // Interface to 256bit multiplier (mod p) (if RESOURCE_SHARE == "YES")
   if_axi_stream.source o_mult_if,
   if_axi_stream.sink   i_mult_if,
-  // Interface to only mod reduction block (if RESOURCE_SHARE == "YES")
-  if_axi_stream.source o_mod_if,
-  if_axi_stream.sink   i_mod_if,
-
   // We provide another input so that the final point addition can be done
   input jb_point_t i_p2,
   input            i_p2_val
@@ -49,8 +48,10 @@ module secp256k1_point_mult
 // [0] is connection from/to dbl block, [1] is add block, [2] is arbitrated value
 if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mult_in_if [2:0] (i_clk);
 if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mult_out_if [2:0] (i_clk);
-if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mod_in_if [2:0] (i_clk);
-if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mod_out_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) add_in_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) add_out_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) sub_in_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) sub_out_if [2:0] (i_clk);
 
 logic [255:0] k_l;
 jb_point_t p_n, p_q, p_dbl, p_add;
@@ -200,7 +201,11 @@ always_ff @ (posedge i_clk) begin
   end
 end
 
-secp256k1_point_dbl secp256k1_point_dbl(
+ec_point_dbl
+#(
+  .FP_TYPE ( jb_point_t ),
+  .FE_TYPE ( fe_t )
+) ec_point_dbl (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
   // Input point
@@ -212,14 +217,20 @@ secp256k1_point_dbl secp256k1_point_dbl(
   .o_err ( p_dbl_out_err ),
   .i_rdy ( p_dbl_out_rdy ),
   .o_val ( p_dbl_out_val ),
-  // Interfaces to shared multipliers / modulo blocks
-  .o_mult_if ( mult_in_if[0]  ),
-  .i_mult_if ( mult_out_if[0] ),
-  .o_mod_if  ( mod_in_if[0]   ),
-  .i_mod_if  ( mod_out_if[0]  )
+  // Interface to multiplier (mod p)
+  .o_mul_if ( mult_in_if[0] ),
+  .i_mul_if ( mult_out_if[0] ),
+  .o_add_if ( add_in_if[0] ),
+  .i_add_if ( add_out_if[0] ),
+  .o_sub_if ( sub_in_if[0] ),
+  .i_sub_if ( sub_out_if[0] )
 );
 
-secp256k1_point_add secp256k1_point_add(
+ec_point_add #(
+  .FP_TYPE ( jb_point_t ),
+  .FE_TYPE ( fe_t )
+)
+ec_point_add (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
   // Input points
@@ -232,35 +243,60 @@ secp256k1_point_add secp256k1_point_add(
   .o_err ( p_add_out_err ),
   .i_rdy ( p_add_out_rdy ),
   .o_val ( p_add_out_val ),
-  // Interfaces to shared multipliers / modulo blocks
-  .o_mult_if ( mult_in_if[1]  ),
-  .i_mult_if ( mult_out_if[1] ),
-  .o_mod_if  ( mod_in_if[1]   ),
-  .i_mod_if  ( mod_out_if[1]  )
+  .o_mul_if ( mult_in_if[1] ),
+  .i_mul_if ( mult_out_if[1] ),
+  .o_add_if ( add_in_if[1] ),
+  .i_add_if ( add_out_if[1] ),
+  .o_sub_if ( sub_in_if[1] ),
+  .i_sub_if ( sub_out_if[1] )
 );
 
 // We add arbitrators to these to share with the point add module
 localparam ARB_BIT = 8;
 resource_share # (
-  .NUM_IN ( 2 ),
-  .OVR_WRT_BIT ( ARB_BIT ),
-  .PIPELINE_IN ( 0 ),
-  .PIPELINE_OUT ( 0 )
+  .NUM_IN       ( 2       ),
+  .CTL_BITS     ( 16      ),
+  .DAT_BITS     ( 512     ),  
+  .DAT_BYTS     ( 512/8   ),
+  .OVR_WRT_BIT  ( ARB_BIT ),
+  .PIPELINE_IN  ( 0       ),
+  .PIPELINE_OUT ( 0       )
 )
-resource_share_mod (
+resource_share_add (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( mod_in_if[1:0]  ),
-  .o_res ( mod_in_if[2]    ),
-  .i_res ( mod_out_if[2]   ), 
-  .o_axi ( mod_out_if[1:0] )
+  .i_axi ( add_in_if[1:0]  ),
+  .o_res ( add_in_if[2]    ),
+  .i_res ( add_out_if[2]   ), 
+  .o_axi ( add_out_if[1:0] )
 );
 
 resource_share # (
-  .NUM_IN ( 2 ),
-  .OVR_WRT_BIT ( ARB_BIT ),
-  .PIPELINE_IN ( 0 ),
-  .PIPELINE_OUT ( 0 )
+  .NUM_IN       ( 2       ),
+  .CTL_BITS     ( 16      ),
+  .DAT_BITS     ( 512     ),  
+  .DAT_BYTS     ( 512/8   ),
+  .OVR_WRT_BIT  ( ARB_BIT ),
+  .PIPELINE_IN  ( 0       ),
+  .PIPELINE_OUT ( 0       )
+)
+resource_share_sub (
+  .i_clk ( i_clk ),
+  .i_rst ( i_rst ),
+  .i_axi ( sub_in_if[1:0]  ),
+  .o_res ( sub_in_if[2]    ),
+  .i_res ( sub_out_if[2]   ), 
+  .o_axi ( sub_out_if[1:0] )
+);
+
+resource_share # (
+  .NUM_IN       ( 2       ),
+  .CTL_BITS     ( 16      ),
+  .DAT_BITS     ( 512     ),  
+  .DAT_BYTS     ( 512/8   ),
+  .OVR_WRT_BIT  ( ARB_BIT ),
+  .PIPELINE_IN  ( 0       ),
+  .PIPELINE_OUT ( 0       )
 )
 resource_share_mult (
   .i_clk ( i_clk ),
@@ -270,6 +306,36 @@ resource_share_mult (
   .i_res ( mult_out_if[2]   ), 
   .o_axi ( mult_out_if[1:0] )
 );
+
+// Adder and subtractor are internal
+always_comb begin
+  add_in_if[2].rdy = add_out_if[2].rdy;
+  sub_in_if[2].rdy = sub_out_if[2].rdy;
+end
+
+always_ff @ (posedge i_clk) begin
+  if (i_rst) begin
+    add_out_if[2].reset_source();
+    sub_out_if[2].reset_source();
+  end else begin
+    if (~add_out_if[2].val || (add_out_if[2].val && add_out_if[2].rdy)) begin
+      add_out_if[2].val <= add_in_if[2].val;
+      add_out_if[2].dat <= fe_add(add_in_if[2].dat[0 +: 256], add_in_if[2].dat[256 +: 256]);
+      add_out_if[2].ctl <= add_in_if[2].ctl;
+      add_out_if[2].sop <= 1;
+      add_out_if[2].eop <= 1;
+    end
+    if (~sub_out_if[2].val || (sub_out_if[2].val && sub_out_if[2].rdy)) begin
+      sub_in_if[2].rdy <= sub_out_if[2].rdy;
+      sub_out_if[2].val <= sub_in_if[2].val;
+      sub_out_if[2].dat <= fe_sub(sub_in_if[2].dat[0 +: 256], sub_in_if[2].dat[256 +: 256]);
+      sub_out_if[2].ctl <= sub_in_if[2].ctl;
+      sub_out_if[2].sop <= 1;
+      sub_out_if[2].eop <= 1;
+    end
+  end
+end
+
 generate
   if (RESOURCE_SHARE == "YES") begin: RESOURCE_GEN
     always_comb begin
@@ -282,31 +348,16 @@ generate
       o_mult_if.eop = 1;
       mult_in_if[2].rdy = o_mult_if.rdy;
 
-      o_mod_if.val = mod_in_if[2].val;
-      o_mod_if.dat = mod_in_if[2].dat;
-      o_mod_if.ctl = mod_in_if[2].ctl;
-      o_mod_if.err = 0;
-      o_mod_if.mod = 0;
-      o_mod_if.sop = 1;
-      o_mod_if.eop = 1;
-      mod_in_if[2].rdy = o_mod_if.rdy;
-
       i_mult_if.rdy = mult_out_if[2].rdy;
       mult_out_if[2].val = i_mult_if.val;
       mult_out_if[2].dat = i_mult_if.dat;
       mult_out_if[2].ctl = i_mult_if.ctl;
-
-      i_mod_if.rdy = mod_out_if[2].rdy;
-      mod_out_if[2].val = i_mod_if.val;
-      mod_out_if[2].dat = i_mod_if.dat;
-      mod_out_if[2].ctl = i_mod_if.ctl;
     end
   end else begin
+  
     always_comb begin
       o_mult_if.reset_source();
       i_mult_if.rdy = 0;
-      o_mod_if.reset_source();
-      i_mod_if.rdy = 0;
     end
     secp256k1_mult_mod #(
       .CTL_BITS ( 16 )
@@ -326,25 +377,6 @@ generate
       .o_val ( mult_out_if[2].val ),
       .o_ctl ( mult_out_if[2].ctl ),
       .o_err ( mult_out_if[2].err )
-    );
-
-    secp256k1_mod #(
-      .USE_MULT ( 0 ),
-      .CTL_BITS ( 16 )
-    )
-    secp256k1_mod (
-      .i_clk( i_clk     ),
-      .i_rst( i_rst     ),
-      .i_dat( mod_in_if[2].dat  ),
-      .i_val( mod_in_if[2].val  ),
-      .i_err( mod_in_if[2].err  ),
-      .i_ctl( mod_in_if[2].ctl  ),
-      .o_rdy( mod_in_if[2].rdy  ),
-      .o_dat( mod_out_if[2].dat ),
-      .o_ctl( mod_out_if[2].ctl ),
-      .o_err( mod_out_if[2].err ),
-      .i_rdy( mod_out_if[2].rdy ),
-      .o_val( mod_out_if[2].val )
     );
   end
 endgenerate

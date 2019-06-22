@@ -30,9 +30,6 @@ if_axi_stream #(.DAT_BYTS(256*3/8)) out_if(clk);
 if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mult_in_if(clk);
 if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mult_out_if(clk);
 
-if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mod_in_if(clk);
-if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mod_out_if(clk);
-
 jb_point_t in_p, out_p;
 logic [255:0] k_in;
 
@@ -65,34 +62,27 @@ always_comb begin
   mult_out_if.sop = 1;
   mult_out_if.eop = 1;
   mult_out_if.mod = 0;
-  mod_out_if.sop = 1;
-  mod_out_if.eop = 1;
-  mod_out_if.mod = 0;
 end
 
-
-  secp256k1_point_mult #(
-    .RESOURCE_SHARE ("YES")
-  )
-  secp256k1_point_mult (
-    .i_clk ( clk ),
-    .i_rst ( rst ),
-    .i_p   ( in_if.dat  ),
-    .i_k   ( k_in       ),
-    .i_val ( in_if.val  ),
-    .o_rdy ( in_if.rdy  ),
-    .o_p   ( out_if.dat ),
-    .i_rdy ( out_if.rdy ),
-    .o_val ( out_if.val ),
-    .o_err ( out_if.err ),
-     .o_mult_if ( mult_in_if ),
-    .i_mult_if ( mult_out_if ),
-    .o_mod_if ( mod_in_if ),
-    .i_mod_if ( mod_out_if ),
-    .i_p2_val (0),
-    .i_p2 (0 )
-  );
-
+secp256k1_point_mult #(
+  .RESOURCE_SHARE ("YES")
+)
+secp256k1_point_mult (
+  .i_clk ( clk ),
+  .i_rst ( rst ),
+  .i_p   ( in_if.dat  ),
+  .i_k   ( k_in       ),
+  .i_val ( in_if.val  ),
+  .o_rdy ( in_if.rdy  ),
+  .o_p   ( out_if.dat ),
+  .i_rdy ( out_if.rdy ),
+  .o_val ( out_if.val ),
+  .o_err ( out_if.err ),
+  .o_mult_if ( mult_in_if ),
+  .i_mult_if ( mult_out_if ),
+  .i_p2_val (0),
+  .i_p2 (0 )
+);
 
 secp256k1_mult_mod #(
   .CTL_BITS ( 16 )
@@ -114,24 +104,6 @@ secp256k1_mult_mod (
   .o_err ( mult_out_if.err )
 );
 
-secp256k1_mod #(
-  .USE_MULT ( 0 ),
-  .CTL_BITS ( 16 )
-)
-secp256k1_mod (
-  .i_clk( clk       ),
-  .i_rst( rst       ),
-  .i_dat( mod_in_if.dat  ),
-  .i_val( mod_in_if.val  ),
-  .i_err( mod_in_if.err  ),
-  .i_ctl( mod_in_if.ctl  ),
-  .o_rdy( mod_in_if.rdy  ),
-  .o_dat( mod_out_if.dat ),
-  .o_ctl( mod_out_if.ctl ),
-  .o_err( mod_out_if.err ),
-  .i_rdy( mod_out_if.rdy ),
-  .o_val( mod_out_if.val )
-);
 
 // Test a point
 task test(input integer index, input logic [255:0] k, jb_point_t p_exp, p_in);
@@ -174,13 +146,13 @@ initial begin
        1, {x:256'h79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798,
        y:256'h483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8,
        z:256'h1},
-       {x:secp256k1_pkg::Gx, y:secp256k1_pkg::Gy, z:256'h1});
+       g_point);
 
   test(1,
        2, {x:256'h7d152c041ea8e1dc2191843d1fa9db55b68f88fef695e2c791d40444b365afc2,
        y:256'h56915849f52cc8f76f5fd7e4bf60db4a43bf633e1b1383f85fe89164bfadcbdb,
        z:256'h9075b4ee4d4788cabb49f7f81c221151fa2f68914d0aa833388fa11ff621a970},
-       {x:secp256k1_pkg::Gx, y:secp256k1_pkg::Gy, z:256'h1});
+       g_point);
 
   test(3,
        3, {x:256'hca90ef9b06d7eb51d650e9145e3083cbd8df8759168862036f97a358f089848,

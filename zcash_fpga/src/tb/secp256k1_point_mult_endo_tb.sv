@@ -29,10 +29,6 @@ if_axi_stream #(.DAT_BYTS(256*3/8)) out_if(clk);
 
 if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mult_in_if(clk);
 if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mult_out_if(clk);
-
-if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mod_in_if(clk);
-if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mod_out_if(clk);
-
 logic [255:0] k_in;
 
 
@@ -64,9 +60,6 @@ always_comb begin
   mult_out_if.sop = 1;
   mult_out_if.eop = 1;
   mult_out_if.mod = 0;
-  mod_out_if.sop = 1;
-  mod_out_if.eop = 1;
-  mod_out_if.mod = 0;
 end
 
   secp256k1_point_mult_endo secp256k1_point_mult_endo (
@@ -82,8 +75,6 @@ end
     .o_err ( out_if.err ),
     .o_mult_if ( mult_in_if ),
     .i_mult_if ( mult_out_if ),
-    .o_mod_if ( mod_in_if ),
-    .i_mod_if ( mod_out_if ),
     .i_p2_val (0),
     .i_p2 (0 )
   );
@@ -106,25 +97,6 @@ secp256k1_mult_mod (
   .o_val ( mult_out_if.val ),
   .o_ctl ( mult_out_if.ctl ),
   .o_err ( mult_out_if.err )
-);
-
-secp256k1_mod #(
-  .USE_MULT ( 0 ),
-  .CTL_BITS ( 16 )
-)
-secp256k1_mod (
-  .i_clk( clk       ),
-  .i_rst( rst       ),
-  .i_dat( mod_in_if.dat  ),
-  .i_val( mod_in_if.val  ),
-  .i_err( mod_in_if.err  ),
-  .i_ctl( mod_in_if.ctl  ),
-  .o_rdy( mod_in_if.rdy  ),
-  .o_dat( mod_out_if.dat ),
-  .o_ctl( mod_out_if.ctl ),
-  .o_err( mod_out_if.err ),
-  .i_rdy( mod_out_if.rdy ),
-  .o_val( mod_out_if.val )
 );
 
 // Test a point

@@ -30,9 +30,10 @@ if_axi_stream #(.DAT_BYTS(256*3/8)) out_if(clk);
 if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(8)) mult_in_if(clk);
 if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(8)) mult_out_if(clk);
 
-if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(8)) mod_in_if(clk);
-if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(8)) mod_out_if(clk);
-
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(8)) sub_in_if(clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(8)) sub_out_if(clk);
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(8)) add_in_if(clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(8)) add_out_if(clk);
 
 jb_point_t in_p, out_p;
 
@@ -63,10 +64,13 @@ always_ff @ (posedge clk)
   if (out_if.val && out_if.err)
     $error(1, "%m %t ERROR: output .err asserted", $time);
 
-secp256k1_point_dbl secp256k1_point_dbl(
+ec_point_dbl
+#(
+  .FP_TYPE ( jb_point_t ),
+  .FE_TYPE ( fe_t )
+) ec_point_dbl (
   .i_clk ( clk ),
   .i_rst ( rst ),
-    // Input point
   .i_p   ( in_p      ),
   .i_val ( in_if.val ),
   .o_rdy ( in_if.rdy ),
@@ -74,14 +78,30 @@ secp256k1_point_dbl secp256k1_point_dbl(
   .o_err ( out_if.err ),
   .i_rdy ( out_if.rdy ),
   .o_val  ( out_if.val ) ,
-  .o_mult_if ( mult_in_if ),
-  .i_mult_if ( mult_out_if ),
-  .o_mod_if ( mod_in_if ),
-  .i_mod_if ( mod_out_if )
+  // Interface to multiplier (mod p)
+  .o_mul_if ( mult_in_if ),
+  .i_mul_if ( mult_out_if ),
+  .o_add_if ( add_in_if ),
+  .i_add_if ( add_out_if ),
+  .o_sub_if ( sub_in_if ),
+  .i_sub_if ( sub_out_if )
 );
+
+always_comb begin
+  add_in_if.rdy = add_out_if.rdy;
+  add_out_if.val = add_in_if.val;
+  add_out_if.dat = fe_add(add_in_if.dat[0 +: 256], add_in_if.dat[256 +: 256]);
+  add_out_if.ctl = add_in_if.ctl;
+
+  sub_in_if.rdy = sub_out_if.rdy;
+  sub_out_if.val = sub_in_if.val;
+  sub_out_if.dat = fe_sub(sub_in_if.dat[0 +: 256], sub_in_if.dat[256 +: 256]);
+  sub_out_if.ctl = sub_in_if.ctl;
+end
 
 // Attach a mod reduction unit and multiply - mod unit
 // In full design these could use dedicated multipliers or be arbitrated
+
 secp256k1_mult_mod #(
   .CTL_BITS ( 8 )
 )
@@ -93,32 +113,13 @@ secp256k1_mult_mod (
   .i_val ( mult_in_if.val ),
   .i_err ( mult_in_if.err ),
   .i_ctl ( mult_in_if.ctl ),
-  .i_cmd ( 1'd0           ),
+  .i_cmd ( 2'd0           ),
   .o_rdy ( mult_in_if.rdy ),
   .o_dat ( mult_out_if.dat ),
   .i_rdy ( mult_out_if.rdy ),
   .o_val ( mult_out_if.val ),
   .o_ctl ( mult_out_if.ctl ),
   .o_err ( mult_out_if.err ) 
-);
-
-secp256k1_mod #(
-  .USE_MULT ( 0 ),
-  .CTL_BITS ( 8 )
-)
-secp256k1_mod (
-  .i_clk( clk       ),
-  .i_rst( rst       ),
-  .i_dat( mod_in_if.dat  ),
-  .i_val( mod_in_if.val  ),
-  .i_err( mod_in_if.err  ),
-  .i_ctl( mod_in_if.ctl  ),
-  .o_rdy( mod_in_if.rdy  ),
-  .o_dat( mod_out_if.dat ),
-  .o_ctl( mod_out_if.ctl ),
-  .o_err( mod_out_if.err ),
-  .i_rdy( mod_out_if.rdy ),
-  .o_val( mod_out_if.val )
 );
 
 task test_0();
@@ -128,9 +129,8 @@ begin
   logic [255:0] in_a, in_b;
   jb_point_t p_in, p_exp, p_out;
   $display("Running test_0...");
-  //p_in = {z:1, x:4, y:2};
-  //p_in = {z:10, x:64, y:23};
-  p_in = {x:secp256k1_pkg::Gx, y:secp256k1_pkg::Gx, z:1};
+
+  p_in = g_point;
   p_exp = dbl_jb_point(p_in);
   
   fork

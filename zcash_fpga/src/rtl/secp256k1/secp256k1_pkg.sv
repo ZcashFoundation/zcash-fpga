@@ -19,7 +19,9 @@
 
 package secp256k1_pkg;
 
-  parameter [255:0] p = 256'hFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_FFFFFC2F;
+  parameter DAT_BITS = 256;
+
+  parameter [255:0] P = 256'hFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_FFFFFC2F;
   parameter [255:0] a = 256'h0;
   parameter [255:0] b = 256'h7;
   parameter [255:0] Gx = 256'h79BE667E_F9DCBBAC_55A06295_CE870B07_029BFCDB_2DCE28D9_59F2815B_16F81798;
@@ -60,10 +62,18 @@ package secp256k1_pkg;
   parameter SIG_VER_X = 40;   // Result of (u1.P + u2.Q) 256 * 3 bits as is in jb coords.
   parameter SIG_VER_X_AFF = 52;   // 256 bits, SIG_VER_X result's X in affine coords.
 
+  typedef logic [255:0] fe_t;
+  
+  logic [256:0] P_ = P;
+  logic [255:0] p = P;  //TODO remove me
+
   // Expected to be in Jacobian coordinates
   typedef struct packed {
-    logic [255:0] x, y, z;
+    fe_t x, y, z;
   } jb_point_t;
+  
+  jb_point_t g_point = {x:Gx, y:Gy, z:256'd1};
+  
 
   typedef struct packed {
     logic [2:0] padding;
@@ -78,34 +88,92 @@ package secp256k1_pkg;
     is_zero = (p.x == 0 && p.y == 0 && p.z == 1);
     return is_zero;
   endfunction
+  
+   function jb_point_t dbl_jb_point(input jb_point_t p);
+     fe_t I_X, I_Y, I_Z, A, B, C, D, X, Y, Z;
 
-  // Function to double point in Jacobian coordinates (for comparison in testbench)
-  // Here a is 0, and we also mod p the result
-  function jb_point_t dbl_jb_point(jb_point_t p);
-    logic signed [512:0] I_X, I_Y, I_Z, A, B, C, D, X, Y, Z;
+     if (p.z == 0) return p;
 
-    if (p.z == 0) return p;
+     I_X = p.x;
+     I_Y = p.y;
+     I_Z = p.z;
+     A = fe_mul(I_Y, I_Y);
+     B = fe_mul(fe_mul(4, I_X), A);
+     C = fe_mul(fe_mul(8, A), A);
+     D = fe_mul(fe_mul(3, I_X), I_X);
+     X = fe_mul(D, D);
+     X = fe_sub(X, fe_mul(2, B));
 
-    I_X = p.x;
-    I_Y = p.y;
-    I_Z = p.z;
-    A = (I_Y*I_Y) % p_eq;
-    B = (((4*I_X) % p_eq)*A) % p_eq;
-    C = (((8*A) % p_eq)*A) % p_eq;
-    D = (((3*I_X)% p_eq)*I_X) % p_eq;
-    X = (D*D)% p_eq;
-    X = X + ((2*B) % p_eq > X ? p_eq : 0) - (2*B) % p_eq;
+     Y = fe_mul(D, fe_sub(B, X));
+     Y = fe_sub(Y, C);
+     Z = fe_mul(fe_mul(2, I_Y), I_Z);
 
-    Y = (D*((B + (X > B ? p_eq : 0)-X) % p_eq)) % p_eq;
-    Y = Y + (C > Y ? p_eq : 0) - C;
-    Z = (((2*I_Y)% p_eq)*I_Z) % p_eq;
+     dbl_jb_point.x = X;
+     dbl_jb_point.y = Y;
+     dbl_jb_point.z = Z;
+     return dbl_jb_point;
+   endfunction
+   
+   function fe_t fe_add(fe_t a, b);
+     logic [$bits(fe_t):0] a_, b_;
+     a_ = a;
+     b_ = b;
+     fe_add = a_ + b_ >= P_ ? a_ + b_ - P_ : a_ + b_;
+   endfunction
 
-    dbl_jb_point.x = X;
-    dbl_jb_point.y = Y;
-    dbl_jb_point.z = Z;
-    return dbl_jb_point;
-  endfunction
+   function fe_t fe_sub(fe_t a, b);
+     logic [$bits(fe_t):0] a_, b_;
+     a_ = a;
+     b_ = b;
+     fe_sub = b_ > a_ ? a_- b_ + P_ : a_ - b_;
+   endfunction
 
+
+   function fe_t fe_mul(fe_t a, b);
+     logic [$bits(fe_t)*2:0] m_;
+     m_ = a * b;
+     fe_mul = m_ % P;
+   endfunction
+   
+   function jb_point_t add_jb_point(jb_point_t p1, p2);
+     fe_t A, U1, U2, S1, S2, H, H3, R;
+
+     if (p1.z == 0) return p2;
+     if (p2.z == 0) return p1;
+
+     if (p1.y == p2.y && p1.x == p2.x)
+       return (dbl_jb_point(p1));
+
+     U1 = fe_mul(p1.x, p2.z);
+     U1 = fe_mul(U1, p2.z);
+
+     U2 = fe_mul(p2.x, p1.z);
+     U2 = fe_mul(U2, p1.z);
+     S1 = fe_mul(p1.y, p2.z);
+     S1 = fe_mul(fe_mul(S1, p2.z), p2.z);
+     S2 = fe_mul(p2.y, p1.z);
+     S2 = fe_mul(fe_mul(S2, p1.z), p1.z);
+
+     H = fe_sub(U2, U1);
+     R = fe_sub(S2, S1);
+     H3 = fe_mul(fe_mul(H, H), H);
+     A = fe_mul(fe_mul(fe_mul(2, U1), H), H);
+
+     add_jb_point.z = fe_mul(fe_mul(H, p1.z), p2.z);
+     add_jb_point.x = fe_mul(R, R);
+
+     add_jb_point.x = fe_sub(add_jb_point.x, H3);
+     add_jb_point.x = fe_sub(add_jb_point.x, A);
+
+     A = fe_mul(fe_mul(U1, H), H);
+     A = fe_sub(A, add_jb_point.x);
+     A = fe_mul(A, R);
+     add_jb_point.y = fe_mul(S1, H3);
+
+     add_jb_point.y = fe_sub(A, add_jb_point.y);
+
+   endfunction
+   /*
   function jb_point_t add_jb_point(jb_point_t p1, p2);
     logic signed [512:0] A, U1, U2, S1, S2, H, H3, R;
 
@@ -127,17 +195,12 @@ package secp256k1_pkg;
 
     H = U2 + (U1 > U2 ? p_eq : 0) -U1;
     R = S2 + (S1 > S2 ? p_eq : 0) -S1;
-    //$display("R = %x", R);
-    //$display("H = %x", H);
-    //$display("H^2 = %x", (H * H %p_eq ));
     H3 = ((H * H %p_eq ) * H ) % p_eq;
     A = (((2*U1 % p_eq) *H % p_eq) * H % p_eq);
 
     add_jb_point.z = ((H * p1.z % p_eq) * p2.z) % p_eq;
     add_jb_point.x = R*R % p_eq;
 
-    //$display("R^2 = %x", add_jb_point.x);
-    //$display("H^3 = %x", H3);
 
     add_jb_point.x = add_jb_point.x + (H3 > add_jb_point.x ? p_eq : 0) - H3;
     add_jb_point.x = add_jb_point.x + (A > add_jb_point.x ? p_eq : 0) - A;
@@ -150,7 +213,7 @@ package secp256k1_pkg;
     add_jb_point.y = A + (add_jb_point.y > A ? p_eq : 0) - add_jb_point.y;
 
   endfunction
-
+*/
   function on_curve(jb_point_t p);
     return (p.y*p.y - p.x*p.x*p.x - secp256k1_pkg::a*p.x*p.z*p.z*p.z*p.z - secp256k1_pkg::b*p.z*p.z*p.z*p.z*p.z*p.z);
   endfunction

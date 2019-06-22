@@ -36,10 +36,6 @@ module secp256k1_point_mult_endo
   // Interface to 256bit multiplier
   if_axi_stream.source o_mult_if,
   if_axi_stream.sink   i_mult_if,
-  // Interface to only mod reduction block
-  if_axi_stream.source o_mod_if,
-  if_axi_stream.sink   i_mod_if,
-
   // We provide another input so that the final point addition can be done
   // This is connected to k2 block's addition input
   input jb_point_t i_p2,
@@ -231,8 +227,6 @@ secp256k1_point_mult_k1 (
   .o_err ( o_err1 ),
   .o_mult_if ( mult_in_if[0]  ),
   .i_mult_if ( mult_out_if[0] ),
-  .o_mod_if  ( mod_in_if[0]   ),
-  .i_mod_if  ( mod_out_if[0]  ),
   .i_p2     ( p2_k1     ),
   .i_p2_val ( p2_k1_val )
 );
@@ -253,31 +247,18 @@ secp256k1_point_mult_k2 (
   .o_err ( o_err2 ),
   .o_mult_if ( mult_in_if[1]  ),
   .i_mult_if ( mult_out_if[1] ),
-  .o_mod_if  ( mod_in_if[1]   ),
-  .i_mod_if  ( mod_out_if[1]  ),
   .i_p2     ( p2_k2    ),
   .i_p2_val ( p2_k2_val )
 );
 
 // We add arbitrators to these to share with the point add module
 localparam ARB_BIT = 10;
-resource_share # (
-  .NUM_IN ( 2 ),
-  .OVR_WRT_BIT ( ARB_BIT ),
-  .PIPELINE_IN ( 1 ),
-  .PIPELINE_OUT ( 0 )
-)
-resource_share_mod (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_axi ( mod_in_if[1:0]  ),
-  .o_res ( mod_in_if[2]    ),
-  .i_res ( mod_out_if[2]   ), 
-  .o_axi ( mod_out_if[1:0] )
-);
 
 resource_share # (
-  .NUM_IN ( 3 ),
+  .NUM_IN      ( 3       ),
+  .CTL_BITS    ( 16      ),
+  .DAT_BITS    ( 512     ),  
+  .DAT_BYTS    ( 512/8   ),
   .OVR_WRT_BIT ( ARB_BIT ),
   .PIPELINE_IN ( 1 ),
   .PIPELINE_OUT ( 0 )
@@ -302,24 +283,11 @@ always_comb begin
   o_mult_if.eop = 1;
   mult_in_if[3].rdy = o_mult_if.rdy;
 
-  o_mod_if.val = mod_in_if[2].val;
-  o_mod_if.dat = mod_in_if[2].dat;
-  o_mod_if.ctl = mod_in_if[2].ctl;
-  o_mod_if.err = 0;
-  o_mod_if.mod = 0;
-  o_mod_if.sop = 1;
-  o_mod_if.eop = 1;
-  mod_in_if[2].rdy = o_mod_if.rdy;
-
   i_mult_if.rdy = mult_out_if[3].rdy;
   mult_out_if[3].val = i_mult_if.val;
   mult_out_if[3].dat = i_mult_if.dat;
   mult_out_if[3].ctl = i_mult_if.ctl;
 
-  i_mod_if.rdy = mod_out_if[2].rdy;
-  mod_out_if[2].val = i_mod_if.val;
-  mod_out_if[2].dat = i_mod_if.dat;
-  mod_out_if[2].ctl = i_mod_if.ctl;
 end
 
 

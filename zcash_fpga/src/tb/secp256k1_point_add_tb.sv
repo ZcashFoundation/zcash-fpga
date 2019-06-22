@@ -30,9 +30,11 @@ if_axi_stream #(.DAT_BYTS(256*3/8)) out_if(clk);
 if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mult_in_if(clk);
 if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mult_out_if(clk);
 
-if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mod_in_if(clk);
-if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mod_out_if(clk);
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) add_in_if(clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) add_out_if(clk);
 
+if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) sub_in_if(clk);
+if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) sub_out_if(clk);
 
 jb_point_t in_p1, in_p2, out_p;
 
@@ -64,22 +66,28 @@ always_ff @ (posedge clk)
   if (out_if.val && out_if.err)
     $error(1, "%m %t ERROR: output .err asserted", $time);
 
-secp256k1_point_add secp256k1_point_add(
+ec_point_add #(
+  .FP_TYPE ( jb_point_t ),
+  .FE_TYPE ( fe_t )
+)
+ec_point_add (
   .i_clk ( clk ),
   .i_rst ( rst ),
     // Input points
-  .i_p1   ( in_p1      ),
-  .i_p2   ( in_p2      ),
+  .i_p1  ( in_p1      ),
+  .i_p2  ( in_p2      ),
   .i_val ( in_if.val ),
   .o_rdy ( in_if.rdy ),
   .o_p   ( out_p     ),
   .o_err ( out_if.err ),
   .i_rdy ( out_if.rdy ),
   .o_val  ( out_if.val ) ,
-  .o_mult_if ( mult_in_if ),
-  .i_mult_if ( mult_out_if ),
-  .o_mod_if ( mod_in_if ),
-  .i_mod_if ( mod_out_if )
+  .o_mul_if ( mult_in_if ),
+  .i_mul_if ( mult_out_if ),
+  .o_add_if ( add_in_if ),
+  .i_add_if ( add_out_if ),
+  .o_sub_if ( sub_in_if ),
+  .i_sub_if ( sub_out_if )
 );
 
 always_comb begin
@@ -87,11 +95,6 @@ always_comb begin
   mult_out_if.eop = 1;
   mult_out_if.err = 1;
   mult_out_if.mod = 1;
-
-  mod_out_if.sop = 1;
-  mod_out_if.eop = 1;
-  mod_out_if.err = 1;
-  mod_out_if.mod = 1;
 end
 
 // Attach a mod reduction unit and multiply - mod unit
@@ -116,24 +119,23 @@ secp256k1_mult_mod (
   .o_err ( mult_out_if.err )
 );
 
-secp256k1_mod #(
-  .USE_MULT ( 0 ),
-  .CTL_BITS ( 16 )
-)
-secp256k1_mod (
-  .i_clk( clk       ),
-  .i_rst( rst       ),
-  .i_dat( mod_in_if.dat  ),
-  .i_val( mod_in_if.val  ),
-  .i_err( mod_in_if.err  ),
-  .i_ctl( mod_in_if.ctl  ),
-  .o_rdy( mod_in_if.rdy  ),
-  .o_dat( mod_out_if.dat ),
-  .o_ctl( mod_out_if.ctl ),
-  .o_err( mod_out_if.err ),
-  .i_rdy( mod_out_if.rdy ),
-  .o_val( mod_out_if.val )
-);
+always_comb begin
+  add_in_if.rdy = add_out_if.rdy;
+  sub_in_if.rdy = sub_out_if.rdy;
+end
+
+always_ff @ (posedge clk) begin
+
+  add_out_if.val <= add_in_if.val;
+  add_out_if.dat <= fe_add(add_in_if.dat[0 +: 256], add_in_if.dat[256 +: 256]);
+  add_out_if.ctl <= add_in_if.ctl;
+
+  sub_in_if.rdy <= sub_out_if.rdy;
+  sub_out_if.val <= sub_in_if.val;
+  sub_out_if.dat <= fe_sub(sub_in_if.dat[0 +: 256], sub_in_if.dat[256 +: 256]);
+  sub_out_if.ctl <= sub_in_if.ctl;
+  
+end
 
 task test(input integer index, input jb_point_t p1, p2);
 begin
@@ -168,30 +170,14 @@ begin
 end
 endtask;
 
-function compare_point();
-
-endfunction
-
 initial begin
   out_if.rdy = 0;
   in_if.val = 0;
   #(40*CLK_PERIOD);
 
- test(0,
-    {x:256'h2475abeb8f0fc52f627afb4c18227dfa756706ceb5923cd8a209bf43c2f08815,
-    y:256'h4361473bccf308998bbb8c0b9a0184d186ada6e85e1cb1b82ac202380df8f762,
-    z:256'hdda493ffbcdc8daf0996a769bf192cc4627839d0025b4ad960c3e25dab464863},
-    {x:256'h4a58b6edef1379306fce3372763fd87eaf2c8f447c6408416e746e672ee6ce21,
-    y:256'h33adac20db34d12166586c56aa8a352b155bcfdd011f46b38c21e0c4d39968a4,
-    z:256'h8631df8718bcb2d2920dfd313c714a153cfc6db607891e341b0856411717cf4f});
-    
  test(1,
-       {x:secp256k1_pkg::Gx,
-       y:secp256k1_pkg::Gx,
-       z:256'h1},
-       {x:256'h4a58b6edef1379306fce3372763fd87eaf2c8f447c6408416e746e672ee6ce21,
-       y:256'h33adac20db34d12166586c56aa8a352b155bcfdd011f46b38c21e0c4d39968a4,
-       z:256'h8631df8718bcb2d2920dfd313c714a153cfc6db607891e341b0856411717cf4f});
+       g_point,
+       dbl_jb_point(g_point));
   test(2,
         {x:256'd21093662951128507222548537960537987883266099219826518477955151519492458533937,
         y:256'd11718937855299224635656538406325081070585145153119064354000306947171340794663,

@@ -21,8 +21,6 @@ if_axi_stream #(.DAT_BYTS(256/8)) bin_inv_out_if(i_clk);
 // [0] is connection from/to point_mult0 block, [1] is add point_mult1 block, 2 is this state machine, [3] is arbitrated value
 if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mult_in_if [3:0] (i_clk);
 if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mult_out_if [3:0] (i_clk);
-if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mod_in_if [2:0] (i_clk);
-if_axi_stream #(.DAT_BYTS(256/8), .CTL_BITS(16)) mod_out_if [2:0] (i_clk);
 
 jb_point_t pt_mult0_in_p, pt_mult0_out_p, pt_mult1_in_p, pt_mult1_out_p, pt_X0, pt_X1, pt_X, pt_mult0_in_p2;
 logic [255:0] pt_mult0_in_k, pt_mult1_in_k;
@@ -444,44 +442,13 @@ secp256k1_mult_mod (
   .o_err ( mult_out_if[3].err )
 );
 
-secp256k1_mod #(
-  .USE_MULT ( 0  ),
-  .CTL_BITS ( 16 )
-)
-secp256k1_mod (
-  .i_clk( i_clk ),
-  .i_rst( i_rst ),
-  .i_dat( mod_in_if[2].dat  ),
-  .i_val( mod_in_if[2].val  ),
-  .i_err( mod_in_if[2].err  ),
-  .i_ctl( mod_in_if[2].ctl  ),
-  .o_rdy( mod_in_if[2].rdy  ),
-  .o_dat( mod_out_if[2].dat ),
-  .o_ctl( mod_out_if[2].ctl ),
-  .o_err( mod_out_if[2].err ),
-  .i_rdy( mod_out_if[2].rdy ),
-  .o_val( mod_out_if[2].val )
-);
-
 resource_share # (
-  .NUM_IN ( 2 ),
+  .NUM_IN      ( 3       ),
+  .CTL_BITS    ( 16      ),
+  .DAT_BITS    ( 512     ),  
+  .DAT_BYTS    ( 512/8   ),
   .OVR_WRT_BIT ( ARB_BIT ),
-  .PIPELINE_IN ( 0 ),
-  .PIPELINE_OUT ( 1 )
-)
-resource_share_mod (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_axi ( mod_in_if[1:0]  ),
-  .o_res ( mod_in_if[2]    ),
-  .i_res ( mod_out_if[2]   ),
-  .o_axi ( mod_out_if[1:0] )
-);
-
-resource_share # (
-  .NUM_IN ( 3 ),
-  .OVR_WRT_BIT ( ARB_BIT ),
-  .PIPELINE_IN ( 0 )
+  .PIPELINE_IN ( 0       )
 )
 resource_share_mult (
   .i_clk ( i_clk ),
@@ -509,8 +476,6 @@ generate if (USE_ENDOMORPH == "NO") begin
     .o_err ( pt_mult0_out_err ),
     .o_mult_if ( mult_in_if[0]  ),
     .i_mult_if ( mult_out_if[0] ),
-    .o_mod_if ( mod_in_if[0]    ),
-    .i_mod_if ( mod_out_if[0]   ),
     .i_p2     ( pt_mult0_in_p2  ),
     .i_p2_val ( pt_mult0_in_p2_val )
   );
@@ -531,8 +496,6 @@ generate if (USE_ENDOMORPH == "NO") begin
     .o_err ( pt_mult1_out_err ),
     .o_mult_if ( mult_in_if[1]  ),
     .i_mult_if ( mult_out_if[1] ),
-    .o_mod_if ( mod_in_if[1]    ),
-    .i_mod_if ( mod_out_if[1]   ),
     .i_p2     ( '0   ),
     .i_p2_val ( 1'b0 )
   );
@@ -551,8 +514,6 @@ end else begin
     .o_err ( pt_mult0_out_err ),
     .o_mult_if ( mult_in_if[0]  ),
     .i_mult_if ( mult_out_if[0] ),
-    .o_mod_if ( mod_in_if[0]    ),
-    .i_mod_if ( mod_out_if[0]   ),
     .i_p2     ( pt_mult0_in_p2  ),
     .i_p2_val ( pt_mult0_in_p2_val )
   );
@@ -571,8 +532,6 @@ end else begin
     .o_err ( pt_mult1_out_err ),
     .o_mult_if ( mult_in_if[1]  ),
     .i_mult_if ( mult_out_if[1] ),
-    .o_mod_if ( mod_in_if[1]    ),
-    .i_mod_if ( mod_out_if[1]   ),
     .i_p2     ( '0   ),
     .i_p2_val ( 1'b0 )
   );
