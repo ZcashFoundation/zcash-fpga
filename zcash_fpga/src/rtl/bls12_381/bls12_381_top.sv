@@ -97,7 +97,10 @@ always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     tx_if.reset_source();
     inst_ram_sys_if.reset_source();
-    data_ram_sys_if.reset_source();
+    data_ram_sys_if.we <= 0;
+    data_ram_sys_if.a <= 0;
+    data_ram_sys_if.re <= 1;
+    data_ram_sys_if.en <= 1;
     fp2_pt_mult_out_if.rdy <= 0;
     fp2_pt_mult_in_if.reset_source();
     inst_ram_read <= 0;
