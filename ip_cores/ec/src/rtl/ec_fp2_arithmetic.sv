@@ -59,7 +59,7 @@ logic fp_mode_add, fp_mode_sub, fp_mode_mul;
 // Point addtions are simple additions on each of the Fp elements
 enum {ADD0, ADD1} add_state;
 always_comb begin
-  i_add_fe2_if.rdy = add_state == ADD1 && (~add_if_fe_o[0].val || (add_if_fe_o[0].val && add_if_fe_o[0].rdy));
+  i_add_fe2_if.rdy = (fp_mode_add || add_state == ADD1) && (~add_if_fe_o[0].val || (add_if_fe_o[0].val && add_if_fe_o[0].rdy));
   add_if_fe_i[0].rdy = ~o_add_fe2_if.val || (o_add_fe2_if.val && o_add_fe2_if.rdy);
 end
 
@@ -115,7 +115,7 @@ end
 // Point subtractions are simple subtractions on each of the Fp elements
 enum {SUB0, SUB1} sub_state;
 always_comb begin
-  i_sub_fe2_if.rdy = sub_state == SUB1 && (~sub_if_fe_o[0].val || (sub_if_fe_o[0].val && sub_if_fe_o[0].rdy));
+  i_sub_fe2_if.rdy = (fp_mode_sub || sub_state == SUB1) && (~sub_if_fe_o[0].val || (sub_if_fe_o[0].val && sub_if_fe_o[0].rdy));
   sub_if_fe_i[0].rdy = ~o_sub_fe2_if.val || (o_sub_fe2_if.val && o_sub_fe2_if.rdy);
 end
 
@@ -174,9 +174,10 @@ end
 enum {MUL0, MUL1, MUL2, MUL3} mul_state;
 logic [1:0] add_sub_val;
 always_comb begin
-  mul_if_fe2_i.rdy = mul_state == MUL3 && (~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy));
+  mul_if_fe2_i.rdy = (fp_mode_mul || mul_state == MUL3) && (~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy));
 
-  i_mul_fe_if.rdy = (i_mul_fe_if.ctl[CTL_BIT +: 2] == 0 || i_mul_fe_if.ctl[CTL_BIT +: 2] == 1) ?
+  i_mul_fe_if.rdy = fp_mode_mul ? ~o_mul_fe2_if.val ||  (o_mul_fe2_if.val && o_mul_fe2_if.rdy) :
+                  (i_mul_fe_if.ctl[CTL_BIT +: 2] == 0 || i_mul_fe_if.ctl[CTL_BIT +: 2] == 1) ?
                   (~sub_if_fe_o[1].val || (sub_if_fe_o[1].val && sub_if_fe_o[1].rdy)) :
                   (~add_if_fe_o[1].val || (add_if_fe_o[1].val && add_if_fe_o[1].rdy));
 
@@ -245,7 +246,7 @@ always_ff @ (posedge i_clk) begin
     end
 
     // Process multiplications and do subtraction
-    if (~sub_if_fe_o[1].val || (sub_if_fe_o[1].val && sub_if_fe_o[1].rdy)) begin
+    if (~fp_mode_mul && (~sub_if_fe_o[1].val || (sub_if_fe_o[1].val && sub_if_fe_o[1].rdy))) begin
       if (i_mul_fe_if.ctl[CTL_BIT +: 2] == 0) begin
         if (i_mul_fe_if.val) sub_if_fe_o[1].dat[0 +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
       end
@@ -257,7 +258,7 @@ always_ff @ (posedge i_clk) begin
     end
 
     // Process multiplications and do addition
-    if (~add_if_fe_o[1].val || (add_if_fe_o[1].val && add_if_fe_o[1].rdy)) begin
+    if (~fp_mode_mul && (~add_if_fe_o[1].val || (add_if_fe_o[1].val && add_if_fe_o[1].rdy))) begin
       if (i_mul_fe_if.ctl[CTL_BIT +: 2] == 2) begin
         if (i_mul_fe_if.val) add_if_fe_o[1].dat[0 +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
       end
@@ -269,25 +270,25 @@ always_ff @ (posedge i_clk) begin
     end
 
     // One process to assign output
-    if (~add_sub_val[0] || (o_mul_fe2_if.val && o_mul_fe2_if.rdy)) begin
-      o_mul_fe2_if.ctl <= add_if_fe_i[1].ctl;
-      o_mul_fe2_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= add_if_fe_i[1].dat;
-      add_sub_val[0] <= add_if_fe_i[1].val;
-    end
-
-    if (~add_sub_val[1] || (o_mul_fe2_if.val && o_mul_fe2_if.rdy)) begin
-        o_mul_fe2_if.dat[0 +: $bits(FE_TYPE)] <= sub_if_fe_i[1].dat;
-        add_sub_val[1] <= sub_if_fe_i[1].val;
-    end
-
     // If we are in fp_mode
     if (fp_mode_mul) begin
       if (~add_sub_val[0] || (o_mul_fe2_if.val && o_mul_fe2_if.rdy)) begin
         o_mul_fe2_if.dat[0 +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
+        o_mul_fe2_if.ctl <= i_mul_fe_if.ctl;
         add_sub_val <= {2{i_mul_fe_if.val}};
       end
+    end else begin
+      if (~add_sub_val[0] || (o_mul_fe2_if.val && o_mul_fe2_if.rdy)) begin
+        o_mul_fe2_if.ctl <= add_if_fe_i[1].ctl;
+        o_mul_fe2_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= add_if_fe_i[1].dat;
+        add_sub_val[0] <= add_if_fe_i[1].val;
+      end
+  
+      if (~add_sub_val[1] || (o_mul_fe2_if.val && o_mul_fe2_if.rdy)) begin
+          o_mul_fe2_if.dat[0 +: $bits(FE_TYPE)] <= sub_if_fe_i[1].dat;
+          add_sub_val[1] <= sub_if_fe_i[1].val;
+      end    
     end
-
   end
 end
 

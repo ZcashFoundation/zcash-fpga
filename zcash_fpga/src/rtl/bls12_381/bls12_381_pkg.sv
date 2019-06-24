@@ -37,12 +37,28 @@ package bls12_381_pkg;
     FP2_AF = 6,
     FP2_JB = 7
   } point_type_t;
+  
+  function integer unsigned get_point_type_size(point_type_t pt);
+    case(pt)
+      SCALAR: get_point_type_size = 1;
+      FE: get_point_type_size = 1;
+      FE2: get_point_type_size = 2;
+      FE12: get_point_type_size = 12;
+      FP_AF: get_point_type_size = 2;
+      FP_JB: get_point_type_size = 3;
+      FP2_AF: get_point_type_size = 4;
+      FP2_JB: get_point_type_size = 6;
+    endcase
+  endfunction
+
 
   // Jacobian coordinates for Fp elements
   typedef struct packed {
-    fe_t x, y, z;
+    fe_t z;
+    fe_t y;
+    fe_t x;
   } jb_point_t;
-
+  
   typedef fe_t  [1:0] fe2_t;
   typedef fe2_t [2:0] fe6_t;
   typedef fe6_t [1:0] fe12_t;
@@ -59,21 +75,25 @@ package bls12_381_pkg;
 
   // Jacobian coordinates for Fp^2 elements
   typedef struct packed {
-    fe2_t x, y, z;
+    fe2_t z;
+    fe2_t y;
+    fe2_t x;
   } fp2_jb_point_t;
 
-
   fp2_jb_point_t g2_point = '{x:G2x, y:G2y, z:FE2_one};
+  
+  fp2_jb_point_t g_point_fp2 = '{x:{381'd0, Gx}, y:{381'd0, Gy}, z:FE2_one};  // Fp Generator point used in dual mode point multiplication
 
   // Instruction codes
   typedef enum logic [7:0] {
     NOOP_WAIT       = 8'h0,
     COPY_REG        = 8'h1,
+    SEND_INTERRUPT  = 8'h6,
 
     SCALAR_INV      = 8'h13,
 
-    POINT_MULT     = 8'h24,
-    FP_FPOINT_MULT = 8'h25,
+    POINT_MULT      = 8'h24,
+    FP_FPOINT_MULT  = 8'h25,
     FP2_FPOINT_MULT = 8'h26
   } code_t;
 
@@ -84,21 +104,28 @@ package bls12_381_pkg;
   } inst_t;
 
   typedef struct packed {
-    fe_t dat;
     point_type_t pt;
+    fe_t dat;
   } data_t;
+
+
+  localparam CONFIG_MEM_SIZE = 1024;
+
+  localparam READ_CYCLE = 3;
 
   localparam DATA_RAM_WIDTH = $bits(data_t);
   localparam DATA_RAM_ALIGN_BYTE = 64;
   localparam DATA_RAM_DEPTH = 8;
   localparam DATA_RAM_USR_WIDTH = 4;
   localparam DATA_RAM_USR_DEPTH = DATA_RAM_DEPTH*DATA_RAM_ALIGN_BYTE/DATA_RAM_USR_WIDTH;
+  localparam DATA_AXIL_START = 32'h2000;
 
   localparam INST_RAM_WIDTH = $bits(inst_t);
   localparam INST_RAM_ALIGN_BYTE = 8;
   localparam INST_RAM_DEPTH = 8;
   localparam INST_RAM_USR_WIDTH = 4;
   localparam INST_RAM_USR_DEPTH = INST_RAM_DEPTH*INST_RAM_ALIGN_BYTE/INST_RAM_USR_WIDTH;
+  localparam INST_AXIL_START = 32'h1000;
 
   function is_zero(jb_point_t p);
     is_zero = (p.x == 0 && p.y == 0 && p.z == 1);
@@ -168,8 +195,10 @@ package bls12_381_pkg;
      fe2_sub[1] = fe_sub(a[1], b[1]);
    endfunction
 
-   function fe_t fe_mul(fe2_t a, b);
-     fe_mul = (a * b) % P;
+   function fe_t fe_mul(fe_t a, b);
+     logic [$bits(fe_t)*2:0] m_;
+     m_ = a * b;
+     fe_mul = m_ % P;
    endfunction
 
    function fe2_t fe2_mul(fe2_t a, b);

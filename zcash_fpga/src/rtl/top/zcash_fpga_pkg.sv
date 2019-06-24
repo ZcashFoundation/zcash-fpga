@@ -24,6 +24,8 @@ package zcash_fpga_pkg;
   import equihash_pkg::N;
   import equihash_pkg::K;
   import secp256k1_pkg::secp256k1_ver_t;
+  
+  import bls12_381_pkg::point_type_t;
 
   parameter FPGA_VERSION = 32'h01_00_01;  //v1.0.0
 
@@ -50,7 +52,8 @@ package zcash_fpga_pkg;
     FPGA_STATUS_RPL           = 'h80_00_00_01,
     FPGA_IGNORE_RPL           = 'h80_00_00_02,
     VERIFY_EQUIHASH_RPL       = 'h80_00_01_00,
-    VERIFY_SECP256K1_SIG_RPL  = 'h80_00_01_01
+    VERIFY_SECP256K1_SIG_RPL  = 'h80_00_01_01,
+    BLS12_381_INTERRUPT_RPL   = 'h80_00_02_00
   } command_t;
 
   // Data sent to the FPGA must start with a header aligned to
@@ -114,6 +117,13 @@ package zcash_fpga_pkg;
     header_t           hdr;
   } verify_secp256k1_sig_rpl_t;
 
+  typedef struct packed {
+    logic [5+24-1:0]              padding;
+    bls12_381_pkg::point_type_t data_type;
+    logic [31:0]                index;
+    header_t                    hdr;
+  } bls12_381_interrupt_rpl_t;
+
   // We have a function for building each type of reply from the FPGA
   function fpga_reset_rpl_t get_fpga_reset_rpl();
     get_fpga_reset_rpl.hdr = '{cmd:RESET_FPGA_RPL, len:$bits(fpga_reset_rpl_t)/8};
@@ -146,5 +156,11 @@ package zcash_fpga_pkg;
     verify_secp256k1_sig_rpl.cycle_cnt = cycle_cnt;
   endfunction
 
+  function bls12_381_interrupt_rpl_t bls12_381_interrupt_rpl(input logic [15:0] index, point_type_t data_type);
+    bls12_381_interrupt_rpl = 0;
+    bls12_381_interrupt_rpl.hdr = '{cmd:BLS12_381_INTERRUPT_RPL, len:($bits(bls12_381_interrupt_rpl_t)/8)};
+    bls12_381_interrupt_rpl.data_type = data_type;
+    bls12_381_interrupt_rpl.index = index;
+  endfunction
 
 endpackage

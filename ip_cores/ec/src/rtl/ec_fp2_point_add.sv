@@ -26,6 +26,7 @@ module ec_fp2_point_add
   parameter type FE2_TYPE
 )(
   input i_clk, i_rst,
+  input i_fp_mode, // Operate in Fp mode
   // Input points
   input FP2_TYPE i_p1,
   input FP2_TYPE i_p2,
@@ -86,7 +87,7 @@ ec_fe2_arithmetic
 ec_fe2_arithmetic (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_fp_mode ( 1'd0 ),
+  .i_fp_mode ( i_fp_mode ),
   .o_mul_fe_if ( o_mul_if ),
   .i_mul_fe_if ( i_mul_if ),
   .o_add_fe_if ( o_add_if ),
