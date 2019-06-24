@@ -128,12 +128,12 @@ always_ff @ (posedge i_clk) begin
 
     fp2_pt_mult_out_if.rdy <= 1;
     binv_o_if.rdy <= 1;
-    
+
     if (idx_in_if.val && idx_in_if.rdy) idx_in_if.val <= 0;
     if (interrupt_in_if.val && interrupt_in_if.rdy) interrupt_in_if.val <= 0;
-    
+
     last_inst_cnt <= last_inst_cnt + 1;
-    
+
     case(inst_state)
       NOOP_WAIT: begin
         last_inst_cnt <= last_inst_cnt;
@@ -403,7 +403,7 @@ task task_scalar_inv();
         binv_i_if.val <= 1;
         binv_i_if.dat <= curr_data.dat;
         pt_l <= curr_data.pt;
-        cnt <= cnt++;
+        cnt <= cnt + 1;
       end
     end
     2: begin
@@ -443,7 +443,7 @@ task task_point_mult();
     2: begin
       if (data_ram_read[READ_CYCLE]) begin
         data_ram_sys_if.a <= data_ram_sys_if.a + 1;
-        if (curr_data.pt == FP_AF || curr_data.pt == FP_JB) 
+        if (curr_data.pt == FP_AF || curr_data.pt == FP_JB)
           fp_pt_mult_mode <= 1;
         else
           fp_pt_mult_mode <= 0;
@@ -601,7 +601,7 @@ task task_send_interrupt();
           inst_ram_read[0] <= 1;
         end
       end
-    end 
+    end
     3: begin
       if (inst_ram_read[READ_CYCLE]) begin
         inst_state <= curr_inst.code;
@@ -631,7 +631,7 @@ axi_stream_fifo #(
   .DAT_BITS ( 16 + 3 )
 )
 interrupt_index_fifo (
-  .i_clk ( i_clk ), 
+  .i_clk ( i_clk ),
   .i_rst ( i_rst ),
   .i_axi ( idx_in_if ),
   .o_axi ( idx_out_if ),
@@ -647,12 +647,12 @@ end
 
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
-    interrupt_rpl <= 0; 
+    interrupt_rpl <= 0;
     interrupt_state <= WAIT_FIFO;
     interrupt_hdr_byt <= 0;
     idx_out_if.rdy <= 0;
     tx_if.reset_source();
-  end else begin    
+  end else begin
     case (interrupt_state)
       WAIT_FIFO: begin
         idx_out_if.rdy <= 1;

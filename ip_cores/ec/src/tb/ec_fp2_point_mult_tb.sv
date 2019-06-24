@@ -100,6 +100,7 @@ ec_fp2_point_add #(
 ec_fp2_point_add (
   .i_clk ( clk ),
   .i_rst ( rst ),
+  .i_fp_mode(0),
     // Input points
   .i_p1  ( add_i_if.dat[0 +: $bits(FP_TYPE)]              ),
   .i_p2  ( add_i_if.dat[$bits(FP_TYPE) +: $bits(FP_TYPE)] ),
@@ -125,6 +126,7 @@ ec_fp2_point_dbl #(
 ec_fp2_point_dbl (
   .i_clk ( clk ),
   .i_rst ( rst ),
+  .i_fp_mode(0),
   .i_p  ( dbl_i_if.dat),
   .i_val ( dbl_i_if.val ),
   .o_rdy ( dbl_i_if.rdy ),

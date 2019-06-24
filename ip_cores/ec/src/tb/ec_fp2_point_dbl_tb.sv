@@ -73,6 +73,7 @@ ec_fp2_point_dbl #(
 ec_fp2_point_dbl (
   .i_clk ( clk ),
   .i_rst ( rst ),
+  .i_fp_mode(0),
     // Input points
   .i_p   ( in_p1      ),
   .i_val ( in_if.val  ),

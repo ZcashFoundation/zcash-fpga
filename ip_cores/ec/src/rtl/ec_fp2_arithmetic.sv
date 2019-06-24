@@ -174,7 +174,7 @@ end
 enum {MUL0, MUL1, MUL2, MUL3} mul_state;
 logic [1:0] add_sub_val;
 always_comb begin
-  mul_if_fe2_i.rdy = (fp_mode_mul || mul_state == MUL3) && (~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy));
+  i_mul_fe2_if.rdy = (fp_mode_mul || mul_state == MUL3) && (~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy));
 
   i_mul_fe_if.rdy = fp_mode_mul ? ~o_mul_fe2_if.val ||  (o_mul_fe2_if.val && o_mul_fe2_if.rdy) :
                   (i_mul_fe_if.ctl[CTL_BIT +: 2] == 0 || i_mul_fe_if.ctl[CTL_BIT +: 2] == 1) ?
@@ -215,32 +215,32 @@ always_ff @ (posedge i_clk) begin
     if (~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy)) begin
       case (mul_state)
         MUL0: begin
-          o_mul_fe_if.copy_if({mul_if_fe2_i.dat[0 +: $bits(FE_TYPE)],
-                            mul_if_fe2_i.dat[$bits(FE2_TYPE)  +: $bits(FE_TYPE)]},
-                            mul_if_fe2_i.val, 1, 1, mul_if_fe2_i.err, mul_if_fe2_i.mod, mul_if_fe2_i.ctl);
+          o_mul_fe_if.copy_if({i_mul_fe2_if.dat[0 +: $bits(FE_TYPE)],
+                            i_mul_fe2_if.dat[$bits(FE2_TYPE)  +: $bits(FE_TYPE)]},
+                            i_mul_fe2_if.val, 1, 1, i_mul_fe2_if.err, i_mul_fe2_if.mod, i_mul_fe2_if.ctl);
           o_mul_fe_if.ctl[CTL_BIT +: 2] <= 0;
-          if (mul_if_fe2_i.val && ~fp_mode_mul) mul_state <= MUL1;
+          if (i_mul_fe2_if.val && ~fp_mode_mul) mul_state <= MUL1;
         end
         MUL1: begin
-          o_mul_fe_if.copy_if({mul_if_fe2_i.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)],
-                            mul_if_fe2_i.dat[$bits(FE2_TYPE) + $bits(FE_TYPE) +: $bits(FE_TYPE)]},
-                            mul_if_fe2_i.val, 1, 1, mul_if_fe2_i.err, mul_if_fe2_i.mod, mul_if_fe2_i.ctl);
+          o_mul_fe_if.copy_if({i_mul_fe2_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)],
+                            i_mul_fe2_if.dat[$bits(FE2_TYPE) + $bits(FE_TYPE) +: $bits(FE_TYPE)]},
+                            i_mul_fe2_if.val, 1, 1, i_mul_fe2_if.err, i_mul_fe2_if.mod, i_mul_fe2_if.ctl);
           o_mul_fe_if.ctl[CTL_BIT +: 2] <= 1;
-          if (mul_if_fe2_i.val) mul_state <= MUL2;
+          if (i_mul_fe2_if.val) mul_state <= MUL2;
         end
         MUL2: begin
-          o_mul_fe_if.copy_if({mul_if_fe2_i.dat[0 +: $bits(FE_TYPE)],
-                            mul_if_fe2_i.dat[$bits(FE2_TYPE) + $bits(FE_TYPE) +: $bits(FE_TYPE)]},
-                            mul_if_fe2_i.val, 1, 1, mul_if_fe2_i.err, mul_if_fe2_i.mod, mul_if_fe2_i.ctl);
+          o_mul_fe_if.copy_if({i_mul_fe2_if.dat[0 +: $bits(FE_TYPE)],
+                            i_mul_fe2_if.dat[$bits(FE2_TYPE) + $bits(FE_TYPE) +: $bits(FE_TYPE)]},
+                            i_mul_fe2_if.val, 1, 1, i_mul_fe2_if.err, i_mul_fe2_if.mod, i_mul_fe2_if.ctl);
           o_mul_fe_if.ctl[CTL_BIT +: 2] <= 2;
-          if (mul_if_fe2_i.val) mul_state <= MUL3;
+          if (i_mul_fe2_if.val) mul_state <= MUL3;
         end
         MUL3: begin
-          o_mul_fe_if.copy_if({mul_if_fe2_i.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)],
-                            mul_if_fe2_i.dat[$bits(FE2_TYPE)  +: $bits(FE_TYPE)]},
-                            mul_if_fe2_i.val, 1, 1, mul_if_fe2_i.err, mul_if_fe2_i.mod, mul_if_fe2_i.ctl);
+          o_mul_fe_if.copy_if({i_mul_fe2_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)],
+                            i_mul_fe2_if.dat[$bits(FE2_TYPE)  +: $bits(FE_TYPE)]},
+                            i_mul_fe2_if.val, 1, 1, i_mul_fe2_if.err, i_mul_fe2_if.mod, i_mul_fe2_if.ctl);
           o_mul_fe_if.ctl[CTL_BIT +: 2] <= 3;
-          if (mul_if_fe2_i.val) mul_state <= MUL0;
+          if (i_mul_fe2_if.val) mul_state <= MUL0;
         end
       endcase
     end

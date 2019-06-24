@@ -74,6 +74,7 @@ ec_fp2_point_add #(
 ec_fp2_point_add (
   .i_clk ( clk ),
   .i_rst ( rst ),
+  .i_fp_mode ( 0 ),
     // Input points
   .i_p1  ( in_p1      ),
   .i_p2  ( in_p2      ),
