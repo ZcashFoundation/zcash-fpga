@@ -42,6 +42,8 @@ if_axi_stream #(.DAT_BYTS(DAT_BYTS)) tx_if_test(clk_if);
 if_axi_stream #(.DAT_BYTS(DAT_BYTS)) tx_346_if(clk_if);
 if_axi_stream #(.DAT_BYTS(DAT_BYTS)) rx_if(clk_if);
 
+if_axi_lite #(.A_BITS(32)) axi_lite_if(clk_if);
+
 logic start_346 = 0;
 logic done_346 = 0;
 
@@ -125,9 +127,9 @@ file_to_axi_block346 (
 
 
 zcash_fpga_top #(
-  .CORE_DAT_BYTS ( DAT_BYTS    )
+  .DAT_BYTS ( DAT_BYTS    )
   )
-DUT(
+zcash_fpga_top (
   // Clocks and resets
   .i_clk_100 ( clk_100 ),
   .i_rst_100 ( rst_100 ),
@@ -138,7 +140,8 @@ DUT(
   .i_clk_if ( clk_if ),
   .i_rst_if ( rst_if ),
   .rx_if ( tx_if ),
-  .tx_if ( rx_if )
+  .tx_if ( rx_if ),
+  .axi_lite_if ( axi_lite_if )
 );
 
 
