@@ -17,8 +17,6 @@ ${ZCASH_DIR}/zcash_fpga/src/rtl/equihash/equihash_verif_top.sv
 
 ${ZCASH_DIR}/zcash_fpga/src/rtl/secp256k1/secp256k1_mod.sv
 ${ZCASH_DIR}/zcash_fpga/src/rtl/secp256k1/secp256k1_mult_mod.sv
-${ZCASH_DIR}/zcash_fpga/src/rtl/secp256k1/secp256k1_point_add.sv
-${ZCASH_DIR}/zcash_fpga/src/rtl/secp256k1/secp256k1_point_dbl.sv
 ${ZCASH_DIR}/zcash_fpga/src/rtl/secp256k1/secp256k1_point_mult_endo_decom.sv
 ${ZCASH_DIR}/zcash_fpga/src/rtl/secp256k1/secp256k1_point_mult_endo.sv
 ${ZCASH_DIR}/zcash_fpga/src/rtl/secp256k1/secp256k1_point_mult.sv
@@ -56,8 +54,8 @@ ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp_mult_mod.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_arithmetic.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_point_add.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_point_dbl.sv
-${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp_point_add.sv
-${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp_point_dbl.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_point_add.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_point_dbl.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_point_mult.sv
 
 ${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_axi_bridge.sv
