@@ -1,5 +1,6 @@
 ${ZCASH_DIR}/zcash_fpga/src/rtl/secp256k1/secp256k1_pkg.sv
 ${ZCASH_DIR}/zcash_fpga/src/rtl/equihash/equihash_pkg.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_pkg.sv
 ${ZCASH_DIR}/zcash_fpga/src/rtl/top/zcash_fpga_pkg.sv
 ${ZCASH_DIR}/ip_cores/common/src/rtl/common_pkg.sv
 
@@ -50,5 +51,16 @@ ${ZCASH_DIR}/ip_cores/util/src/rtl/dup_check.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/karatsuba_ofman_mult.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/packet_arb.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/resource_share.sv
+
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp_mult_mod.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_arithmetic.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_point_add.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_point_dbl.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp_point_add.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp_point_dbl.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_point_mult.sv
+
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_axi_bridge.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_top.sv
 
 ${ZCASH_DIR}/zcash_fpga/src/rtl/top/zcash_fpga_top.sv
