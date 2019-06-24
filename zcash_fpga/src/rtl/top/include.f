@@ -49,6 +49,10 @@ ${ZCASH_DIR}/ip_cores/util/src/rtl/dup_check.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/karatsuba_ofman_mult.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/packet_arb.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/resource_share.sv
+${ZCASH_DIR}/ip_cores/util/src/rtl/barret_mod_pipe.sv
+${ZCASH_DIR}/ip_cores/util/src/rtl/adder_pipe.sv
+${ZCASH_DIR}/ip_cores/util/src/rtl/subtracter_pipe.sv
+
 
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp_mult_mod.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_arithmetic.sv
