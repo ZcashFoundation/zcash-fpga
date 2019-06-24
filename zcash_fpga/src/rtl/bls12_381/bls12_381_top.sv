@@ -656,7 +656,6 @@ always_ff @ (posedge i_clk) begin
     case (interrupt_state)
       WAIT_FIFO: begin
         idx_out_if.rdy <= 1;
-        interrupt_out_if.rdy <= 0;
         if (idx_out_if.val) begin
           idx_out_if.rdy <= 0;
           interrupt_state <= SEND_HDR;
@@ -676,7 +675,6 @@ always_ff @ (posedge i_clk) begin
         end
       end
       SEND_DATA: begin
-        interrupt_out_if.rdy <= 1;
         if (~tx_if.val || (tx_if.val && tx_if.rdy)) begin
           tx_if.sop <= 0;
           tx_if.val <= interrupt_out_if.val;
