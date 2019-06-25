@@ -41,6 +41,7 @@ module ec_point_dbl
   if_axi_stream.sink   i_sub_if
 );
 
+localparam CHK_INPUT = 0;
 /*
  * These are the equations that need to be computed, they are issued as variables
  * become valid. We have a bitmask to track what equation results are valid which
@@ -116,10 +117,12 @@ always_ff @ (posedge i_clk) begin
         if (i_val && o_rdy) begin
           state <= START;
           o_rdy <= 0;
-          if (i_p.z == 0) begin
-            o_p <= i_p;
-            o_val <= 1;
-            state <= FINISHED;
+          if (CHK_INPUT == 1) begin
+            if (i_p.z == 0) begin
+              o_p <= i_p;
+              o_val <= 1;
+              state <= FINISHED;
+            end
           end
         end
       end

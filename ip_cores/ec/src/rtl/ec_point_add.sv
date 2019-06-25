@@ -44,7 +44,7 @@ module ec_point_add
   if_axi_stream.sink   i_sub_if
 );
 
-
+localparam CHK_INPUT = 1;
 /*
    These are the equations that need to be computed, they are issued as variables
    become valid. We have a bitmask to track what equation results are valid which
@@ -96,6 +96,7 @@ logic [23:0] eq_val, eq_wait;
 FE_TYPE A, B, C, D;
 FP_TYPE i_p1_l, i_p2_l;
 
+
 enum {IDLE, START, FINISHED} state;
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
@@ -142,23 +143,25 @@ always_ff @ (posedge i_clk) begin
         if (i_val && o_rdy) begin
           state <= START;
           o_rdy <= 0;
-          // If one point is at infinity
-          if (i_p1.z == 0 || i_p2.z == 0) begin
-            state <= FINISHED;
-            o_val <= 1;
-            o_p <= (i_p1.z == 0 ? i_p2 : i_p1);
-          end else
-          // If the points are opposite each other
-          if ((i_p1.x == i_p2.x) && (i_p1.y != i_p2.y)) begin
-            state <= FINISHED;
-            o_val <= 1;
-            o_p <= 0; // Return infinity
-          end else
-          // If the points are the same this module cannot be used
-          if ((i_p1.x == i_p2.x) && (i_p1.y == i_p2.y)) begin
-            state <= FINISHED;
-            o_err <= 1;
-            o_val <= 1;
+          if (CHK_INPUT == 1) begin
+            // If one point is at infinity
+            if (i_p1.z == 0 || i_p2.z == 0) begin
+              state <= FINISHED;
+              o_val <= 1;
+              o_p <= (i_p1.z == 0 ? i_p2 : i_p1);
+            end else
+            // If the points are opposite each other
+            if ((i_p1.x == i_p2.x) && (i_p1.y != i_p2.y)) begin
+              state <= FINISHED;
+              o_val <= 1;
+              o_p <= 0; // Return infinity
+            end else
+            // If the points are the same this module cannot be used
+            if ((i_p1.x == i_p2.x) && (i_p1.y == i_p2.y)) begin
+              state <= FINISHED;
+              o_err <= 1;
+              o_val <= 1;
+            end
           end
         end
       end
