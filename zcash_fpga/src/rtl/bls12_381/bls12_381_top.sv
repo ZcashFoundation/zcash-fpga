@@ -393,12 +393,12 @@ task get_next_inst();
   if(inst_ram_read == 0) begin
     inst_ram_sys_if.a <=  new_inst_pt_val_l ? new_inst_pt : inst_state == NOOP_WAIT ? inst_ram_sys_if.a : inst_ram_sys_if.a + 1;
     inst_ram_read[0] <= 1;
+    if (new_inst_pt_val_l) new_inst_pt_val_l <= 0;
   end
   if (inst_ram_read[READ_CYCLE]) begin
     inst_state <= curr_inst.code;
     cnt <= 0;
   end
-  new_inst_pt_val_l <= 0;
 endtask
 
 task task_copy_reg();
@@ -575,6 +575,7 @@ task task_send_interrupt();
   case(cnt) inside
     // Load the data
     0: begin
+      interrupt_in_if.eop <= 0;
       data_ram_sys_if.a <= curr_inst.a;
       if (interrupt_state != WAIT_FIFO) begin
         // Wait here
@@ -601,10 +602,10 @@ task task_send_interrupt();
       if (data_ram_read[READ_CYCLE]) begin
         pt_size <= pt_size - 1;
         interrupt_in_if.dat <= curr_data.dat;
-        if (pt_size == 1) interrupt_in_if.eop <= 1;
         interrupt_in_if.val <= 1;
         data_ram_sys_if.a <= data_ram_sys_if.a + 1;
         if (pt_size == 1) begin
+          interrupt_in_if.eop <= 1;
           cnt <= cnt + 1;
         end
       end
