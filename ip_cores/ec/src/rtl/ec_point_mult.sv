@@ -38,6 +38,7 @@ module ec_point_mult
   if_axi_stream.sink   i_add
 );
 
+localparam CHK_POINT = 0;
 
 logic [DAT_BITS-1:0] k_l;
 logic p_dbl_done, p_add_done, special_dbl, lookahead_dbl;
@@ -120,11 +121,13 @@ always_ff @ (posedge i_clk) begin
           k_l <= k_l >> 1;
           if (k_l[0]) begin
             o_add.val <= 1;
-            // Need to check for special case where the point coords are the same
-            if (o_add.dat[0 +: $bits(FP_TYPE)] == o_dbl.dat) begin
-              special_dbl <= 1;
-              o_add.val <= 0;
-              p_add_done <= 1;
+            // Need to check for special case where the point coords are the same (if enabled)
+            if (CHK_POINT == 1) begin
+              if (o_add.dat[0 +: $bits(FP_TYPE)] == o_dbl.dat) begin
+                special_dbl <= 1;
+                o_add.val <= 0;
+                p_add_done <= 1;
+              end
             end
           end else begin
             p_add_done <= 1;
