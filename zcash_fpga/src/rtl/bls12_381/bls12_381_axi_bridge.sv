@@ -22,10 +22,12 @@ module bls12_381_axi_bridge (
   if_axi_lite.sink axi_lite_if,
   if_ram.source    data_ram_if,
   if_ram.source    inst_ram_if,
-  
+
   // Configuration signals
   input [31:0] i_curr_inst_pt,
-  input [31:0] i_last_inst_cnt
+  input [31:0] i_last_inst_cnt,
+  output logic [31:0] o_new_inst_pt,
+  output logic        o_new_inst_pt_val
 );
 
 import bls12_381_pkg::*;
@@ -41,6 +43,7 @@ logic [31:0] last_inst_cnt;
 always_ff @ (posedge i_clk) begin
   curr_inst_pt <= i_curr_inst_pt;
   last_inst_cnt <= i_last_inst_cnt;
+
 end
 
 always_ff @ (posedge i_clk) begin
@@ -52,7 +55,12 @@ always_ff @ (posedge i_clk) begin
     inst_ram_read <= 0;
     wr_active <= 0;
     wr_addr <= 0;
+    o_new_inst_pt_val <= 0;
+    o_new_inst_pt <= 0;
   end else begin
+
+    o_new_inst_pt_val <= 0;
+
     data_ram_read <= data_ram_read << 1;
     inst_ram_read <= inst_ram_read << 1;
 
@@ -66,7 +74,7 @@ always_ff @ (posedge i_clk) begin
 
     axi_lite_if.arready <= data_ram_read == 0 && inst_ram_read == 0 &&
                            axi_lite_if.arvalid == 0 && wr_active == 0;
-                           
+
     axi_lite_if.awready <= data_ram_read == 0 && inst_ram_read == 0 &&
                            axi_lite_if.awvalid == 0 && wr_active == 0;
 
@@ -124,8 +132,15 @@ always_ff @ (posedge i_clk) begin
     if (axi_lite_if.wready && axi_lite_if.wvalid) begin
       axi_lite_if.bvalid <= 1;
       if (wr_addr < INST_AXIL_START) begin
-        // Config area - all RO
+        // Config area
+        case(wr_addr)
+          32'h10: begin // This updates the current instruction pointer
+            o_new_inst_pt_val <= 1;
+            o_new_inst_pt <= axi_lite_if.wdata;
+          end
+        endcase
       end else
+      // TODO change this to be atomic writes
       if (wr_addr < DATA_AXIL_START) begin
         // Instruction memory
         inst_ram_if.we <= 0;

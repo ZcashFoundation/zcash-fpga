@@ -79,6 +79,9 @@ if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(16))   sub_out_
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_i_if(i_clk);
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_o_if(i_clk);
 
+logic [31:0] new_inst_pt;
+logic        new_inst_pt_val, new_inst_pt_val_l;
+
 logic [7:0] cnt;
 integer unsigned pt_size;
 
@@ -116,7 +119,13 @@ always_ff @ (posedge i_clk) begin
     idx_in_if.reset_source();
     interrupt_in_if.reset_source();
     last_inst_cnt <= 0;
+
+    new_inst_pt_val_l <= 0;
+
   end else begin
+
+    new_inst_pt_val_l <= new_inst_pt_val || new_inst_pt_val_l; // Latch this pulse if we want to update instruction pointer
+
     inst_ram_sys_if.re <= 1;
     inst_ram_sys_if.en <= 1;
     inst_ram_read <= inst_ram_read << 1;
@@ -141,8 +150,7 @@ always_ff @ (posedge i_clk) begin
       NOOP_WAIT: begin
         last_inst_cnt <= last_inst_cnt;
         // Wait in this state
-        inst_state <= curr_inst.code;
-        cnt <= 0;
+        get_next_inst();
       end
       COPY_REG: begin
         inst_state <= curr_inst.code;
@@ -170,17 +178,20 @@ always_ff @ (posedge i_clk) begin
         task_fp2_fpoint_mult();
       end
     endcase
+
   end
 end
 
 bls12_381_axi_bridge bls12_381_axi_bridge (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .axi_lite_if ( axi_lite_if     ),
-  .data_ram_if ( data_ram_usr_if ),
-  .inst_ram_if ( inst_ram_usr_if ),
-  .i_curr_inst_pt ( curr_inst_pt ),
-  .i_last_inst_cnt ( last_inst_cnt )
+  .axi_lite_if        ( axi_lite_if     ),
+  .data_ram_if        ( data_ram_usr_if ),
+  .inst_ram_if        ( inst_ram_usr_if ),
+  .i_curr_inst_pt     ( curr_inst_pt    ),
+  .i_last_inst_cnt    ( last_inst_cnt   ),
+  .o_new_inst_pt      ( new_inst_pt     ),
+  .o_new_inst_pt_val  ( new_inst_pt_val )
 );
 
 always_comb begin
@@ -277,8 +288,8 @@ resource_share # (
   .DAT_BITS     ( 2*$bits(bls12_381_pkg::fe_t) ),
   .CTL_BITS     ( 16 ),
   .OVR_WRT_BIT  ( 14 ),
-  .PIPELINE_IN  ( 0  ),
-  .PIPELINE_OUT ( 0  )
+  .PIPELINE_IN  ( 1  ),
+  .PIPELINE_OUT ( 1  )
 )
 resource_share_mul (
   .i_clk ( i_clk ),
@@ -294,8 +305,8 @@ resource_share # (
   .DAT_BITS     ( 2*$bits(bls12_381_pkg::fe_t) ),
   .CTL_BITS     ( 16 ),
   .OVR_WRT_BIT  ( 14 ),
-  .PIPELINE_IN  ( 0  ),
-  .PIPELINE_OUT ( 0  )
+  .PIPELINE_IN  ( 1  ),
+  .PIPELINE_OUT ( 1  )
 )
 resource_share_sub (
   .i_clk ( i_clk ),
@@ -311,8 +322,8 @@ resource_share # (
   .DAT_BITS     ( 2*$bits(bls12_381_pkg::fe_t) ),
   .CTL_BITS     ( 16 ),
   .OVR_WRT_BIT  ( 14 ),
-  .PIPELINE_IN  ( 0  ),
-  .PIPELINE_OUT ( 0  )
+  .PIPELINE_IN  ( 1  ),
+  .PIPELINE_OUT ( 1  )
 )
 resource_share_add (
   .i_clk ( i_clk ),
@@ -377,9 +388,21 @@ bin_inv (
 // While cnt != 0, take output and assign it to current memory pointer, and then increase pointer and shift the output
 
 // Tasks for each of the different instructions
+
+task get_next_inst();
+  if(inst_ram_read == 0) begin
+    inst_ram_sys_if.a <=  new_inst_pt_val_l ? new_inst_pt : inst_state == NOOP_WAIT ? inst_ram_sys_if.a : inst_ram_sys_if.a + 1;
+    inst_ram_read[0] <= 1;
+  end
+  if (inst_ram_read[READ_CYCLE]) begin
+    inst_state <= curr_inst.code;
+    cnt <= 0;
+  end
+  new_inst_pt_val_l <= 0;
+endtask
+
 task task_copy_reg();
-  inst_ram_sys_if.a <= inst_ram_sys_if.a + 1;
-  inst_ram_read[0] <= 1;
+  get_next_inst();
 
   data_ram_sys_if.a <= curr_inst.a;
   data_ram_read[0] <= 1;
@@ -388,9 +411,6 @@ task task_copy_reg();
     data_ram_sys_if.a <=  curr_inst.b;
     new_data <= curr_data;
     data_ram_sys_if.we <= -1;
-  end
-  if (inst_ram_read[READ_CYCLE]) begin
-    inst_state <= curr_inst.code;
   end
 endtask
 
@@ -415,12 +435,11 @@ task task_scalar_inv();
         new_data.pt <= curr_data.pt;
         new_data.dat <= binv_o_if.dat;
         data_ram_sys_if.we <= -1;
-        inst_ram_sys_if.a <= inst_ram_sys_if.a + 1;
-        inst_ram_read[0] <= 1;
+        cnt <= cnt + 1;
       end
-      if (inst_ram_read[READ_CYCLE]) begin
-        inst_state <= curr_inst.code;
-      end
+    end
+    3: begin
+      get_next_inst();
     end
   endcase
 endtask
@@ -473,10 +492,7 @@ task task_point_mult();
       end
     end
     5: begin
-      if (inst_ram_read[READ_CYCLE]) begin
-        inst_state <= curr_inst.code;
-        cnt <= 0;
-      end
+      get_next_inst();
     end
   endcase
 endtask
@@ -509,16 +525,11 @@ task task_fp_fpoint_mult();
          cnt <= cnt + 1;
          if (cnt == 4) begin
            fp2_pt_mult_out_if.rdy <= 1;
-           inst_ram_sys_if.a <= inst_ram_sys_if.a + 1;
-           inst_ram_read[0] <= 1;
          end
       end
     end
     5: begin
-      if (inst_ram_read[READ_CYCLE]) begin
-        inst_state <= curr_inst.code;
-        cnt <= 0;
-      end
+      get_next_inst();
     end
   endcase
 endtask
@@ -547,20 +558,15 @@ task task_fp2_fpoint_mult();
          new_data.pt <= FP2_JB;
          new_data.dat <= fp2_pt_mult_out_if.dat >> ((cnt-2)*DAT_BITS);
          data_ram_sys_if.we <= -1;
-         data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+         if (cnt > 2) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
          cnt <= cnt + 1;
          if (cnt == 7) begin
            fp2_pt_mult_out_if.rdy <= 1;
-           inst_ram_sys_if.a <= inst_ram_sys_if.a + 1;
-           inst_ram_read[0] <= 1;
          end
       end
     end
     8: begin
-      if (inst_ram_read[READ_CYCLE]) begin
-        inst_state <= curr_inst.code;
-        cnt <= 0;
-      end
+      get_next_inst();
     end
   endcase
 endtask
@@ -600,16 +606,11 @@ task task_send_interrupt();
         data_ram_sys_if.a <= data_ram_sys_if.a + 1;
         if (pt_size == 1) begin
           cnt <= cnt + 1;
-          inst_ram_sys_if.a <= inst_ram_sys_if.a + 1;
-          inst_ram_read[0] <= 1;
         end
       end
     end
     3: begin
-      if (inst_ram_read[READ_CYCLE]) begin
-        inst_state <= curr_inst.code;
-        cnt <= 0;
-      end
+      get_next_inst();
     end
   endcase
 endtask

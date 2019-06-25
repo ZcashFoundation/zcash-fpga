@@ -13,6 +13,10 @@
 // implied. See the License for the specific language governing permissions and
 // limitations under the License.
 
+// This runs several tests for the Zcash FPGA:
+// Status message (AXI stream interface)
+// AXI-lite interface
+// BLS12_381 coprocessor
 
 module test_zcash();
 
@@ -23,6 +27,9 @@ import tb_type_defines_pkg::*;
 parameter [5:0] AXI_ID = 6'h0;
 
 import zcash_fpga_pkg::*;
+import secp256k1_pkg::*;
+import equihash_pkg::*;
+import common_pkg::*;
 
 zcash_fpga_pkg::header_t  header;
 zcash_fpga_pkg::fpga_status_rpl_t fpga_status_rpl;
@@ -30,56 +37,30 @@ zcash_fpga_pkg::fpga_status_rpl_t fpga_status_rpl;
 logic [31:0] rdata;
 logic [1024*8-1:0] stream_data;
 integer stream_len;
-logic [15:0] vdip_value;
-logic [15:0] vled_value;
 
 
-   initial begin
+initial begin
 
-      tb.power_up();
-      
-      
-      read_ocl_reg(.addr(`AXI_FIFO_OFFSET), .exp_data(32'h01D00000), .rdata(rdata)); //ISR
-      write_ocl_reg(.addr(`AXI_FIFO_OFFSET), .data(32'hFFFFFFFF)); // Reset ISR
-      read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'hC), .exp_data(32'h000001FC), .rdata(rdata)); //TDFV
-      read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h1C), .exp_data(32'h00000000), .rdata(rdata)); //RDFO
+  tb.power_up();
 
-      write_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h4), .data(32'h0C000000)); //IER
+  // Setup the AXI streaming interface
+  read_ocl_reg(.addr(`AXI_FIFO_OFFSET), .exp_data(32'h01D00000), .rdata(rdata)); //ISR
+  write_ocl_reg(.addr(`AXI_FIFO_OFFSET), .data(32'hFFFFFFFF)); // Reset ISR
+  read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'hC), .exp_data(32'h000001FC), .rdata(rdata)); //TDFV
+  read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h1C), .exp_data(32'h00000000), .rdata(rdata)); //RDFO
+  write_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h4), .data(32'h0C000000)); //IER
 
-      // Build a status message and send it
-header.cmd = zcash_fpga_pkg::FPGA_STATUS;
-header.len = $bits(header_t)/8;
+  // Run our test cases
+  test_status_message();
+  test_block_secp256k1();
 
-write_stream(.data(header), .len(header.len));
-stream_len = 0;
-  fork
-    begin
-      while(stream_len == 0) read_stream(.data(stream_data), .len(stream_len));
-    end
-    begin
-      while(10000) @(posedge tb.card.fpga.clk_main_a0);
-      $fatal(1, "ERROR: No reply received from status_request");
-    end
-  join_any
-  disable fork;
+  $display("INFO: All tests passed");
+  tb.kernel_reset();
 
-  fpga_status_rpl = stream_data;
+  tb.power_down();
 
-  $display("INFO: Received status reply");
-  $display("%p", fpga_status_rpl);
-$display("Version: 0x%x", fpga_status_rpl.version);
-
-  if (fpga_status_rpl.version != zcash_fpga_pkg::FPGA_VERSION)
-    $fatal(1, "FPGA Version was wrong");	  
-
-
- $display("INFO: Test passed");	
-      tb.kernel_reset();
-
-      tb.power_down();
-
-      $finish;
-   end
+  $finish;
+end
 
 task read_ocl_reg(input logic [31:0] addr, output logic [31:0] rdata, input logic [31:0] exp_data = 32'hXXXXXXXX);
 
@@ -121,7 +102,7 @@ task write_stream(input logic [1024*8-1:0] data, input integer len);
 endtask
 
 task read_stream(output logic [1024*8-1:0] data, integer len);
-	
+
   logic [31:0] rdata;
   logic [511:0] pcis_data;
   len = 0;
@@ -138,9 +119,88 @@ task read_stream(output logic [1024*8-1:0] data, integer len);
     tb.peek_pcis(.addr(32'h1000), .data(pcis_data));
     data[len*8 +: 512] = pcis_data;
     len = len + rdata > (512/8) ? 512/8 : rdata/8;
-    rdata = rdata < 512/8 ? 0 : rdata - 512/8;	    
+    rdata = rdata < 512/8 ? 0 : rdata - 512/8;
   end
 
 endtask
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+// Various test cases below
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Build a status message and send it
+task test_status_message();
+
+  header.cmd = zcash_fpga_pkg::FPGA_STATUS;
+  header.len = $bits(header_t)/8;
+
+  write_stream(.data(header), .len(header.len));
+  stream_len = 0;
+  fork
+    begin
+      while(stream_len == 0) read_stream(.data(stream_data), .len(stream_len));
+    end
+    begin
+      while(10000) @(posedge tb.card.fpga.clk_main_a0);
+      $fatal(1, "ERROR: No reply received from status_request");
+    end
+  join_any
+  disable fork;
+
+  fpga_status_rpl = stream_data;
+
+  $display("INFO: Received status reply");
+  $display("%p", fpga_status_rpl);
+  $display("INFO: FPGA Version: 0x%x", fpga_status_rpl.version);
+
+  if (fpga_status_rpl.version != zcash_fpga_pkg::FPGA_VERSION)
+    $fatal(1, "ERROR: FPGA Version was wrong");
+
+  $display("INFO: test_status_message() PASSED");
+
+endtask
+
+// Test secp256k1 signature verification
+task test_block_secp256k1();
+begin
+  logic fail = 0;
+  verify_secp256k1_sig_t verify_secp256k1_sig;
+  verify_secp256k1_sig_rpl_t verify_secp256k1_sig_rpl;
+
+  $display("Running test_block_secp256k1...");
+  verify_secp256k1_sig.hdr.cmd = VERIFY_SECP256K1_SIG;
+  verify_secp256k1_sig.hdr.len = $bits(verify_secp256k1_sig_t)/8;
+  verify_secp256k1_sig.index = 1;
+  verify_secp256k1_sig.hash = 256'h4c7dbc46486ad9569442d69b558db99a2612c4f003e6631b593942f531e67fd4;
+  verify_secp256k1_sig.r = 256'h1375af664ef2b74079687956fd9042e4e547d57c4438f1fc439cbfcb4c9ba8b;
+  verify_secp256k1_sig.s = 256'hde0f72e442f7b5e8e7d53274bf8f97f0674f4f63af582554dbecbb4aa9d5cbcb;
+  verify_secp256k1_sig.Qx = 256'h808a2c66c5b90fa1477d7820fc57a8b7574cdcb8bd829bdfcf98aa9c41fde3b4;
+  verify_secp256k1_sig.Qy = 256'heed249ffde6e46d784cb53b4df8c9662313c1ce8012da56cb061f12e55a32249;
+
+
+  write_stream(verify_secp256k1_sig, $bits(verify_secp256k1_sig)/8);
+  stream_len = 0;
+  fork
+    begin
+      while(stream_len == 0) read_stream(.data(stream_data), .len(stream_len));
+    end
+    begin
+      while(100000) @(posedge tb.card.fpga.clk_main_a0);
+      $fatal(1, "ERROR: No reply received from verify_secp256k1");
+    end
+  join_any
+  disable fork;
+
+  verify_secp256k1_sig_rpl = stream_data;
+
+  fail |= verify_secp256k1_sig_rpl.hdr.cmd != VERIFY_SECP256K1_SIG_RPL;
+  fail |= (verify_secp256k1_sig_rpl.bm != 0);
+  fail |= (verify_secp256k1_sig_rpl.index != verify_secp256k1_sig.index);
+  assert (~fail) else $fatal(1, "%m ERROR: test_block_secp256k1 failed :\n%p", verify_secp256k1_sig_rpl);
+
+
+  $display("test_block_secp256k1 PASSED");
+end
+endtask;
 
 endmodule

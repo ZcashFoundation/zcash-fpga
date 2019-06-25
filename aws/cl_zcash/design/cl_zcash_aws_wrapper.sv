@@ -58,51 +58,51 @@ always_ff @ (posedge i_clk) begin
 end
 
 // Map the AXI-lite signals
-logic        wr_active;
+logic        wr_active, rd_active;
 logic [31:0] wr_addr, araddr;
 
 logic axi_fifo_dec;
 logic zcash_dec;
 
 always_comb begin
-  zcash_dec = (wr_addr >= `ZCASH_OFFSET && wr_addr < (`ZCASH_OFFSET + `AXI_MEMORY_SIZE)) ||
-              (araddr >= `ZCASH_OFFSET && araddr < (`ZCASH_OFFSET + `AXI_MEMORY_SIZE));
+  zcash_dec = (wr_active && wr_addr >= `ZCASH_OFFSET && wr_addr < (`ZCASH_OFFSET + `AXI_MEMORY_SIZE)) ||
+              (rd_active && araddr >= `ZCASH_OFFSET && araddr < (`ZCASH_OFFSET + `AXI_MEMORY_SIZE));
 
-  axi_fifo_dec = (wr_addr >= `AXI_FIFO_OFFSET && wr_addr < (`AXI_FIFO_OFFSET + `AXI_MEMORY_SIZE)) ||
-                 (araddr >= `AXI_FIFO_OFFSET && araddr < (`AXI_FIFO_OFFSET + `AXI_MEMORY_SIZE));
+  axi_fifo_dec = (wr_active && wr_addr >= `AXI_FIFO_OFFSET && wr_addr < (`AXI_FIFO_OFFSET + `AXI_MEMORY_SIZE)) ||
+                 (rd_active && araddr >= `AXI_FIFO_OFFSET && araddr < (`AXI_FIFO_OFFSET + `AXI_MEMORY_SIZE));
 end
 
 always_comb begin
   zcash_axi_lite_if.awvalid = rx_axi_lite_if.awvalid && zcash_dec;
-  zcash_axi_lite_if.awaddr  = rx_axi_lite_if.awaddr;
-  zcash_axi_lite_if.wvalid  = rx_axi_lite_if.wvalid;
+  zcash_axi_lite_if.awaddr  = rx_axi_lite_if.awaddr - `ZCASH_OFFSET;
+  zcash_axi_lite_if.wvalid  = rx_axi_lite_if.wvalid && zcash_dec;
   zcash_axi_lite_if.wdata   = rx_axi_lite_if.wdata;
   zcash_axi_lite_if.wstrb   = rx_axi_lite_if.wstrb;
   zcash_axi_lite_if.bready  = rx_axi_lite_if.bready;
-  zcash_axi_lite_if.arvalid = rx_axi_lite_if.arvalid;
+  zcash_axi_lite_if.arvalid = rx_axi_lite_if.arvalid && zcash_dec;
   zcash_axi_lite_if.rready  = rx_axi_lite_if.rready;
-  zcash_axi_lite_if.araddr  = rx_axi_lite_if.araddr;
-  zcash_axi_lite_if.arvalid = rx_axi_lite_if.arvalid;
+  zcash_axi_lite_if.araddr  = rx_axi_lite_if.araddr - `ZCASH_OFFSET;
+  zcash_axi_lite_if.arvalid = rx_axi_lite_if.arvalid && zcash_dec;
 
   axi_fifo_if.awvalid = rx_axi_lite_if.awvalid && axi_fifo_dec;
-  axi_fifo_if.awaddr  = rx_axi_lite_if.awaddr;
-  axi_fifo_if.wvalid  = rx_axi_lite_if.wvalid;
+  axi_fifo_if.awaddr  = rx_axi_lite_if.awaddr - `AXI_FIFO_OFFSET;
+  axi_fifo_if.wvalid  = rx_axi_lite_if.wvalid && axi_fifo_dec;
   axi_fifo_if.wdata   = rx_axi_lite_if.wdata;
   axi_fifo_if.wstrb   = rx_axi_lite_if.wstrb;
   axi_fifo_if.bready  = rx_axi_lite_if.bready;
-  axi_fifo_if.arvalid = rx_axi_lite_if.arvalid;
+  axi_fifo_if.arvalid = rx_axi_lite_if.arvalid && axi_fifo_dec;
   axi_fifo_if.rready  = rx_axi_lite_if.rready;
-  axi_fifo_if.araddr  = rx_axi_lite_if.araddr;
-  axi_fifo_if.arvalid = rx_axi_lite_if.arvalid;
+  axi_fifo_if.araddr  = rx_axi_lite_if.araddr - `AXI_FIFO_OFFSET;
+  axi_fifo_if.arvalid = rx_axi_lite_if.arvalid && axi_fifo_dec;
 
 
-  rx_axi_lite_if.awready = zcash_dec ? zcash_axi_lite_if.awready : axi_fifo_if.awready;
-  rx_axi_lite_if.wready  = zcash_dec ? zcash_axi_lite_if.wready : axi_fifo_if.wready;
-  rx_axi_lite_if.bvalid  = zcash_dec ? zcash_axi_lite_if.bvalid : axi_fifo_if.bvalid;
+  rx_axi_lite_if.awready = zcash_dec ? zcash_axi_lite_if.awready : axi_fifo_dec ? axi_fifo_if.awready : 0;
+  rx_axi_lite_if.wready  = zcash_dec ? zcash_axi_lite_if.wready : axi_fifo_dec ? axi_fifo_if.wready : 0;
+  rx_axi_lite_if.bvalid  = zcash_dec ? zcash_axi_lite_if.bvalid : axi_fifo_dec ? axi_fifo_if.bvalid : 0;
   rx_axi_lite_if.bresp   = 0;
-  rx_axi_lite_if.arready = zcash_dec ? zcash_axi_lite_if.arready : axi_fifo_if.arready;
-  rx_axi_lite_if.rvalid  = zcash_dec ? zcash_axi_lite_if.rvalid : axi_fifo_if.rvalid;
-  rx_axi_lite_if.rdata   = zcash_dec ? zcash_axi_lite_if.rdata : axi_fifo_if.rdata;
+  rx_axi_lite_if.arready = zcash_dec ? zcash_axi_lite_if.arready : axi_fifo_dec ? axi_fifo_if.arready : 0;
+  rx_axi_lite_if.rvalid  = zcash_dec ? zcash_axi_lite_if.rvalid : axi_fifo_dec ? axi_fifo_if.rvalid : 0;
+  rx_axi_lite_if.rdata   = zcash_dec ? zcash_axi_lite_if.rdata : axi_fifo_dec ?  axi_fifo_if.rdata : 32'h0;
   rx_axi_lite_if.rresp   = 0;
 end
 
@@ -112,10 +112,11 @@ always_ff @(posedge i_clk) begin
     wr_active <= 0;
     wr_addr   <= 0;
   end else begin
-    wr_active <=  wr_active && rx_axi_lite_if.bvalid && rx_axi_lite_if.bready ? 1'b0 :
-                  ~wr_active && rx_axi_lite_if.awvalid ? 1'b1 :  
-		  wr_active;
-    wr_addr <= rx_axi_lite_if.awvalid && ~wr_active ? rx_axi_lite_if.awaddr : wr_addr;
+
+    if (rx_axi_lite_if.bvalid && rx_axi_lite_if.bready) wr_active <= 0;
+    if (rx_axi_lite_if.awvalid) wr_active <= 1;
+    if (rx_axi_lite_if.awvalid && ~wr_active) wr_addr <= rx_axi_lite_if.awaddr;
+
   end
 end
 
@@ -123,8 +124,13 @@ end
 always_ff @(posedge i_clk) begin
   if (i_rst) begin
     araddr  <= 0;
+    rd_active <= 0;
   end else begin
-    araddr  <= rx_axi_lite_if.arvalid ? rx_axi_lite_if.araddr : araddr;
+
+    if (rx_axi_lite_if.rvalid && rx_axi_lite_if.rready) rd_active <= 0;
+    if (rx_axi_lite_if.arvalid) rd_active <= 1;
+    if (rx_axi_lite_if.arvalid && ~rd_active ) araddr <= rx_axi_lite_if.araddr;
+
   end
 end
 
@@ -214,7 +220,7 @@ axi_fifo_mm_s_0 axi_fifo_mm_s_0 (
   .s_axi4_arprot ( rx_axi4_if.arprot  ),
   .s_axi4_arvalid( rx_axi4_if.arvalid ),
   .s_axi4_arready( rx_axi4_if.arready ),
-  .s_axi4_rid    ( rx_axi4_if.rid     ),
+  .s_axi4_rid    ( ),
   .s_axi4_rdata  ( rx_axi4_if.rdata   ),
   .s_axi4_rresp  ( rx_axi4_if.rresp   ),
   .s_axi4_rlast  ( rx_axi4_if.rlast   ),
@@ -233,4 +239,9 @@ axi_fifo_mm_s_0 axi_fifo_mm_s_0 (
   .axi_str_rxd_tlast ( tx_aws_if.eop ),
   .axi_str_rxd_tdata ( tx_aws_if.dat )
 );
+
+always_comb begin
+  rx_axi4_if.rid = 0;
+end
+
 endmodule
