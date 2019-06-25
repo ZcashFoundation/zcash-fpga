@@ -147,7 +147,7 @@ axis_dwidth_converter_8_to_64 converter_8_to_64 (
   .m_axis_tready( tx_aws_if.rdy    ),
   .m_axis_tdata ( tx_aws_if.dat    ),
   .m_axis_tlast ( tx_aws_if.eop    ),
-  .m_axis_tkeep ()
+  .m_axis_tkeep ( tx_aws_if.mod    )
 );
 
 // Convert 64 bytes to 8 bytes
@@ -158,12 +158,12 @@ axis_dwidth_converter_64_to_8 converter_64_to_8 (
   .s_axis_tready( rx_aws_if.rdy    ),
   .s_axis_tdata ( rx_aws_if.dat    ),
   .s_axis_tlast ( rx_aws_if.eop    ),
-  .s_axis_tkeep (0),
+  .s_axis_tkeep ( rx_aws_if.mod    ),
   .m_axis_tvalid( tx_zcash_if.val  ),
   .m_axis_tready( tx_zcash_if.rdy  ),
   .m_axis_tdata ( tx_zcash_if.dat  ),
   .m_axis_tlast ( tx_zcash_if.eop  ),
-  .m_axis_tkeep ()
+  .m_axis_tkeep ( tx_zcash_if_keep )
 );
 
 
@@ -231,12 +231,14 @@ axi_fifo_mm_s_0 axi_fifo_mm_s_0 (
   .axi_str_txd_tvalid ( rx_aws_if.val ),
   .axi_str_txd_tready ( rx_aws_if.rdy ),
   .axi_str_txd_tlast  ( rx_aws_if.eop ),
+  .axi_str_txd_tkeep  ( rx_aws_if.mod ),
   .axi_str_txd_tdata  ( rx_aws_if.dat ),
 
   .s2mm_prmry_reset_out_n(),
   .axi_str_rxd_tvalid( tx_aws_if.val ),
   .axi_str_rxd_tready( tx_aws_if.rdy ),
   .axi_str_rxd_tlast ( tx_aws_if.eop ),
+  .axi_str_rxd_tkeep ( tx_aws_if.mod ),
   .axi_str_rxd_tdata ( tx_aws_if.dat )
 );
 
