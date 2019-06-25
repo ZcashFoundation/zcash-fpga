@@ -1,0 +1,5 @@
+rm -rf .Xil/
+rm -rf axis_dwidth_converter_64_to_8/
+rm -rf axis_dwidth_converter_8_to_64/
+rm -rf axi_fifo_mm_s_0/
+rm -rf axis_dwidth_converter_48_to_8/ 
