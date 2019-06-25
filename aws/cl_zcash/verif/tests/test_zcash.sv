@@ -37,7 +37,7 @@ zcash_fpga_pkg::fpga_status_rpl_t fpga_status_rpl;
 logic [31:0] rdata;
 logic [1024*8-1:0] stream_data;
 integer stream_len;
-
+logic verbose = 0;
 
 initial begin
 
@@ -65,7 +65,7 @@ end
 task read_ocl_reg(input logic [31:0] addr, output logic [31:0] rdata, input logic [31:0] exp_data = 32'hXXXXXXXX);
 
   tb.peek(.addr(addr), .data(rdata), .id(AXI_ID), .intf(AxiPort::PORT_OCL));
-  $display ("INFO: read_ocl_reg::Read 0x%x from address 0x%x", rdata, addr);
+  if (verbose == 1) $display ("INFO: read_ocl_reg::Read 0x%x from address 0x%x", rdata, addr);
   if (rdata != exp_data) $fatal(1, "ERROR: AXI-FIFO ISR Register returned wrong value");
 
 endtask
@@ -73,7 +73,7 @@ endtask
 task write_ocl_reg(input logic [31:0] addr, input logic [31:0] data);
 
   tb.poke(.addr(addr), .data(data), .id(AXI_ID), .intf(AxiPort::PORT_OCL));
-  $display ("INFO: write_ocl_reg::Wrote 0x%x to address 0x%x", data, addr);
+  if (verbose == 1) $display ("INFO: write_ocl_reg::Wrote 0x%x to address 0x%x", data, addr);
 
 endtask
 
