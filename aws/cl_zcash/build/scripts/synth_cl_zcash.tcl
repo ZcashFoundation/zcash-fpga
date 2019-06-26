@@ -21,7 +21,7 @@ set VDEFINES $VDEFINES
 create_project -in_memory -part [DEVICE_TYPE] -force
 
 ########################################
-## Generate clocks based on Recipe 
+## Generate clocks based on Recipe
 ########################################
 
 puts "AWS FPGA: ([clock format [clock seconds] -format %T]) Calling aws_gen_clk_constraints.tcl to generate clock constraints from developer's specified recipe.";
@@ -59,6 +59,26 @@ read_verilog -sv [ list \
 ]
 
 puts "AWS FPGA: Reading IP blocks";
+
+# User IP
+read_ip [ list \
+  $CL_DIR/ip/axis_dwidth_converter_64_to_8/axis_dwidth_converter_64_to_8.xci \
+  $CL_DIR/ip/axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci \
+  $CL_DIR/ip/axis_dwidth_converter_48_to_8/axis_dwidth_converter_48_to_8.xci \
+  $CL_DIR/ip/axi_fifo_mm_s_0/axi_fifo_mm_s_0.xci
+]
+
+puts "AWS FPGA: Generating IP blocks";
+
+set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_64_to_8.xci]
+set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_8_to_64.xci]
+set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_48_to_8.xci]
+set_property generate_synth_checkpoint false [get_files axi_fifo_mm_s_0.xci]
+
+generate_target all [get_ips axis_dwidth_converter_64_to_8]
+generate_target all [get_ips axis_dwidth_converter_8_to_64]
+generate_target all [get_ips axis_dwidth_converter_48_to_8]
+generate_target all [get_ips axi_fifo_mm_s_0]
 
 #Read IP for axi register slices
 read_ip [ list \
@@ -111,8 +131,8 @@ eval [concat synth_design -top $CL_MODULE -verilog_define XSDB_SLV_DIS $VDEFINES
 
 set failval [catch {exec grep "FAIL" failfast.csv}]
 if { $failval==0 } {
-	puts "AWS FPGA: FATAL ERROR--Resource utilization error; check failfast.csv for details"
-	exit 1
+  puts "AWS FPGA: FATAL ERROR--Resource utilization error; check failfast.csv for details"
+  exit 1
 }
 
 puts "AWS FPGA: ([clock format [clock seconds] -format %T]) writing post synth checkpoint.";

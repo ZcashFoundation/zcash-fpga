@@ -24,17 +24,18 @@ package zcash_fpga_pkg;
   import equihash_pkg::N;
   import equihash_pkg::K;
   import secp256k1_pkg::secp256k1_ver_t;
-  
+
   import bls12_381_pkg::point_type_t;
 
-  parameter FPGA_VERSION = 32'h01_00_01;  //v1.0.0
+  parameter FPGA_VERSION = 32'h01_01_00;  //v1.1.0
 
   // What features are enabled in this build
   parameter bit ENB_VERIFY_SECP256K1_SIG = 1;
   parameter bit ENB_VERIFY_EQUIHASH = 1;
   parameter bit ENB_BLS12_381 = 1;
 
-  localparam [63:0] FPGA_CMD_CAP = {{61'd0},
+  localparam [63:0] FPGA_CMD_CAP = {{60'd0},
+                                     ENB_BLS12_381,
                                      ENB_VERIFY_SECP256K1_SIG,
                                     (ENB_VERIFY_EQUIHASH && equihash_pkg::N == 144 && equihash_pkg::K == 5),       // N = 144, K = 5 for VERIFY_EQUIHASH command
                                     (ENB_VERIFY_EQUIHASH && equihash_pkg::N == 200 && equihash_pkg::K == 9)};      // N = 200, K = 9 for VERIFY_EQUIHASH command

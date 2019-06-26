@@ -14,11 +14,11 @@
 # limitations under the License.
 
 add_wave /tb/card/fpga/CL/*pcis*
-add_wave /tb/card/fpga/CL/rx_axi_lite_if/* 
-add_wave /tb/card/fpga/CL/rx_axi4_if/* 
-add_wave /tb/card/fpga/CL/zcash_axi_lite_if/* 
-add_wave /tb/card/fpga/CL/zcash_if_tx/* 
-add_wave /tb/card/fpga/CL/zcash_if_rx/* 
+add_wave /tb/card/fpga/CL/rx_axi_lite_if/*
+add_wave /tb/card/fpga/CL/rx_axi4_if/*
+add_wave /tb/card/fpga/CL/zcash_axi_lite_if/*
+add_wave /tb/card/fpga/CL/zcash_if_tx/*
+add_wave /tb/card/fpga/CL/zcash_if_rx/*
 add_wave /tb/card/fpga/CL/cl_zcash_aws_wrapper/*
 
-run 10 us
+run 110 us

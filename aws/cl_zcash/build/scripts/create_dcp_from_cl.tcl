@@ -19,7 +19,7 @@ package require tar
 set TOP top_sp
 
 ## Replace with the name of your module
-set CL_MODULE cl_hello_world
+set CL_MODULE cl_zcash
 
 #################################################
 ## Command-line Arguments
@@ -39,7 +39,7 @@ set uram_option         [lindex $argv 11]
 set notify_via_sns      [lindex $argv 12]
 set VDEFINES            [lindex $argv 13]
 ##################################################
-## Flow control variables 
+## Flow control variables
 ##################################################
 set cl.synth   1
 set implement  1
@@ -148,7 +148,7 @@ if {[string compare $notify_via_sns "1"] == 0} {
 }
 
 ##################################################
-### Strategy options 
+### Strategy options
 ##################################################
 switch $strategy {
     "BASIC" {
@@ -187,14 +187,14 @@ source $HDK_SHELL_DIR/build/scripts/device_type.tcl
 source $HDK_SHELL_DIR/build/scripts/step_user.tcl -notrace
 
 ########################################
-## Generate clocks based on Recipe 
+## Generate clocks based on Recipe
 ########################################
 
 puts "AWS FPGA: ([clock format [clock seconds] -format %T]) Calling aws_gen_clk_constraints.tcl to generate clock constraints from developer's specified recipe.";
 
 source $HDK_SHELL_DIR/build/scripts/aws_gen_clk_constraints.tcl
 #################################################################
-#### Do not remove this setting. Need to workaround bug 
+#### Do not remove this setting. Need to workaround bug
 ##################################################################
 set_param hd.clockRoutingWireReduction false
 ##################################################
@@ -236,7 +236,7 @@ if {$implement} {
       # Apply Clock Properties for Clock Table Recipes
       ##################################################
       puts "AWS FPGA: ([clock format [clock seconds] -format %T]) - Sourcing aws_clock_properties.tcl to apply properties to clocks. ";
-      
+
       # Apply properties to clocks
       source $HDK_SHELL_DIR/build/scripts/aws_clock_properties.tcl
 

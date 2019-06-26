@@ -80,13 +80,16 @@ endtask
 task write_stream(input logic [1024*8-1:0] data, input integer len);
 
   logic [31:0] rdata;
+  logic [63:0] strb;
   integer len_;
   len_ = len;
   read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'hC), .rdata(rdata));
   if (len > rdata) $fatal(1, "ERROR: write_pcis::AXI-FIFO does not have enough space to write %d bytes (%d free)", len, rdata);
 
   while(len_ > 0) begin
-    tb.poke_pcis(.addr(0), .data(data[511:0]), .strb(0));
+    strb = 0;
+    for(int i = 0; i < 64; i++) if(len_ > i) strb[i] = 1;
+    tb.poke_pcis(.addr(0), .data(data[511:0]), .strb(strb));
     len_ = len_ - 512/8;
     data = data >> 512;
   end
@@ -94,9 +97,10 @@ task write_stream(input logic [1024*8-1:0] data, input integer len);
 
   $display ("INFO: write_pcis::Wrote %d bytes of data", len);
 
-  // Check transmit complete bit and reset it
+  // Wait a few clocks then check transmit complete bit and reset it
+  repeat (10) @(posedge tb.card.fpga.clk_main_a0);
   read_ocl_reg(.addr(`AXI_FIFO_OFFSET), .rdata(rdata));
-  if(rdata[27] == 0) $display("WARNING: write_stream transmit complete bit not set");
+  if(rdata[27] == 0) $display("WARNING: write_stream transmit complete bit not set (read 0x%x)", rdata);
   write_ocl_reg(.addr(`AXI_FIFO_OFFSET), .data(32'h08000000));
 
 endtask
@@ -141,7 +145,7 @@ task test_status_message();
       while(stream_len == 0) read_stream(.data(stream_data), .len(stream_len));
     end
     begin
-      while(10000) @(posedge tb.card.fpga.clk_main_a0);
+      repeat(10000) @(posedge tb.card.fpga.clk_main_a0);
       $fatal(1, "ERROR: No reply received from status_request");
     end
   join_any

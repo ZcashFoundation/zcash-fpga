@@ -37,6 +37,8 @@ if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) rx_aws_if (i_clk);
 if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) tx_aws_if (i_clk);
 
 logic [7:0] rx_zcash_if_keep, tx_zcash_if_keep;
+logic [63:0] rx_aws_if_keep, tx_aws_if_keep;
+
 
 always_comb begin
   rx_zcash_if_keep = rx_zcash_if.get_keep_from_mod();
@@ -147,7 +149,7 @@ axis_dwidth_converter_8_to_64 converter_8_to_64 (
   .m_axis_tready( tx_aws_if.rdy    ),
   .m_axis_tdata ( tx_aws_if.dat    ),
   .m_axis_tlast ( tx_aws_if.eop    ),
-  .m_axis_tkeep ( tx_aws_if.mod    )
+  .m_axis_tkeep ( tx_aws_if_keep   )
 );
 
 // Convert 64 bytes to 8 bytes
@@ -158,7 +160,7 @@ axis_dwidth_converter_64_to_8 converter_64_to_8 (
   .s_axis_tready( rx_aws_if.rdy    ),
   .s_axis_tdata ( rx_aws_if.dat    ),
   .s_axis_tlast ( rx_aws_if.eop    ),
-  .s_axis_tkeep ( rx_aws_if.mod    ),
+  .s_axis_tkeep ( rx_aws_if_keep   ),
   .m_axis_tvalid( tx_zcash_if.val  ),
   .m_axis_tready( tx_zcash_if.rdy  ),
   .m_axis_tdata ( tx_zcash_if.dat  ),
@@ -228,18 +230,18 @@ axi_fifo_mm_s_0 axi_fifo_mm_s_0 (
   .s_axi4_rready ( rx_axi4_if.rready  ),
 
   .mm2s_prmry_reset_out_n(),
-  .axi_str_txd_tvalid ( rx_aws_if.val ),
-  .axi_str_txd_tready ( rx_aws_if.rdy ),
-  .axi_str_txd_tlast  ( rx_aws_if.eop ),
-  .axi_str_txd_tkeep  ( rx_aws_if.mod ),
-  .axi_str_txd_tdata  ( rx_aws_if.dat ),
+  .axi_str_txd_tvalid ( rx_aws_if.val  ),
+  .axi_str_txd_tready ( rx_aws_if.rdy  ),
+  .axi_str_txd_tlast  ( rx_aws_if.eop  ),
+  .axi_str_txd_tkeep  ( rx_aws_if_keep ),
+  .axi_str_txd_tdata  ( rx_aws_if.dat  ),
 
   .s2mm_prmry_reset_out_n(),
-  .axi_str_rxd_tvalid( tx_aws_if.val ),
-  .axi_str_rxd_tready( tx_aws_if.rdy ),
-  .axi_str_rxd_tlast ( tx_aws_if.eop ),
-  .axi_str_rxd_tkeep ( tx_aws_if.mod ),
-  .axi_str_rxd_tdata ( tx_aws_if.dat )
+  .axi_str_rxd_tvalid( tx_aws_if.val  ),
+  .axi_str_rxd_tready( tx_aws_if.rdy  ),
+  .axi_str_rxd_tlast ( tx_aws_if.eop  ),
+  .axi_str_rxd_tkeep ( tx_aws_if_keep ),
+  .axi_str_rxd_tdata ( tx_aws_if.dat  )
 );
 
 always_comb begin

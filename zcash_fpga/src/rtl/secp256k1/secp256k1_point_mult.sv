@@ -1,7 +1,7 @@
 /*
   This performs point multiplication. We use the standard double
   and add algorithm.
-  
+
   Same as ec_point_mult but also has additional input for adding points
   which is needed in secp256k1 key verification.
 
@@ -44,6 +44,8 @@ module secp256k1_point_mult
   input jb_point_t i_p2,
   input            i_p2_val
 );
+
+localparam CHK_INPUT = 0;
 
 // [0] is connection from/to dbl block, [1] is add block, [2] is arbitrated value
 if_axi_stream #(.DAT_BYTS(256*2/8), .CTL_BITS(16)) mult_in_if [2:0] (i_clk);
@@ -104,7 +106,7 @@ always_ff @ (posedge i_clk) begin
           p_q <= i_p2;
           state <= ADD_ONLY;
           // Check for special cases to determine double or add
-          if (i_p.x == i_p2.x && i_p.y == i_p2.y) begin
+          if (CHK_INPUT == 1 && i_p.x == i_p2.x && i_p.y == i_p2.y) begin
             p_dbl_in_val <= 1;
           end else begin
             p_add_in_val <= 1;
@@ -127,7 +129,7 @@ always_ff @ (posedge i_clk) begin
             p_dbl_in_val <= 1;
             lookahead_dbl <= 1;
             p_dbl_out_rdy <= 0; // Want to make sure we don't output while still waiting for add
-          end 
+          end
         end
         if (p_add_out_val && p_add_out_rdy) begin
           p_add_done <= 1;
@@ -144,21 +146,21 @@ always_ff @ (posedge i_clk) begin
           if (k_l[0]) begin
             p_add_in_val <= 1;
             // Need to check for special case where the x, y point is the same
-            if (p_q.x == p_n.x && p_q.y == p_n.y) begin
-              special_dbl <= 1;
-              p_add_in_val <= 0;
-              p_add_done <= 1;
+            if (CHK_INPUT == 1) begin
+              if (p_q.x == p_n.x && p_q.y == p_n.y) begin
+                special_dbl <= 1;
+                p_add_in_val <= 0;
+                p_add_done <= 1;
+              end
             end
           end else begin
             p_add_done <= 1;
           end
-
           // Don't need to double on the final bit
           if ((k_l >> 1) != 0)
             p_dbl_in_val <= ~lookahead_dbl; // Don't do if we already started
           else
             p_dbl_done <= 1;
-
           if (k_l == 0) begin
             state <= FINISHED;
             o_p <= p_add;
@@ -167,7 +169,6 @@ always_ff @ (posedge i_clk) begin
             p_add_in_val <= 0;
           end
         end
-
       end
       {ADD_ONLY}: begin
         p_dbl_in_val <= (p_dbl_in_val && p_dbl_in_rdy) ? 0 : p_dbl_in_val;
@@ -256,7 +257,7 @@ localparam ARB_BIT = 8;
 resource_share # (
   .NUM_IN       ( 2       ),
   .CTL_BITS     ( 16      ),
-  .DAT_BITS     ( 512     ),  
+  .DAT_BITS     ( 512     ),
   .DAT_BYTS     ( 512/8   ),
   .OVR_WRT_BIT  ( ARB_BIT ),
   .PIPELINE_IN  ( 0       ),
@@ -267,14 +268,14 @@ resource_share_add (
   .i_rst ( i_rst ),
   .i_axi ( add_in_if[1:0]  ),
   .o_res ( add_in_if[2]    ),
-  .i_res ( add_out_if[2]   ), 
+  .i_res ( add_out_if[2]   ),
   .o_axi ( add_out_if[1:0] )
 );
 
 resource_share # (
   .NUM_IN       ( 2       ),
   .CTL_BITS     ( 16      ),
-  .DAT_BITS     ( 512     ),  
+  .DAT_BITS     ( 512     ),
   .DAT_BYTS     ( 512/8   ),
   .OVR_WRT_BIT  ( ARB_BIT ),
   .PIPELINE_IN  ( 0       ),
@@ -285,14 +286,14 @@ resource_share_sub (
   .i_rst ( i_rst ),
   .i_axi ( sub_in_if[1:0]  ),
   .o_res ( sub_in_if[2]    ),
-  .i_res ( sub_out_if[2]   ), 
+  .i_res ( sub_out_if[2]   ),
   .o_axi ( sub_out_if[1:0] )
 );
 
 resource_share # (
   .NUM_IN       ( 2       ),
   .CTL_BITS     ( 16      ),
-  .DAT_BITS     ( 512     ),  
+  .DAT_BITS     ( 512     ),
   .DAT_BYTS     ( 512/8   ),
   .OVR_WRT_BIT  ( ARB_BIT ),
   .PIPELINE_IN  ( 0       ),
@@ -303,7 +304,7 @@ resource_share_mult (
   .i_rst ( i_rst ),
   .i_axi ( mult_in_if[1:0]  ),
   .o_res ( mult_in_if[2]    ),
-  .i_res ( mult_out_if[2]   ), 
+  .i_res ( mult_out_if[2]   ),
   .o_axi ( mult_out_if[1:0] )
 );
 
@@ -354,7 +355,7 @@ generate
       mult_out_if[2].ctl = i_mult_if.ctl;
     end
   end else begin
-  
+
     always_comb begin
       o_mult_if.reset_source();
       i_mult_if.rdy = 0;
