@@ -27,7 +27,9 @@ module bls12_381_axi_bridge (
   input [31:0] i_curr_inst_pt,
   input [31:0] i_last_inst_cnt,
   output logic [31:0] o_new_inst_pt,
-  output logic        o_new_inst_pt_val
+  output logic        o_new_inst_pt_val,
+  output logic        o_reset_inst_ram,
+  output logic        o_reset_data_ram
 );
 
 import bls12_381_pkg::*;
@@ -57,8 +59,12 @@ always_ff @ (posedge i_clk) begin
     wr_addr <= 0;
     o_new_inst_pt_val <= 0;
     o_new_inst_pt <= 0;
+    o_reset_inst_ram <= 0;
+    o_reset_data_ram <= 0;
   end else begin
 
+    o_reset_inst_ram <= 0;
+    o_reset_data_ram <= 0;
     o_new_inst_pt_val <= 0;
 
     data_ram_read <= data_ram_read << 1;
@@ -138,21 +144,24 @@ always_ff @ (posedge i_clk) begin
             o_new_inst_pt_val <= 1;
             o_new_inst_pt <= axi_lite_if.wdata;
           end
+          32'h0: begin
+            o_reset_inst_ram <= axi_lite_if.wdata[0]; // This will reset the instruction ram
+            o_reset_data_ram <= axi_lite_if.wdata[1]; // This will reset the data ram
+          end
         endcase
       end else
-      // TODO change this to be atomic writes
       if (wr_addr < DATA_AXIL_START) begin
         // Instruction memory
-        inst_ram_if.we <= 0;
-        inst_ram_if.d <= axi_lite_if.wdata << (((wr_addr - INST_AXIL_START) % INST_RAM_ALIGN_BYTE)/INST_RAM_USR_WIDTH)*32;
-        inst_ram_if.we[4*((wr_addr - INST_AXIL_START) % INST_RAM_ALIGN_BYTE)/INST_RAM_USR_WIDTH +: 4] <= {4{1'd1}};
+        inst_ram_if.d[(((wr_addr - INST_AXIL_START) % INST_RAM_ALIGN_BYTE)/INST_RAM_USR_WIDTH)*32 +: 32] <= axi_lite_if.wdata;
         inst_ram_if.a <= (wr_addr - INST_AXIL_START) / INST_RAM_ALIGN_BYTE;
+        // Only write on the last work to make this atomic
+        if ((wr_addr - INST_AXIL_START) % 8 == 4) inst_ram_if.we <= 1;
       end else begin
         // Data memory
-        data_ram_if.we <= 0;
-        data_ram_if.d <= axi_lite_if.wdata << (((wr_addr - DATA_AXIL_START) % DATA_RAM_ALIGN_BYTE)/DATA_RAM_USR_WIDTH)*32;
-        data_ram_if.we[4*((wr_addr - DATA_AXIL_START) % DATA_RAM_ALIGN_BYTE)/DATA_RAM_USR_WIDTH +: 4] <= {4{1'd1}};
+        data_ram_if.d[(((wr_addr - DATA_AXIL_START) % DATA_RAM_ALIGN_BYTE)/DATA_RAM_USR_WIDTH)*32 +: 32] <= axi_lite_if.wdata;
         data_ram_if.a <= (wr_addr - DATA_AXIL_START) / DATA_RAM_ALIGN_BYTE;
+        // Only write on the last work to make this atomic
+        if ((wr_addr - DATA_AXIL_START) % 64 == 44) data_ram_if.we <= 1;
       end
     end
   end

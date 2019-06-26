@@ -52,7 +52,7 @@ bls12_381_top bls12_381_top (
 );
 
 
-task test_fp_point_mult();
+task test_fp_fpoint_mult();
 begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
@@ -67,7 +67,7 @@ begin
   failed = 0;
   in_k = 381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
   exp_p =  point_mult(in_k, g_point);
-  $display("Running test_fp_point_mult...");
+  $display("Running test_fp_fpoint_mult...");
 
   axi_lite_if.peek(.addr(0), .data(rdata));
   assert(rdata == INST_AXIL_START) else $fatal("ERROR: AXI lite register returned wrong value");
@@ -127,13 +127,13 @@ begin
   $display("INFO: Last cycle count was %d", rdata);
 
   if(failed)
-   $fatal(1, "ERROR: test_fp_point_mult FAILED");
+   $fatal(1, "ERROR: test_fp_fpoint_mult FAILED");
   else
-   $display("INFO: test_fp_point_mult PASSED");
+   $display("INFO: test_fp_fpoint_mult PASSED");
 end
 endtask;
 
-task test_fp2_point_mult();
+task test_fp2_fpoint_mult();
 begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
@@ -148,7 +148,7 @@ begin
   failed = 0;
   in_k = 381'h33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333;
   exp_p =  fp2_point_mult(in_k, g2_point);
-  $display("Running test_fp2_point_mult...");
+  $display("Running test_fp2_fpoint_mult...");
 
   // See what current instruction pointer is
   axi_lite_if.peek(.addr(32'h10), .data(rdata));
@@ -200,21 +200,21 @@ begin
 
   // See what current instruction pointer is
   axi_lite_if.peek(.addr(32'h10), .data(rdata));
-  
+
   $display("INFO: Current instruction pointer is 0x%x, setting to 0 and writing NULL instruction", rdata);
-  
+
   inst = '{code:NOOP_WAIT, a:16'd0, b:16'h0, c:16'd0};
   axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START), .len(8));
- 
+
   axi_lite_if.poke(.addr(32'h10), .data(32'd0));
   repeat(10) @(posedge clk);
   axi_lite_if.peek(.addr(32'h10), .data(rdata));
   assert(rdata == 32'd0) else $fatal(1, "ERROR: could not set instruction pointer");
 
   if(failed)
-   $fatal(1, "ERROR: test_fp2_point_mult FAILED");
+   $fatal(1, "ERROR: test_fp2_fpoint_mult FAILED");
   else
-   $display("INFO: test_fp2_point_mult PASSED");
+   $display("INFO: test_fp2_fpoint_mult PASSED");
 end
 endtask;
 
@@ -227,8 +227,9 @@ initial begin
        !bls12_381_top.data_uram_reset.reset_done)
     @(posedge clk);
 
-  test_fp_point_mult();
-  test_fp2_point_mult();
+  test_fp_fpoint_mult();
+  test_fp2_fpoint_mult();
+
 
   #1us $finish();
 end

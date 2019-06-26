@@ -39,17 +39,18 @@ bls12_381_interrupt_rpl_t interrupt_rpl;
 enum {WAIT_FIFO, SEND_HDR, SEND_DATA} interrupt_state;
 logic [7:0] interrupt_hdr_byt;
 
-// Instruction RAM
-logic [READ_CYCLE:0] inst_ram_read;
-logic [READ_CYCLE:0] data_ram_read;
 
-if_ram #(.RAM_WIDTH(bls12_381_pkg::INST_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::INST_RAM_DEPTH), .BYT_EN(7)) inst_ram_sys_if(.i_clk(i_clk), .i_rst(i_rst));
-if_ram #(.RAM_WIDTH(bls12_381_pkg::INST_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::INST_RAM_DEPTH), .BYT_EN(7)) inst_ram_usr_if(.i_clk(i_clk), .i_rst(i_rst));
+logic [READ_CYCLE:0] inst_ram_read, data_ram_read;
+logic reset_inst_ram, reset_data_ram;
+
+// Instruction RAM
+if_ram #(.RAM_WIDTH(bls12_381_pkg::INST_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::INST_RAM_DEPTH)) inst_ram_sys_if(.i_clk(i_clk), .i_rst(i_rst || reset_inst_ram));
+if_ram #(.RAM_WIDTH(bls12_381_pkg::INST_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::INST_RAM_DEPTH)) inst_ram_usr_if(.i_clk(i_clk), .i_rst(i_rst || reset_inst_ram));
 inst_t curr_inst;
 
 // Data RAM
-if_ram #(.RAM_WIDTH(bls12_381_pkg::DATA_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::DATA_RAM_DEPTH), .BYT_EN(48)) data_ram_sys_if(.i_clk(i_clk), .i_rst(i_rst));
-if_ram #(.RAM_WIDTH(bls12_381_pkg::DATA_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::DATA_RAM_DEPTH), .BYT_EN(48)) data_ram_usr_if(.i_clk(i_clk), .i_rst(i_rst));
+if_ram #(.RAM_WIDTH(bls12_381_pkg::DATA_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::DATA_RAM_DEPTH)) data_ram_sys_if(.i_clk(i_clk), .i_rst(i_rst || reset_data_ram));
+if_ram #(.RAM_WIDTH(bls12_381_pkg::DATA_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::DATA_RAM_DEPTH)) data_ram_usr_if(.i_clk(i_clk), .i_rst(i_rst || reset_data_ram));
 data_t curr_data, new_data;
 
 // Loading the fifo with slots and outputting an interrupt
@@ -191,7 +192,9 @@ bls12_381_axi_bridge bls12_381_axi_bridge (
   .i_curr_inst_pt     ( curr_inst_pt    ),
   .i_last_inst_cnt    ( last_inst_cnt   ),
   .o_new_inst_pt      ( new_inst_pt     ),
-  .o_new_inst_pt_val  ( new_inst_pt_val )
+  .o_new_inst_pt_val  ( new_inst_pt_val ),
+  .o_reset_inst_ram   ( reset_inst_ram  ),
+  .o_reset_data_ram   ( reset_data_ram  )
 );
 
 always_comb begin
@@ -410,7 +413,7 @@ task task_copy_reg();
   if (data_ram_read[READ_CYCLE]) begin
     data_ram_sys_if.a <=  curr_inst.b;
     new_data <= curr_data;
-    data_ram_sys_if.we <= -1;
+    data_ram_sys_if.we <= 1;
   end
 endtask
 
@@ -434,7 +437,7 @@ task task_scalar_inv();
         data_ram_sys_if.a <= curr_inst.b;
         new_data.pt <= curr_data.pt;
         new_data.dat <= binv_o_if.dat;
-        data_ram_sys_if.we <= -1;
+        data_ram_sys_if.we <= 1;
         cnt <= cnt + 1;
       end
     end
@@ -481,7 +484,7 @@ task task_point_mult();
       if (fp2_pt_mult_out_if.val) begin
          new_data.pt <= FP_JB;
          new_data.dat <= fp2_pt_mult_out_if.dat >> ((cnt-2)*2*DAT_BITS);
-         data_ram_sys_if.we <= -1;
+         data_ram_sys_if.we <= 1;
          data_ram_sys_if.a <= data_ram_sys_if.a + 1;
          cnt <= cnt + 1;
          if (cnt == 4) begin
@@ -520,7 +523,7 @@ task task_fp_fpoint_mult();
       if (fp2_pt_mult_out_if.val) begin
          new_data.pt <= FP_JB;
          new_data.dat <= fp2_pt_mult_out_if.dat >> ((cnt-2)*2*DAT_BITS);
-         data_ram_sys_if.we <= -1;
+         data_ram_sys_if.we <= 1;
          if (cnt > 2) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
          cnt <= cnt + 1;
          if (cnt == 4) begin
@@ -557,7 +560,7 @@ task task_fp2_fpoint_mult();
       if (fp2_pt_mult_out_if.val) begin
          new_data.pt <= FP2_JB;
          new_data.dat <= fp2_pt_mult_out_if.dat >> ((cnt-2)*DAT_BITS);
-         data_ram_sys_if.we <= -1;
+         data_ram_sys_if.we <= 1;
          if (cnt > 2) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
          cnt <= cnt + 1;
          if (cnt == 7) begin
