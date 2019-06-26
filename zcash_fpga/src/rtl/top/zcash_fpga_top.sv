@@ -85,7 +85,7 @@ always_ff @ (posedge i_clk_300) rst_300 <= i_rst_300 || usr_rst_300;
 // This block takes in the interface signals and interfaces with other blocks
 // This runs on the same clock as the interface but we might need to change data width
 
-if_axi_stream #(.DAT_BYTS(DAT_BYTS)) control_top_tx_if(i_clk_if);
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(1)) tx_int_if [1:0] (i_clk_if);
 
 control_top #(
   .DAT_BYTS ( DAT_BYTS )
@@ -95,7 +95,7 @@ control_top (
   .i_rst ( i_rst_if ),
   .o_usr_rst ( usr_rst ),
   .rx_if ( rx_if ),
-  .tx_if ( control_top_tx_if ),
+  .tx_if ( tx_int_if[0] ),
   .o_equihash_if       ( equihash_axi      ),
   .i_equihash_mask     ( equihash_mask     ),
   .i_equihash_mask_val ( equihash_mask_val ),
@@ -224,13 +224,10 @@ secp256k1_top secp256k1_top (
   .if_cmd_tx  ( secp256k1_in_if_s_r  )
 );
 
-
-if_axi_stream #(.DAT_BYTS(DAT_BYTS)) bls12_381_out_if(i_clk_if);
-
 bls12_381_top bls12_381_top (
   .i_clk ( i_clk_if ),
   .i_rst ( i_rst_if || ENB_BLS12_381 == 0 ),
-  .tx_if ( bls12_381_out_if ),
+  .tx_if ( tx_int_if[1] ),
   .axi_lite_if ( axi_lite_if )
 );
 
@@ -242,7 +239,7 @@ packet_arb # (
 ) packet_arb_tx (
   .i_clk ( i_clk_if ),
   .i_rst ( i_rst_if ),
-  .i_axi ( {bls12_381_out_if, control_top_tx_if} ), 
+  .i_axi ( tx_int_if ),
   .o_axi ( tx_if )
 );
 
