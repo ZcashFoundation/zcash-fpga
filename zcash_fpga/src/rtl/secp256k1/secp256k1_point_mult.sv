@@ -316,8 +316,19 @@ end
 
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
-    add_out_if[2].reset_source();
-    sub_out_if[2].reset_source();
+    add_out_if[2].val <= 0;
+    add_out_if[2].sop <= 0;
+    add_out_if[2].eop <= 0;
+    add_out_if[2].ctl <= 0;
+    add_out_if[2].mod <= 0;
+    add_out_if[2].err <= 0;
+
+    sub_out_if[2].val <= 0;
+    sub_out_if[2].sop <= 0;
+    sub_out_if[2].eop <= 0;
+    sub_out_if[2].ctl <= 0;
+    sub_out_if[2].mod <= 0;
+    sub_out_if[2].err <= 0;
   end else begin
     if (~add_out_if[2].val || (add_out_if[2].val && add_out_if[2].rdy)) begin
       add_out_if[2].val <= add_in_if[2].val;
@@ -327,7 +338,6 @@ always_ff @ (posedge i_clk) begin
       add_out_if[2].eop <= 1;
     end
     if (~sub_out_if[2].val || (sub_out_if[2].val && sub_out_if[2].rdy)) begin
-      sub_in_if[2].rdy <= sub_out_if[2].rdy;
       sub_out_if[2].val <= sub_in_if[2].val;
       sub_out_if[2].dat <= fe_sub(sub_in_if[2].dat[0 +: 256], sub_in_if[2].dat[256 +: 256]);
       sub_out_if[2].ctl <= sub_in_if[2].ctl;
