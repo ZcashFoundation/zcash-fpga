@@ -19,51 +19,51 @@
 #include <assert.h>
 #include <string.h>
 
-#ifdef SV_TEST
-   #include "fpga_pci_sv.h"
-#else
-   #include <fpga_pci.h>
-   #include <fpga_mgmt.h>
-   #include <utils/lcd.h>
-#endif
-
+#include <fpga_pci.h>
+#include <fpga_mgmt.h>
+#include <utils/lcd.h>
 #include <utils/sh_dpi_tasks.h>
 
-/* Constants determined by the CL */
-/* a set of register offsets; this CL has only one */
-/* these register addresses should match the addresses in */
-/* /aws-fpga/hdk/cl/examples/common/cl_common_defines.vh */
-/* SV_TEST macro should be set if SW/HW co-simulation should be enabled */
-
-#define HELLO_WORLD_REG_ADDR UINT64_C(0x500)
-#define VLED_REG_ADDR	UINT64_C(0x504)
+#define AXI_FIFO_OFFSET UINT64_C(0x0)
+#define ZCASH_OFFSET    UINT64_C(0x1000)
 
 /* use the stdout logger for printing debug information  */
-#ifndef SV_TEST
+
 const struct logger *logger = &logger_stdout;
 /*
- * pci_vendor_id and pci_device_id values below are Amazon's and avaliable to use for a given FPGA slot. 
+ * pci_vendor_id and pci_device_id values below are Amazon's and avaliable to use for a given FPGA slot.
  * Users may replace these with their own if allocated to them by PCI SIG
  */
 static uint16_t pci_vendor_id = 0x1D0F; /* Amazon PCI Vendor ID */
 static uint16_t pci_device_id = 0xF000; /* PCI Device ID preassigned by Amazon for F1 applications */
 
+
+pci_bar_handle_t pci_bar_handle_bar0 = PCI_BAR_HANDLE_INIT;
+pci_bar_handle_t pci_bar_handle_bar4 = PCI_BAR_HANDLE_INIT;
+
+
 /*
  * check if the corresponding AFI for hello_world is loaded
  */
 int check_afi_ready(int slot_id);
+
 /*
- * An example to attach to an arbitrary slot, pf, and bar with register access.
+ * Initialize the FPGA
  */
-int peek_poke_example(uint32_t value, int slot_id, int pf_id, int bar_id);
+int init(int slot_id);
+
+/*
+ * Read / Write to the FPGA stream interface
+ */
+int read_stream(uint8_t* data, unsigned int size);  // Size is the buffer size being passed
+int write_stream(uint8_t* data, unsigned int len);
 
 void usage(char* program_name) {
     printf("usage: %s [--slot <slot-id>][<poke-value>]\n", program_name);
 }
 
 uint32_t byte_swap(uint32_t value);
- 
-#endif
+
 
 uint32_t byte_swap(uint32_t value) {
     uint32_t swapped_value = 0;
@@ -74,28 +74,13 @@ uint32_t byte_swap(uint32_t value) {
     return swapped_value;
 }
 
-#ifdef SV_TEST
-//For cadence and questa simulators the main has to return some value
-   #ifdef INT_MAIN
-   int test_main(uint32_t *exit_code) {
-   #else 
-   void test_main(uint32_t *exit_code) {
-   #endif 
-#else 
-    int main(int argc, char **argv) {
-#endif
-    //The statements within SCOPE ifdef below are needed for HW/SW co-simulation with VCS
-    #ifdef SCOPE
-      svScope scope;
-      scope = svGetScopeFromName("tb");
-      svSetScope(scope);
-    #endif
 
-    uint32_t value = 0xefbeadde;
+int main(int argc, char **argv) {
+
+
     int slot_id = 0;
     int rc;
-    
-#ifndef SV_TEST
+
     // Process command line args
     {
         int i;
@@ -119,61 +104,196 @@ uint32_t byte_swap(uint32_t value) {
             }
         }
     }
-#endif
 
-    /* initialize the fpga_pci library so we could have access to FPGA PCIe from this applications */
-    rc = fpga_pci_init();
-    fail_on(rc, out, "Unable to initialize the fpga_pci library");
+    // Initialize all the FPGA connections
+    rc = init(slot_id);
+    fail_on(rc, out, "Unable to initialize the FPGA");
 
-#ifndef SV_TEST
-    rc = check_afi_ready(slot_id);
-    fail_on(rc, out, "AFI not ready");
-#endif
+    // Test: read from register in BLS core
+    uint32_t rdata;
+    rc = fpga_pci_peek(pci_bar_handle_bar0, ZCASH_OFFSET, &rdata);
+    fail_on(rc, out, "Unable to read from FPGA!");
+    printf("INFO: Read 0x%x from address 0", rdata);
 
-    
-    /* Accessing the CL registers via AppPF BAR0, which maps to sh_cl_ocl_ AXI-Lite bus between AWS FPGA Shell and the CL*/
 
-    printf("===== Starting with peek_poke_example =====\n");
-    rc = peek_poke_example(value, slot_id, FPGA_APP_PF, APP_PF_BAR0);
-    fail_on(rc, out, "peek-poke example failed");
+    // Test: send status message
+    uint8_t message[8];
+    memset(message, 0, 8);
+    message[0] = 8;
+    message[4] = 1;
+    rc = write_stream(message, sizeof(message));
+    fail_on(rc, out, "Unable to read from FPGA!");
 
-    printf("Developers are encouraged to modify the Virtual DIP Switch by calling the linux shell command to demonstrate how AWS FPGA Virtual DIP switches can be used to change a CustomLogic functionality:\n");
-    printf("$ fpga-set-virtual-dip-switch -S (slot-id) -D (16 digit setting)\n\n");
-    printf("In this example, setting a virtual DIP switch to zero clears the corresponding LED, even if the peek-poke example would set it to 1.\nFor instance:\n");
+    // Try read reply
+    uint8_t reply[256];
+    int timeout = 0;
+    unsigned int read_len = 0;
+    while ((read_len = read_stream(reply, 256)) == 0) {
+      usleep(10);
+      timeout++;
+      if (timeout > 1000) {
+        printf("ERROR: No reply received, timeout\n");
+        rc = 1;
+        goto out;
+      }
+    }
 
-    printf(
-        "# sudo fpga-set-virtual-dip-switch -S 0 -D 1111111111111111\n"
-        "# sudo fpga-get-virtual-led  -S 0\n"
-        "FPGA slot id 0 have the following Virtual LED:\n"
-        "1010-1101-1101-1110\n"
-        "# sudo fpga-set-virtual-dip-switch -S 0 -D 0000000000000000\n"
-        "# sudo fpga-get-virtual-led  -S 0\n"
-        "FPGA slot id 0 have the following Virtual LED:\n"
-        "0000-0000-0000-0000\n"
-    );
 
-#ifndef SV_TEST
+    printf("Reply received of %d bytes:0x", read_len);
+    for (int i = 0; i < read_len; i++)
+      printf("%x", reply[i]);
+    printf("\n");
+
+
     return rc;
-    
 out:
     return 1;
-#else
-
-out:
-   #ifdef INT_MAIN
-   *exit_code = 0;
-   return 0;
-   #else 
-   *exit_code = 0;
-   #endif
-#endif
 }
 
-/* As HW simulation test is not run on a AFI, the below function is not valid */
-#ifndef SV_TEST
+int write_stream(uint8_t* data, unsigned int len);
+  int rc;
+  uint32_t rdata;
+  unsigned int len_send = 0;
 
- int check_afi_ready(int slot_id) {
-   struct fpga_mgmt_image_info info = {0}; 
+  rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET + 0xCULL, &rdata);
+  fail_on(rc, out, "Unable to read from FPGA!");
+  if (len > rdata) {
+    printf("ERROR: write_stream does not have enough space to write %d bytes! (%d free)\n", len, rdata);
+    goto out;
+  }
+
+
+  while(len_send < len) {
+    fpga_pci_poke64(pci_bar_handle_bar4, 0, *(uint64_t*)(&data[len_send]));
+    len_send += 8;
+  }
+
+  rc = fpga_pci_poke(pci_bar_handle_bar0, AXI_FIFO_OFFSET+0x14ULL, len); // Reset ISR
+  fail_on(rc, out, "Unable to write to FPGA!");
+
+
+  printf("INFO: write_stream::Wrote %d bytes of data", len);
+
+  // Check transmit complete bit and reset it
+  rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET, &rdata);
+  fail_on(rc, out, "Unable to read from FPGA!");
+  if (rdata & (1 << 27) == 0) {
+    printf("WARNING: write_stream transmit bit not set, register returned 0x%x\n", rdata);
+  }
+
+  rc = fpga_pci_poke(pci_bar_handle_bar0, AXI_FIFO_OFFSET, 0x08000000); // Reset ISR
+  fail_on(rc, out, "Unable to write to FPGA!");
+
+  return rc;
+  out:
+    return 1;
+}
+
+int read_stream(uint8_t* data, unsigned int size);
+
+  uint32_t rdata;
+  int read_len = 0;
+
+  if (size == 0) {
+    printf("WARNING: Size was 0, cannot read into empty buffer!\n");
+    return 0;
+  }
+
+  rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET, &rdata);
+  fail_on(rc, out, "Unable to read from FPGA!");
+  if (rdata & (1 << 26) == 0) return 0;  // Nothing to read
+
+  rc = fpga_pci_poke(pci_bar_handle_bar0, AXI_FIFO_OFFSET, 0x04000000); // clear ISR
+  fail_on(rc, out, "Unable to write to FPGA!");
+
+  rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET + 0x1CULL, &rdata);  //RDFO should be non-zero (slots used in FIFO)
+  fail_on(rc, out, "Unable to read from FPGA!");
+  if (rdata == 0) {
+    printf("WARNING: Read FIFO shows data but length was 0!\n");
+    return 0;
+  }
+
+  rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET + 0x24ULL, &rdata);  //RLR - length of packet in bytes
+  fail_on(rc, out, "Unable to read from FPGA!");
+
+  while(rdata > 0 && size >= read_len+8) {
+    rc = fpga_pci_peek64(pci_bar_handle_bar4, 0, (uint64_t*)(&data[read_len]));
+    fail_on(rc, out, "Unable to read from FPGA PCIS!");
+    read_len += 8;
+  }
+
+  printf("INFO: Read %d bytes from read_stream()\n", read_len);
+
+  return read_len;
+  out:
+    return -1;
+}
+
+int init(int slot_id) {
+  int rc;
+  uint32_t rdata;
+
+  /* initialize the fpga_pci library so we could have access to FPGA PCIe from this applications */
+  rc = fpga_pci_init();
+  fail_on(rc, out, "Unable to initialize the fpga_pci library");
+
+  rc = check_afi_ready(slot_id);
+  fail_on(rc, out, "AFI not ready");
+
+  // We need to attach to the FPGA BAR0 (OCL) and BAR4 (PCIS)
+  rc = fpga_pci_attach(slot_id, FPGA_APP_PF, APP_PF_BAR0, 0, &pci_bar_handle_bar0);
+  fail_on(rc, out, "Unable to attach to the AFI BAR0 on slot id %d", slot_id);
+
+  rc = fpga_pci_attach(slot_id, FPGA_APP_PF, APP_PF_BAR4, BURST_CAPABLE, &pci_bar_handle_bar4);
+  fail_on(rc, out, "Unable to attach to the AFI BAR4 on slot id %d", slot_id);
+
+  // Now setup the streaming interface
+
+  rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET, &rdata); //ISR
+  fail_on(rc, out, "Unable to read from FPGA!");
+  printf("INFO: Read 0x%x from ISR register.\n", rdata);
+  if (rdata != 0x01D00000) {
+    printf("WARNING: Expected 0x01D00000.\n");
+  }
+
+  rc = fpga_pci_poke(pci_bar_handle_bar0, AXI_FIFO_OFFSET, 0xFFFFFFFF); // Reset ISR
+  fail_on(rc, out, "Unable to write to FPGA!");
+
+  rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET+0xCULL, &rdata); //TDFV
+  fail_on(rc, out, "Unable to read from FPGA!");
+  printf("INFO: Read 0x%x from TDFV register.\n", rdata);
+  if (rdata != 0x000001FC) {
+    printf("WARNING: Expected 0x000001FC.\n");
+  }
+
+  rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET+0x1CULL, &rdata); //RDFO
+  fail_on(rc, out, "Unable to read from FPGA!");
+  printf("INFO: Read 0x%x from RDFO register.\n", rdata);
+  if (rdata != 0x00000000) {
+    printf("WARNING: Expected 0x00000000.\n");
+  }
+
+  rc = fpga_pci_poke(pci_bar_handle_bar0, AXI_FIFO_OFFSET+0x4ULL, 0x0C000000); // Clear IER
+  fail_on(rc, out, "Unable to write to FPGA!");
+
+  printf("INFO: Finished initializing FPGA.\n");
+
+  return rc;
+  out:
+    /* clean up */
+    if (pci_bar_handle_bar0 >= 0) {
+      rc = fpga_pci_detach(pci_bar_handle_bar0);
+      if (rc) printf("Failure while detaching bar0 from the fpga.\n");
+    }
+    if (pci_bar_handle_bar4 >= 0) {
+      rc = fpga_pci_detach(pci_bar_handle_bar4);
+      if (rc) printf("Failure while detaching bar4 from the fpga.\n");
+    }
+    return 1;
+}
+
+int check_afi_ready(int slot_id) {
+   struct fpga_mgmt_image_info info = {0};
    int rc;
 
    /* get local image description, contains status, vendor id, and device id. */
@@ -214,75 +334,10 @@ out:
                "the expected values.");
      }
    }
-    
+
    return rc;
- out:
-   return 1;
- }
-
-#endif
-
-/*
- * An example to attach to an arbitrary slot, pf, and bar with register access.
- */
-int peek_poke_example(uint32_t value, int slot_id, int pf_id, int bar_id) {
-    int rc;
-    /* pci_bar_handle_t is a handler for an address space exposed by one PCI BAR on one of the PCI PFs of the FPGA */
-
-    pci_bar_handle_t pci_bar_handle = PCI_BAR_HANDLE_INIT;
-
-    
-    /* attach to the fpga, with a pci_bar_handle out param
-     * To attach to multiple slots or BARs, call this function multiple times,
-     * saving the pci_bar_handle to specify which address space to interact with in
-     * other API calls.
-     * This function accepts the slot_id, physical function, and bar number
-     */
-#ifndef SV_TEST
-    rc = fpga_pci_attach(slot_id, pf_id, bar_id, 0, &pci_bar_handle);
-    fail_on(rc, out, "Unable to attach to the AFI on slot id %d", slot_id);
-#endif
-    
-    /* write a value into the mapped address space */
-    uint32_t expected = byte_swap(value);
-    printf("Writing 0x%08x to HELLO_WORLD register (0x%016lx)\n", value, HELLO_WORLD_REG_ADDR);
-    rc = fpga_pci_poke(pci_bar_handle, HELLO_WORLD_REG_ADDR, value);
-
-    fail_on(rc, out, "Unable to write to the fpga !");
-
-    /* read it back and print it out; you should expect the byte order to be
-     * reversed (That's what this CL does) */
-    rc = fpga_pci_peek(pci_bar_handle, HELLO_WORLD_REG_ADDR, &value);
-    fail_on(rc, out, "Unable to read read from the fpga !");
-    printf("=====  Entering peek_poke_example =====\n");
-    printf("register: 0x%x\n", value);
-    if(value == expected) {
-        printf("TEST PASSED");
-        printf("Resulting value matched expected value 0x%x. It worked!\n", expected);
-    }
-    else{
-        printf("TEST FAILED");
-        printf("Resulting value did not match expected value 0x%x. Something didn't work.\n", expected);
-    }
-out:
-    /* clean up */
-    if (pci_bar_handle >= 0) {
-        rc = fpga_pci_detach(pci_bar_handle);
-        if (rc) {
-            printf("Failure while detaching from the fpga.\n");
-        }
-    }
-
-    /* if there is an error code, exit with status 1 */
-    return (rc != 0 ? 1 : 0);
+   out:
+     return 1;
 }
 
-#ifdef SV_TEST
-/*This function is used transfer string buffer from SV to C.
-  This function currently returns 0 but can be used to update a buffer on the 'C' side.*/
-int send_rdbuf_to_c(char* rd_buf)
-{
-   return 0;
-}
 
-#endif
