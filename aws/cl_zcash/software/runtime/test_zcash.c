@@ -24,6 +24,8 @@
 #include <utils/lcd.h>
 #include <utils/sh_dpi_tasks.h>
 
+#define _BSD_SOURCE
+
 #define AXI_FIFO_OFFSET UINT64_C(0x0)
 #define ZCASH_OFFSET    UINT64_C(0x1000)
 
@@ -80,6 +82,7 @@ int main(int argc, char **argv) {
 
     int slot_id = 0;
     int rc;
+    uint32_t value = 0;
 
     // Process command line args
     {
@@ -140,7 +143,8 @@ int main(int argc, char **argv) {
 
 
     printf("Reply received of %d bytes:0x", read_len);
-    for (int i = 0; i < read_len; i++)
+    int i;
+    for (i = 0; i < read_len; i++)
       printf("%x", reply[i]);
     printf("\n");
 
