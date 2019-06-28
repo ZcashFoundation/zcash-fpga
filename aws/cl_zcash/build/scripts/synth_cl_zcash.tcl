@@ -66,7 +66,7 @@ read_ip [ list \
   $CL_DIR/ip/axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci \
   $CL_DIR/ip/axis_dwidth_converter_48_to_8/axis_dwidth_converter_48_to_8.xci \
   $CL_DIR/ip/axi_fifo_mm_s_0/axi_fifo_mm_s_0.xci \
-  $CL_DIR/ip/axi_fifo_mm_s_0/axi_fifo_mm_s_lite.xci
+  $CL_DIR/ip/axi_fifo_mm_s_lite/axi_fifo_mm_s_lite.xci
 ]
 
 puts "AWS FPGA: Generating IP blocks";
