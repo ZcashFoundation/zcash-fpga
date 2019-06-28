@@ -4,3 +4,5 @@ rm -rf axis_dwidth_converter_8_to_64/
 rm -rf axi_fifo_mm_s_0/
 rm -rf axis_dwidth_converter_48_to_8/
 rm -rf axi_fifo_mm_s_lite/
+rm -rf axis_dwidth_converter_4_to_8/
+rm -rf axis_dwidth_converter_8_to_4/

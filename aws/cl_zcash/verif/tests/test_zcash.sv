@@ -55,9 +55,9 @@ initial begin
   AXI4_ENABLED = rdata[31];
   $display("INFO: AXI4_ENABLED is set to %d", AXI4_ENABLED);
   if (tb.card.fpga.CL.USE_AXI4 == "YES")
-    assert (AXI4_ENABLED == 0) else $fatal(1, "ERROR: AXI4 was detected as disabled but parameter is set to enabled");
+    assert (AXI4_ENABLED == 1) else $fatal(1, "ERROR: AXI4 was detected as disabled but parameter is set to enabled");
   else
-    assert (AXI4_ENABLED == 1) else $fatal(1, "ERROR: AXI4 was detected as enabled but parameter is set to disabled");
+    assert (AXI4_ENABLED == 0) else $fatal(1, "ERROR: AXI4 was detected as enabled but parameter is set to disabled");
 
 
   // Run our test cases
@@ -104,7 +104,7 @@ task write_stream(input logic [1024*8-1:0] data, input integer len);
       len_ = len_ - 512/8;
       data = data >> 512;
     end else begin
-      read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h10), .rdata(rdata));
+      write_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h10), .data(data[31:0]));
       len_ = len_ - 32/8;
       data = data >> 32;
     end

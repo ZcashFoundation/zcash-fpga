@@ -17,10 +17,9 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-module #(
-  parameter USE_AXI4 = "NO"
-)
-cl_zcash_aws_wrapper (
+module cl_zcash_aws_wrapper #(
+  parameter USE_AXI4
+)(
   input i_rst,
   input i_clk,
   // AWS facing interfaces
@@ -36,11 +35,11 @@ cl_zcash_aws_wrapper (
 
 if_axi_lite #(.A_BITS(32)) axi_fifo_if (i_clk);
 
-if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) rx_aws_if (i_clk);
-if_axi_stream #(.DAT_BYTS(64), .CTL_BITS(1)) tx_aws_if (i_clk);
+if_axi_stream #(.DAT_BYTS(USE_AXI4 == "YES" ? 64 : 4), .CTL_BITS(1)) rx_aws_if (i_clk);
+if_axi_stream #(.DAT_BYTS(USE_AXI4 == "YES" ? 64 : 4), .CTL_BITS(1)) tx_aws_if (i_clk);
 
 logic [7:0] rx_zcash_if_keep, tx_zcash_if_keep;
-logic [63:0] rx_aws_if_keep, tx_aws_if_keep;
+logic [USE_AXI4 == "YES" ? 63 : 3:0] rx_aws_if_keep, tx_aws_if_keep;
 
 
 always_comb begin
@@ -140,40 +139,43 @@ always_ff @(posedge i_clk) begin
   end
 end
 
-// Convert 8 bytes to 64 bytes
-axis_dwidth_converter_8_to_64 converter_8_to_64 (
-  .aclk   ( i_clk  ),
-  .aresetn( ~i_rst ),
-  .s_axis_tvalid( rx_zcash_if.val  ),
-  .s_axis_tready( rx_zcash_if.rdy  ),
-  .s_axis_tdata ( rx_zcash_if.dat  ),
-  .s_axis_tlast ( rx_zcash_if.eop  ),
-  .s_axis_tkeep ( rx_zcash_if_keep ),
-  .m_axis_tvalid( tx_aws_if.val    ),
-  .m_axis_tready( tx_aws_if.rdy    ),
-  .m_axis_tdata ( tx_aws_if.dat    ),
-  .m_axis_tlast ( tx_aws_if.eop    ),
-  .m_axis_tkeep ( tx_aws_if_keep   )
-);
 
-// Convert 64 bytes to 8 bytes
-axis_dwidth_converter_64_to_8 converter_64_to_8 (
-  .aclk   ( i_clk  ),
-  .aresetn( ~i_rst ),
-  .s_axis_tvalid( rx_aws_if.val    ),
-  .s_axis_tready( rx_aws_if.rdy    ),
-  .s_axis_tdata ( rx_aws_if.dat    ),
-  .s_axis_tlast ( rx_aws_if.eop    ),
-  .s_axis_tkeep ( rx_aws_if_keep   ),
-  .m_axis_tvalid( tx_zcash_if.val  ),
-  .m_axis_tready( tx_zcash_if.rdy  ),
-  .m_axis_tdata ( tx_zcash_if.dat  ),
-  .m_axis_tlast ( tx_zcash_if.eop  ),
-  .m_axis_tkeep ( tx_zcash_if_keep )
-);
 
 generate
   if (USE_AXI4 == "YES") begin: AXI4_GEN
+
+    // Convert 8 bytes to 64 bytes
+    axis_dwidth_converter_8_to_64 converter_8_to_64 (
+      .aclk   ( i_clk  ),
+      .aresetn( ~i_rst ),
+      .s_axis_tvalid( rx_zcash_if.val  ),
+      .s_axis_tready( rx_zcash_if.rdy  ),
+      .s_axis_tdata ( rx_zcash_if.dat  ),
+      .s_axis_tlast ( rx_zcash_if.eop  ),
+      .s_axis_tkeep ( rx_zcash_if_keep ),
+      .m_axis_tvalid( tx_aws_if.val    ),
+      .m_axis_tready( tx_aws_if.rdy    ),
+      .m_axis_tdata ( tx_aws_if.dat    ),
+      .m_axis_tlast ( tx_aws_if.eop    ),
+      .m_axis_tkeep ( tx_aws_if_keep   )
+    );
+
+    // Convert 64 bytes to 8 bytes
+    axis_dwidth_converter_64_to_8 converter_64_to_8 (
+      .aclk   ( i_clk  ),
+      .aresetn( ~i_rst ),
+      .s_axis_tvalid( rx_aws_if.val    ),
+      .s_axis_tready( rx_aws_if.rdy    ),
+      .s_axis_tdata ( rx_aws_if.dat    ),
+      .s_axis_tlast ( rx_aws_if.eop    ),
+      .s_axis_tkeep ( rx_aws_if_keep   ),
+      .m_axis_tvalid( tx_zcash_if.val  ),
+      .m_axis_tready( tx_zcash_if.rdy  ),
+      .m_axis_tdata ( tx_zcash_if.dat  ),
+      .m_axis_tlast ( tx_zcash_if.eop  ),
+      .m_axis_tkeep ( tx_zcash_if_keep )
+    );
+
     // Convert our AXI stream interfaces into AXI4 on PCIS
     axi_fifo_mm_s_0 axi_fifo_mm_s_0 (
       .interrupt(),
@@ -254,6 +256,38 @@ generate
     end
 
   end else begin
+
+    // Convert 8 bytes to 4 bytes
+    axis_dwidth_converter_8_to_4 converter_8_to_4 (
+      .aclk   ( i_clk  ),
+      .aresetn( ~i_rst ),
+      .s_axis_tvalid( rx_zcash_if.val  ),
+      .s_axis_tready( rx_zcash_if.rdy  ),
+      .s_axis_tdata ( rx_zcash_if.dat  ),
+      .s_axis_tlast ( rx_zcash_if.eop  ),
+      .s_axis_tkeep ( rx_zcash_if_keep ),
+      .m_axis_tvalid( tx_aws_if.val    ),
+      .m_axis_tready( tx_aws_if.rdy    ),
+      .m_axis_tdata ( tx_aws_if.dat    ),
+      .m_axis_tlast ( tx_aws_if.eop    ),
+      .m_axis_tkeep ( tx_aws_if_keep   )
+    );
+
+    // Convert 4 bytes to 8 bytes
+    axis_dwidth_converter_4_to_8 converter_4_to_8 (
+      .aclk   ( i_clk  ),
+      .aresetn( ~i_rst ),
+      .s_axis_tvalid( rx_aws_if.val    ),
+      .s_axis_tready( rx_aws_if.rdy    ),
+      .s_axis_tdata ( rx_aws_if.dat    ),
+      .s_axis_tlast ( rx_aws_if.eop    ),
+      .s_axis_tkeep ( rx_aws_if_keep   ),
+      .m_axis_tvalid( tx_zcash_if.val  ),
+      .m_axis_tready( tx_zcash_if.rdy  ),
+      .m_axis_tdata ( tx_zcash_if.dat  ),
+      .m_axis_tlast ( tx_zcash_if.eop  ),
+      .m_axis_tkeep ( tx_zcash_if_keep )
+    );
 
     axi_fifo_mm_s_lite axi_fifo_mm_s_lite (
       .interrupt(),

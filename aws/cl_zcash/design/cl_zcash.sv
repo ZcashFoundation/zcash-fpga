@@ -165,35 +165,39 @@ always_ff @(posedge clk_100) rst_100  <= !rst_main_n;
 always_ff @(posedge clk_200) rst_200  <= !rst_main_n;
 always_ff @(posedge clk_300) rst_300  <= !rst_main_n;
 
-always_comb begin
-  rx_axi4_if.awid = sh_cl_dma_pcis_awid;
-  rx_axi4_if.awaddr   = sh_cl_dma_pcis_awaddr;
-  rx_axi4_if.awlen    = sh_cl_dma_pcis_awlen;
-  rx_axi4_if.awsize   = sh_cl_dma_pcis_awsize;
-  rx_axi4_if.awvalid  = sh_cl_dma_pcis_awvalid;
-  cl_sh_dma_pcis_awready = rx_axi4_if.awready;
-  rx_axi4_if.wdata  = sh_cl_dma_pcis_wdata;
-  rx_axi4_if.wstrb  = sh_cl_dma_pcis_wstrb;
-  rx_axi4_if.wlast  = sh_cl_dma_pcis_wlast;
-  rx_axi4_if.wvalid = sh_cl_dma_pcis_wvalid;
-  cl_sh_dma_pcis_wready = rx_axi4_if.wready;
-  cl_sh_dma_pcis_bid = rx_axi4_if.bid;
-  cl_sh_dma_pcis_bresp = rx_axi4_if.bresp;
-  cl_sh_dma_pcis_bvalid = rx_axi4_if.bvalid;
-  rx_axi4_if.bready = sh_cl_dma_pcis_bready;
-  rx_axi4_if.arid   = sh_cl_dma_pcis_arid;
-  rx_axi4_if.araddr = sh_cl_dma_pcis_araddr;
-  rx_axi4_if.arlen = sh_cl_dma_pcis_arlen;
-  rx_axi4_if.arsize  = sh_cl_dma_pcis_arsize;
-  rx_axi4_if.arvalid  =  sh_cl_dma_pcis_arvalid;
-  cl_sh_dma_pcis_arready = rx_axi4_if.arready;
-  cl_sh_dma_pcis_rid = rx_axi4_if.rid;
-  cl_sh_dma_pcis_rdata = rx_axi4_if.rdata;
-  cl_sh_dma_pcis_rresp  = rx_axi4_if.rresp;
-  cl_sh_dma_pcis_rlast  = rx_axi4_if.rlast;
-  cl_sh_dma_pcis_rvalid = rx_axi4_if.rvalid;
-  rx_axi4_if.rready =  sh_cl_dma_pcis_rready;
-end
+generate
+  if (USE_AXI4 == "YES") begin: AXI4_GEN
+    always_comb begin
+      rx_axi4_if.awid = sh_cl_dma_pcis_awid;
+      rx_axi4_if.awaddr   = sh_cl_dma_pcis_awaddr;
+      rx_axi4_if.awlen    = sh_cl_dma_pcis_awlen;
+      rx_axi4_if.awsize   = sh_cl_dma_pcis_awsize;
+      rx_axi4_if.awvalid  = sh_cl_dma_pcis_awvalid;
+      cl_sh_dma_pcis_awready = rx_axi4_if.awready;
+      rx_axi4_if.wdata  = sh_cl_dma_pcis_wdata;
+      rx_axi4_if.wstrb  = sh_cl_dma_pcis_wstrb;
+      rx_axi4_if.wlast  = sh_cl_dma_pcis_wlast;
+      rx_axi4_if.wvalid = sh_cl_dma_pcis_wvalid;
+      cl_sh_dma_pcis_wready = rx_axi4_if.wready;
+      cl_sh_dma_pcis_bid = rx_axi4_if.bid;
+      cl_sh_dma_pcis_bresp = rx_axi4_if.bresp;
+      cl_sh_dma_pcis_bvalid = rx_axi4_if.bvalid;
+      rx_axi4_if.bready = sh_cl_dma_pcis_bready;
+      rx_axi4_if.arid   = sh_cl_dma_pcis_arid;
+      rx_axi4_if.araddr = sh_cl_dma_pcis_araddr;
+      rx_axi4_if.arlen = sh_cl_dma_pcis_arlen;
+      rx_axi4_if.arsize  = sh_cl_dma_pcis_arsize;
+      rx_axi4_if.arvalid  =  sh_cl_dma_pcis_arvalid;
+      cl_sh_dma_pcis_arready = rx_axi4_if.arready;
+      cl_sh_dma_pcis_rid = rx_axi4_if.rid;
+      cl_sh_dma_pcis_rdata = rx_axi4_if.rdata;
+      cl_sh_dma_pcis_rresp  = rx_axi4_if.rresp;
+      cl_sh_dma_pcis_rlast  = rx_axi4_if.rlast;
+      cl_sh_dma_pcis_rvalid = rx_axi4_if.rvalid;
+      rx_axi4_if.rready =  sh_cl_dma_pcis_rready;
+    end
+  end
+endgenerate
 
 cl_zcash_aws_wrapper #(
   .USE_AXI4 ( USE_AXI4 )
