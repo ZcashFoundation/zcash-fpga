@@ -12,6 +12,10 @@
 // an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
 // implied. See the License for the specific language governing permissions and
 // limitations under the License.
+//
+
+#define _XOPEN_SOURCE 500
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -23,8 +27,6 @@
 #include <fpga_mgmt.h>
 #include <utils/lcd.h>
 #include <utils/sh_dpi_tasks.h>
-
-#define _BSD_SOURCE
 
 #define AXI_FIFO_OFFSET UINT64_C(0x0)
 #define ZCASH_OFFSET    UINT64_C(0x1000)
@@ -154,7 +156,7 @@ out:
     return 1;
 }
 
-int write_stream(uint8_t* data, unsigned int len);
+int write_stream(uint8_t* data, unsigned int len) {
   int rc;
   uint32_t rdata;
   unsigned int len_send = 0;
@@ -181,7 +183,7 @@ int write_stream(uint8_t* data, unsigned int len);
   // Check transmit complete bit and reset it
   rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET, &rdata);
   fail_on(rc, out, "Unable to read from FPGA!");
-  if (rdata & (1 << 27) == 0) {
+  if ((rdata & (1 << 27)) == 0) {
     printf("WARNING: write_stream transmit bit not set, register returned 0x%x\n", rdata);
   }
 
@@ -193,10 +195,11 @@ int write_stream(uint8_t* data, unsigned int len);
     return 1;
 }
 
-int read_stream(uint8_t* data, unsigned int size);
+int read_stream(uint8_t* data, unsigned int size) {
 
   uint32_t rdata;
   int read_len = 0;
+  int rc;
 
   if (size == 0) {
     printf("WARNING: Size was 0, cannot read into empty buffer!\n");
@@ -205,7 +208,7 @@ int read_stream(uint8_t* data, unsigned int size);
 
   rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET, &rdata);
   fail_on(rc, out, "Unable to read from FPGA!");
-  if (rdata & (1 << 26) == 0) return 0;  // Nothing to read
+  if ((rdata & (1 << 26)) == 0) return 0;  // Nothing to read
 
   rc = fpga_pci_poke(pci_bar_handle_bar0, AXI_FIFO_OFFSET, 0x04000000); // clear ISR
   fail_on(rc, out, "Unable to write to FPGA!");
