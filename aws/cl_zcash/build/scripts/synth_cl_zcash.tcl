@@ -62,6 +62,8 @@ puts "AWS FPGA: Reading IP blocks";
 
 # User IP
 read_ip [ list \
+  $CL_DIR/ip/axis_dwidth_converter_4_to_8/axis_dwidth_converter_4_to_8.xci \
+  $CL_DIR/ip/axis_dwidth_converter_8_to_4/axis_dwidth_converter_8_to_4.xci \
   $CL_DIR/ip/axis_dwidth_converter_64_to_8/axis_dwidth_converter_64_to_8.xci \
   $CL_DIR/ip/axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci \
   $CL_DIR/ip/axis_dwidth_converter_48_to_8/axis_dwidth_converter_48_to_8.xci \
@@ -73,12 +75,16 @@ puts "AWS FPGA: Generating IP blocks";
 
 set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_64_to_8.xci]
 set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_8_to_64.xci]
+set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_4_to_8.xci]
+set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_8_to_4.xci]
 set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_48_to_8.xci]
 set_property generate_synth_checkpoint false [get_files axi_fifo_mm_s_0.xci]
 set_property generate_synth_checkpoint false [get_files axi_fifo_mm_s_lite.xci]
 
 generate_target all [get_ips axis_dwidth_converter_64_to_8]
 generate_target all [get_ips axis_dwidth_converter_8_to_64]
+generate_target all [get_ips axis_dwidth_converter_4_to_8]
+generate_target all [get_ips axis_dwidth_converter_8_to_4]
 generate_target all [get_ips axis_dwidth_converter_48_to_8]
 generate_target all [get_ips axi_fifo_mm_s_0]
 generate_target all [get_ips axi_fifo_mm_s_lite]
