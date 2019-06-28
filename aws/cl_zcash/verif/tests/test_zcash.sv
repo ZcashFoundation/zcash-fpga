@@ -38,6 +38,7 @@ logic [31:0] rdata;
 logic [1024*8-1:0] stream_data;
 integer stream_len;
 logic verbose = 0;
+logic AXI4_ENABLED = 0;
 
 initial begin
 
@@ -49,6 +50,15 @@ initial begin
   read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'hC), .exp_data(32'h000001FC), .rdata(rdata)); //TDFV
   read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h1C), .exp_data(32'h00000000), .rdata(rdata)); //RDFO
   write_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h4), .data(32'h0C000000)); //IER
+  // See if AXI4 is enabled or not
+  read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h44), .rdata(rdata));
+  AXI4_ENABLED = rdata[31];
+  $display("INFO: AXI4_ENABLED is set to %d", AXI4_ENABLED);
+  if (tb.card.fpga.CL.USE_AXI4 == "YES")
+    assert (AXI4_ENABLED == 0) else $fatal(1, "ERROR: AXI4 was detected as disabled but parameter is set to enabled");
+  else
+    assert (AXI4_ENABLED == 1) else $fatal(1, "ERROR: AXI4 was detected as enabled but parameter is set to disabled");
+
 
   // Run our test cases
   test_status_message();
@@ -87,11 +97,17 @@ task write_stream(input logic [1024*8-1:0] data, input integer len);
   if (len > rdata) $fatal(1, "ERROR: write_pcis::AXI-FIFO does not have enough space to write %d bytes (%d free)", len, rdata);
 
   while(len_ > 0) begin
-    strb = 0;
-    for(int i = 0; i < 64; i++) if(len_ > i) strb[i] = 1;
-    tb.poke_pcis(.addr(0), .data(data[511:0]), .strb(strb));
-    len_ = len_ - 512/8;
-    data = data >> 512;
+    if (tb.card.fpga.CL.USE_AXI4 == "YES") begin
+      strb = 0;
+     for(int i = 0; i < 64; i++) if(len_ > i) strb[i] = 1;
+      tb.poke_pcis(.addr(0), .data(data[511:0]), .strb(strb));
+      len_ = len_ - 512/8;
+      data = data >> 512;
+    end else begin
+      read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h10), .rdata(rdata));
+      len_ = len_ - 32/8;
+      data = data >> 32;
+    end
   end
   write_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h14), .data(len));
 
@@ -107,7 +123,7 @@ endtask
 
 task read_stream(output logic [1024*8-1:0] data, integer len);
 
-  logic [31:0] rdata;
+  logic [31:0] rdata, rdata_int;
   logic [511:0] pcis_data;
   len = 0;
   data = 0;
@@ -120,10 +136,17 @@ task read_stream(output logic [1024*8-1:0] data, integer len);
 
   read_ocl_reg(.addr(`AXI_FIFO_OFFSET+ 32'h24), .rdata(rdata)); //RLR - length of packet in bytes
   while(rdata > 0) begin
-    tb.peek_pcis(.addr(32'h1000), .data(pcis_data));
-    data[len*8 +: 512] = pcis_data;
-    len = len + rdata > (512/8) ? 512/8 : rdata/8;
-    rdata = rdata < 512/8 ? 0 : rdata - 512/8;
+    if (tb.card.fpga.CL.USE_AXI4 == "YES") begin
+      tb.peek_pcis(.addr(32'h1000), .data(pcis_data));
+      data[len*8 +: 512] = pcis_data;
+      len = len + rdata > (512/8) ? 512/8 : rdata/8;
+      rdata = rdata < 512/8 ? 0 : rdata - 512/8;
+    end else begin
+      read_ocl_reg(.addr(`AXI_FIFO_OFFSET+ 32'h20), .rdata(rdata_int));
+      data[len*8 +: 32] = rdata_int;
+      len = len + (rdata > (32/8) ? 32/8 : rdata/8);
+      rdata = rdata < 32/8 ? 0 : rdata - 32/8;
+    end
   end
 
 endtask

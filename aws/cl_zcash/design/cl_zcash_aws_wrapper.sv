@@ -17,12 +17,15 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-module cl_zcash_aws_wrapper (
+module #(
+  parameter USE_AXI4 = "NO"
+)
+cl_zcash_aws_wrapper (
   input i_rst,
   input i_clk,
   // AWS facing interfaces
   if_axi_lite.sink     rx_axi_lite_if,      // OCL interface
-  if_axi4.sink         rx_axi4_if,          // PCIS interface
+  if_axi4.sink         rx_axi4_if,          // PCIS interface (only used if USE_AXI4 == "YES")
   // Zcash interfaces
   if_axi_lite.source   zcash_axi_lite_if,
   if_axi_stream.sink   rx_zcash_if,
@@ -104,7 +107,8 @@ always_comb begin
   rx_axi_lite_if.bresp   = 0;
   rx_axi_lite_if.arready = zcash_dec ? zcash_axi_lite_if.arready : axi_fifo_dec ? axi_fifo_if.arready : 0;
   rx_axi_lite_if.rvalid  = zcash_dec ? zcash_axi_lite_if.rvalid : axi_fifo_dec ? axi_fifo_if.rvalid : 0;
-  rx_axi_lite_if.rdata   = zcash_dec ? zcash_axi_lite_if.rdata : axi_fifo_dec ?  axi_fifo_if.rdata : 32'h0;
+  // This way we can check is AXI4 is enabled, will be removed later when a memory map is added for configuration options
+  rx_axi_lite_if.rdata   = zcash_dec ? zcash_axi_lite_if.rdata : axi_fifo_dec ?  (((araddr == 32'h44 && USE_AXI4 == "YES") << 31) | axi_fifo_if.rdata) : 32'h0;
   rx_axi_lite_if.rresp   = 0;
 end
 
@@ -168,84 +172,128 @@ axis_dwidth_converter_64_to_8 converter_64_to_8 (
   .m_axis_tkeep ( tx_zcash_if_keep )
 );
 
+generate
+  if (USE_AXI4 == "YES") begin: AXI4_GEN
+    // Convert our AXI stream interfaces into AXI4 on PCIS
+    axi_fifo_mm_s_0 axi_fifo_mm_s_0 (
+      .interrupt(),
+      .s_axi_aclk     ( i_clk  ),
+      .s_axi_aresetn  ( ~i_rst ),
 
-// Convert our AXI stream interfaces into AXI4 on PCIS
-axi_fifo_mm_s_0 axi_fifo_mm_s_0 (
-  .interrupt(),
-  .s_axi_aclk     ( i_clk  ),
-  .s_axi_aresetn  ( ~i_rst ),
+      .s_axi_awaddr   ( axi_fifo_if.awaddr  ),
+      .s_axi_awvalid  ( axi_fifo_if.awvalid ),
+      .s_axi_awready  ( axi_fifo_if.awready ),
+      .s_axi_wdata    ( axi_fifo_if.wdata   ),
+      .s_axi_wstrb    ( axi_fifo_if.wstrb   ),
+      .s_axi_wvalid   ( axi_fifo_if.wvalid  ),
+      .s_axi_wready   ( axi_fifo_if.wready  ),
+      .s_axi_bresp    ( axi_fifo_if.bresp   ),
+      .s_axi_bvalid   ( axi_fifo_if.bvalid  ),
+      .s_axi_bready   ( axi_fifo_if.bready  ),
+      .s_axi_araddr   ( axi_fifo_if.araddr  ),
+      .s_axi_arvalid  ( axi_fifo_if.arvalid ),
+      .s_axi_arready  ( axi_fifo_if.arready ),
+      .s_axi_rdata    ( axi_fifo_if.rdata   ),
+      .s_axi_rresp    ( axi_fifo_if.rresp   ),
+      .s_axi_rvalid   ( axi_fifo_if.rvalid  ),
+      .s_axi_rready   ( axi_fifo_if.rready  ),
 
-  .s_axi_awaddr   ( axi_fifo_if.awaddr  ),
-  .s_axi_awvalid  ( axi_fifo_if.awvalid ),
-  .s_axi_awready  ( axi_fifo_if.awready ),
-  .s_axi_wdata    ( axi_fifo_if.wdata   ),
-  .s_axi_wstrb    ( axi_fifo_if.wstrb   ),
-  .s_axi_wvalid   ( axi_fifo_if.wvalid  ),
-  .s_axi_wready   ( axi_fifo_if.wready  ),
-  .s_axi_bresp    ( axi_fifo_if.bresp   ),
-  .s_axi_bvalid   ( axi_fifo_if.bvalid  ),
-  .s_axi_bready   ( axi_fifo_if.bready  ),
-  .s_axi_araddr   ( axi_fifo_if.araddr  ),
-  .s_axi_arvalid  ( axi_fifo_if.arvalid ),
-  .s_axi_arready  ( axi_fifo_if.arready ),
-  .s_axi_rdata    ( axi_fifo_if.rdata   ),
-  .s_axi_rresp    ( axi_fifo_if.rresp   ),
-  .s_axi_rvalid   ( axi_fifo_if.rvalid  ),
-  .s_axi_rready   ( axi_fifo_if.rready  ),
+      .s_axi4_awid   ( rx_axi4_if.awid    ),
+      .s_axi4_awaddr ( rx_axi4_if.awaddr  ),
+      .s_axi4_awlen  ( rx_axi4_if.awlen   ),
+      .s_axi4_awsize ( rx_axi4_if.awsize  ),
+      .s_axi4_awburst( rx_axi4_if.awburst ),
+      .s_axi4_awlock ( rx_axi4_if.awlock  ),
+      .s_axi4_awcache( rx_axi4_if.awcache ),
+      .s_axi4_awprot ( rx_axi4_if.awprot  ),
+      .s_axi4_awvalid( rx_axi4_if.awvalid ),
+      .s_axi4_awready( rx_axi4_if.awready ),
+      .s_axi4_wdata  ( rx_axi4_if.wdata   ),
+      .s_axi4_wstrb  ( rx_axi4_if.wstrb   ),
+      .s_axi4_wlast  ( rx_axi4_if.wlast   ),
+      .s_axi4_wvalid ( rx_axi4_if.wvalid  ),
+      .s_axi4_wready ( rx_axi4_if.wready  ),
+      .s_axi4_bid    ( rx_axi4_if.bid     ),
+      .s_axi4_bresp  ( rx_axi4_if.bresp   ),
+      .s_axi4_bvalid ( rx_axi4_if.bvalid  ),
+      .s_axi4_bready ( rx_axi4_if.bready  ),
+      .s_axi4_arid   ( rx_axi4_if.arid    ),
+      .s_axi4_araddr ( rx_axi4_if.araddr  ),
+      .s_axi4_arlen  ( rx_axi4_if.arlen   ),
+      .s_axi4_arsize ( rx_axi4_if.arsize  ),
+      .s_axi4_arburst( rx_axi4_if.arburst ),
+      .s_axi4_arlock ( rx_axi4_if.arlock  ),
+      .s_axi4_arcache( rx_axi4_if.arcache ),
+      .s_axi4_arprot ( rx_axi4_if.arprot  ),
+      .s_axi4_arvalid( rx_axi4_if.arvalid ),
+      .s_axi4_arready( rx_axi4_if.arready ),
+      .s_axi4_rid    ( ),
+      .s_axi4_rdata  ( rx_axi4_if.rdata   ),
+      .s_axi4_rresp  ( rx_axi4_if.rresp   ),
+      .s_axi4_rlast  ( rx_axi4_if.rlast   ),
+      .s_axi4_rvalid ( rx_axi4_if.rvalid  ),
+      .s_axi4_rready ( rx_axi4_if.rready  ),
 
-  .s_axi4_awid   ( rx_axi4_if.awid    ),
-  .s_axi4_awaddr ( rx_axi4_if.awaddr  ),
-  .s_axi4_awlen  ( rx_axi4_if.awlen   ),
-  .s_axi4_awsize ( rx_axi4_if.awsize  ),
-  .s_axi4_awburst( rx_axi4_if.awburst ),
-  .s_axi4_awlock ( rx_axi4_if.awlock  ),
-  .s_axi4_awcache( rx_axi4_if.awcache ),
-  .s_axi4_awprot ( rx_axi4_if.awprot  ),
-  .s_axi4_awvalid( rx_axi4_if.awvalid ),
-  .s_axi4_awready( rx_axi4_if.awready ),
-  .s_axi4_wdata  ( rx_axi4_if.wdata   ),
-  .s_axi4_wstrb  ( rx_axi4_if.wstrb   ),
-  .s_axi4_wlast  ( rx_axi4_if.wlast   ),
-  .s_axi4_wvalid ( rx_axi4_if.wvalid  ),
-  .s_axi4_wready ( rx_axi4_if.wready  ),
-  .s_axi4_bid    ( rx_axi4_if.bid     ),
-  .s_axi4_bresp  ( rx_axi4_if.bresp   ),
-  .s_axi4_bvalid ( rx_axi4_if.bvalid  ),
-  .s_axi4_bready ( rx_axi4_if.bready  ),
-  .s_axi4_arid   ( rx_axi4_if.arid    ),
-  .s_axi4_araddr ( rx_axi4_if.araddr  ),
-  .s_axi4_arlen  ( rx_axi4_if.arlen   ),
-  .s_axi4_arsize ( rx_axi4_if.arsize  ),
-  .s_axi4_arburst( rx_axi4_if.arburst ),
-  .s_axi4_arlock ( rx_axi4_if.arlock  ),
-  .s_axi4_arcache( rx_axi4_if.arcache ),
-  .s_axi4_arprot ( rx_axi4_if.arprot  ),
-  .s_axi4_arvalid( rx_axi4_if.arvalid ),
-  .s_axi4_arready( rx_axi4_if.arready ),
-  .s_axi4_rid    ( ),
-  .s_axi4_rdata  ( rx_axi4_if.rdata   ),
-  .s_axi4_rresp  ( rx_axi4_if.rresp   ),
-  .s_axi4_rlast  ( rx_axi4_if.rlast   ),
-  .s_axi4_rvalid ( rx_axi4_if.rvalid  ),
-  .s_axi4_rready ( rx_axi4_if.rready  ),
+      .mm2s_prmry_reset_out_n(),
+      .axi_str_txd_tvalid ( rx_aws_if.val  ),
+      .axi_str_txd_tready ( rx_aws_if.rdy  ),
+      .axi_str_txd_tlast  ( rx_aws_if.eop  ),
+      .axi_str_txd_tkeep  ( rx_aws_if_keep ),
+      .axi_str_txd_tdata  ( rx_aws_if.dat  ),
 
-  .mm2s_prmry_reset_out_n(),
-  .axi_str_txd_tvalid ( rx_aws_if.val  ),
-  .axi_str_txd_tready ( rx_aws_if.rdy  ),
-  .axi_str_txd_tlast  ( rx_aws_if.eop  ),
-  .axi_str_txd_tkeep  ( rx_aws_if_keep ),
-  .axi_str_txd_tdata  ( rx_aws_if.dat  ),
+      .s2mm_prmry_reset_out_n(),
+      .axi_str_rxd_tvalid( tx_aws_if.val  ),
+      .axi_str_rxd_tready( tx_aws_if.rdy  ),
+      .axi_str_rxd_tlast ( tx_aws_if.eop  ),
+      .axi_str_rxd_tkeep ( tx_aws_if_keep ),
+      .axi_str_rxd_tdata ( tx_aws_if.dat  )
+    );
 
-  .s2mm_prmry_reset_out_n(),
-  .axi_str_rxd_tvalid( tx_aws_if.val  ),
-  .axi_str_rxd_tready( tx_aws_if.rdy  ),
-  .axi_str_rxd_tlast ( tx_aws_if.eop  ),
-  .axi_str_rxd_tkeep ( tx_aws_if_keep ),
-  .axi_str_rxd_tdata ( tx_aws_if.dat  )
-);
+    always_comb begin
+      rx_axi4_if.rid = 0;
+    end
 
-always_comb begin
-  rx_axi4_if.rid = 0;
-end
+  end else begin
+
+    axi_fifo_mm_s_lite axi_fifo_mm_s_lite (
+      .interrupt(),
+      .s_axi_aclk     ( i_clk  ),
+      .s_axi_aresetn  ( ~i_rst ),
+
+      .s_axi_awaddr   ( axi_fifo_if.awaddr  ),
+      .s_axi_awvalid  ( axi_fifo_if.awvalid ),
+      .s_axi_awready  ( axi_fifo_if.awready ),
+      .s_axi_wdata    ( axi_fifo_if.wdata   ),
+      .s_axi_wstrb    ( axi_fifo_if.wstrb   ),
+      .s_axi_wvalid   ( axi_fifo_if.wvalid  ),
+      .s_axi_wready   ( axi_fifo_if.wready  ),
+      .s_axi_bresp    ( axi_fifo_if.bresp   ),
+      .s_axi_bvalid   ( axi_fifo_if.bvalid  ),
+      .s_axi_bready   ( axi_fifo_if.bready  ),
+      .s_axi_araddr   ( axi_fifo_if.araddr  ),
+      .s_axi_arvalid  ( axi_fifo_if.arvalid ),
+      .s_axi_arready  ( axi_fifo_if.arready ),
+      .s_axi_rdata    ( axi_fifo_if.rdata   ),
+      .s_axi_rresp    ( axi_fifo_if.rresp   ),
+      .s_axi_rvalid   ( axi_fifo_if.rvalid  ),
+      .s_axi_rready   ( axi_fifo_if.rready  ),
+
+      .mm2s_prmry_reset_out_n(),
+      .axi_str_txd_tvalid ( rx_aws_if.val  ),
+      .axi_str_txd_tready ( rx_aws_if.rdy  ),
+      .axi_str_txd_tlast  ( rx_aws_if.eop  ),
+      .axi_str_txd_tkeep  ( rx_aws_if_keep ),
+      .axi_str_txd_tdata  ( rx_aws_if.dat  ),
+
+      .s2mm_prmry_reset_out_n(),
+      .axi_str_rxd_tvalid( tx_aws_if.val  ),
+      .axi_str_rxd_tready( tx_aws_if.rdy  ),
+      .axi_str_rxd_tlast ( tx_aws_if.eop  ),
+      .axi_str_rxd_tkeep ( tx_aws_if_keep ),
+      .axi_str_rxd_tdata ( tx_aws_if.dat  )
+    );
+
+  end
+endgenerate
 
 endmodule

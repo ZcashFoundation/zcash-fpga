@@ -24,6 +24,8 @@ module cl_zcash
 `include "cl_id_defines.vh"          // Defines for ID0 and ID1 (PCI ID's)
 `include "cl_zcash_defines.vh"       // CL Defines for cl_hello_world
 
+localparam USE_AXI4 = "NO";
+
 logic rst_main_n_sync;
 
 logic clk_if, clk_100, clk_200, clk_300;
@@ -49,7 +51,8 @@ if_axi4 #(.A_WIDTH(64), .D_WIDTH(512), .ID_WIDTH(6)) rx_axi4_if (clk_if);
 `include "unused_ddr_a_b_d_template.inc"
 `include "unused_ddr_c_template.inc"
 `include "unused_pcim_template.inc"
-//`include "unused_dma_pcis_template.inc"
+if (USE_AXI4 == "NO")
+  `include "unused_dma_pcis_template.inc"
 `include "unused_cl_sda_template.inc"
 `include "unused_sh_bar1_template.inc"
 `include "unused_apppf_irq_template.inc"
@@ -192,7 +195,10 @@ always_comb begin
   rx_axi4_if.rready =  sh_cl_dma_pcis_rready;
 end
 
-cl_zcash_aws_wrapper cl_zcash_aws_wrapper (
+cl_zcash_aws_wrapper #(
+  .USE_AXI4 ( USE_AXI4 )
+)
+cl_zcash_aws_wrapper (
   .i_rst ( rst_if ),
   .i_clk ( clk_if ),
   .rx_axi_lite_if    ( rx_axi_lite_if    ),

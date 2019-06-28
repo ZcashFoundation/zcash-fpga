@@ -42,7 +42,7 @@ static uint16_t pci_device_id = 0xF000; /* PCI Device ID preassigned by Amazon f
 
 pci_bar_handle_t pci_bar_handle_bar0 = PCI_BAR_HANDLE_INIT;
 pci_bar_handle_t pci_bar_handle_bar4 = PCI_BAR_HANDLE_INIT;
-
+bool AXI4_enabled = false;
 
 /*
  * check if the corresponding AFI for hello_world is loaded
@@ -221,7 +221,7 @@ int read_stream(uint8_t* data, unsigned int size);
   fail_on(rc, out, "Unable to read from FPGA!");
 
   while(rdata > 0 && size >= read_len+8) {
-    rc = fpga_pci_peek64(pci_bar_handle_bar4, 0, (uint64_t*)(&data[read_len]));
+    rc = fpga_pci_peek64(pci_bar_handle_bar4, 0x1000, (uint64_t*)(&data[read_len]));
     fail_on(rc, out, "Unable to read from FPGA PCIS!");
     read_len += 8;
   }
@@ -279,6 +279,15 @@ int init(int slot_id) {
 
   rc = fpga_pci_poke(pci_bar_handle_bar0, AXI_FIFO_OFFSET+0x4ULL, 0x0C000000); // Clear IER
   fail_on(rc, out, "Unable to write to FPGA!");
+
+  // Check if we have AXI4 mode enabled or not
+  rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET+0x44ULL, &rdata); //RDFO
+  fail_on(rc, out, "Unable to write to FPGA!");
+  AXI4_enabled = (1 << 31) & rdata;
+  if (AXI4_enabled)
+    printf("INFO: AXI4 mode is set ENABLED\n");
+  else
+    printf("INFO: AXI4 mode is set DISABLED\n");
 
   printf("INFO: Finished initializing FPGA.\n");
 

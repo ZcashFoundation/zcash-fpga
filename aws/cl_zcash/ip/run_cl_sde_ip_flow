@@ -1,9 +1,11 @@
 mkdir axi_fifo_mm_s_0
+mkdir axi_fifo_mm_s_lite
 mkdir axis_dwidth_converter_64_to_8
 mkdir axis_dwidth_converter_8_to_64
 mkdir axis_dwidth_converter_48_to_8
 
 cp axi_fifo_mm_s_0.xci axi_fifo_mm_s_0/axi_fifo_mm_s_0.xci
+cp axi_fifo_mm_s_0.xci axi_fifo_mm_s_lite/axi_fifo_mm_s_lite.xci
 cp axis_dwidth_converter_64_to_8.xci axis_dwidth_converter_64_to_8/axis_dwidth_converter_64_to_8.xci
 cp axis_dwidth_converter_8_to_64.xci axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci
 cp axis_dwidth_converter_48_to_8.xci axis_dwidth_converter_48_to_8/axis_dwidth_converter_48_to_8.xci
