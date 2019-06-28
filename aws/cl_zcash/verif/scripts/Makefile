@@ -33,7 +33,7 @@ export C_SRC_DIR  = $(CL_ROOT)/software/runtime
 
 export TEST_NAME =  $(CL_ROOT)/verif/tests/$(TEST).sv
 
-ifeq ($(C_TEST),test_zcash)
+ifeq ($(C_TEST),test_null)
   export C_TEST_NAME = $(HDK_COMMON_DIR)/software/src/$(C_TEST).c
 else
   export C_TEST_NAME = $(C_SRC_DIR)/$(C_TEST).c
@@ -41,7 +41,7 @@ endif
 
 export SIM_ROOT = $(CL_ROOT)/verif/sim/$(SIMULATOR)
 
-ifeq ($(C_TEST),test_zcash)
+ifeq ($(C_TEST),test_null)
   export SIM_DIR = $(SIM_ROOT)/$(TEST)
 else
   export SIM_DIR = $(SIM_ROOT)/$(C_TEST)_c
