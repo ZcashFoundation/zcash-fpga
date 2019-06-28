@@ -19,8 +19,8 @@ else
 $(info VIVADO_TOOL_VERSION = $(VIVADO_TOOL_VERSION))
 endif
 
-export TEST ?= test_null
-export C_TEST ?= test_null
+export TEST ?= test_zcash
+export C_TEST ?= test_zcash
 
 export CL_ROOT = $(PWD)/../..
 export SDK_DIR = $(AWS_FPGA_REPO_DIR)/sdk
@@ -33,7 +33,7 @@ export C_SRC_DIR  = $(CL_ROOT)/software/runtime
 
 export TEST_NAME =  $(CL_ROOT)/verif/tests/$(TEST).sv
 
-ifeq ($(C_TEST),test_null)
+ifeq ($(C_TEST),test_zcash)
   export C_TEST_NAME = $(HDK_COMMON_DIR)/software/src/$(C_TEST).c
 else
   export C_TEST_NAME = $(C_SRC_DIR)/$(C_TEST).c
@@ -41,7 +41,7 @@ endif
 
 export SIM_ROOT = $(CL_ROOT)/verif/sim/$(SIMULATOR)
 
-ifeq ($(C_TEST),test_null)
+ifeq ($(C_TEST),test_zcash)
   export SIM_DIR = $(SIM_ROOT)/$(TEST)
 else
   export SIM_DIR = $(SIM_ROOT)/$(C_TEST)_c
@@ -54,7 +54,7 @@ export SH_LIB_DIR  = $(HDK_SHELL_DESIGN_DIR)/lib
 export SH_INF_DIR  = $(HDK_SHELL_DESIGN_DIR)/interfaces
 export SH_SH_DIR   = $(HDK_SHELL_DESIGN_DIR)/sh_ddr/sim
 
-SV_TEST_LIST = test_hello_world
+SV_TEST_LIST = test_zcash
 C_FILES      = $(C_TEST_NAME) $(C_SDK_USR_UTILS_DIR)/sh_dpi_tasks.c $(C_COMMON_DIR)/src/fpga_pci_sv.c 
 
 ifeq ($(XCHK), 1)
