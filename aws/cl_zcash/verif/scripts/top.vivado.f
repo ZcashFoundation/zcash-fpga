@@ -68,8 +68,9 @@ ${CL_ROOT}/ip/axis_dwidth_converter_64_to_8/hdl/axis_infrastructure_v1_1_vl_rfs.
 ${CL_ROOT}/ip/axis_dwidth_converter_64_to_8/hdl/axis_register_slice_v1_1_vl_rfs.v
 
 ${CL_ROOT}/ip/axis_dwidth_converter_8_to_64/sim/axis_dwidth_converter_8_to_64.v
-
 ${CL_ROOT}/ip/axis_dwidth_converter_48_to_8/sim/axis_dwidth_converter_48_to_8.v
+${CL_ROOT}/ip/axis_dwidth_converter_4_to_8/sim/axis_dwidth_converter_4_to_8.v
+${CL_ROOT}/ip/axis_dwidth_converter_8_to_4/sim/axis_dwidth_converter_8_to_4.v
 
 -f ${ZCASH_DIR}/zcash_fpga/src/rtl/top/include.f
 
