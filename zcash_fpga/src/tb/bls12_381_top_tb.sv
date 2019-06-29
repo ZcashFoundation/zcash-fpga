@@ -218,6 +218,139 @@ begin
 end
 endtask;
 
+task test_inv_element();
+  integer signed get_len;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
+  inst_t inst;
+  logic failed;
+  data_t data;
+  logic [31:0] rdata;
+  fe_t in, exp, out;
+  fe2_t in2, exp2, out2;
+  bls12_381_interrupt_rpl_t interrupt_rpl;
+
+  failed = 0;
+  in = random_vector(384/8) % P;
+  exp =  fe_inv(in);
+  $display("Running test_inv_element...");
+  $display("First trying FE element ...");
+  // See what current instruction pointer is
+  axi_lite_if.peek(.addr(32'h10), .data(rdata));
+
+  data = '{dat:in, pt:FE};
+  axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 5*64), .len(48));  // Scalar to multiply by goes in data slot 1
+
+  inst = '{code:COPY_REG, a:16'd6, b:16'd8, c:16'd0};
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata+1)*8), .len(8));
+
+  inst = '{code:SEND_INTERRUPT, a:16'd8, b:16'h1234, c:16'd0};
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata+2)*8), .len(8));
+
+  // Write to current slot to start
+  inst = '{code:INV_ELEMENT, a:16'd5, b:16'd6, c:16'd0};
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata)*8), .len(8));
+
+  fork
+    begin
+      out_if.get_stream(get_dat, get_len, 0);
+      interrupt_rpl = get_dat;
+
+      assert(interrupt_rpl.hdr.cmd == BLS12_381_INTERRUPT_RPL) else $fatal(1, "ERROR: Received non-interrupt message");
+      assert(interrupt_rpl.index == 16'h1234) else $fatal(1, "ERROR: Received wrong index value in message");
+      assert(interrupt_rpl.data_type == FE) else $fatal(1, "ERROR: Received wrong data type value in message");
+
+      get_dat = get_dat >> $bits(bls12_381_interrupt_rpl_t);
+      out = get_dat;
+
+      if (out == exp) begin
+        $display("INFO: Output element matched expected:");
+        $display("0x%x", out);
+      end else begin
+        $display("ERROR: Output element did NOT match expected:");
+        $display("0x%x", out);
+        $display("Expected:");
+        $display("0x%x", exp);
+        failed = 1;
+      end
+    end
+    begin
+      repeat(100000) @(posedge out_if.i_clk);
+      $fatal("ERROR: Timeout while waiting for result");
+    end
+  join_any
+  disable fork;
+
+  axi_lite_if.peek(.addr(32'h14), .data(rdata));
+  $display("INFO: Last cycle count was %d", rdata);
+
+  if(failed)
+   $fatal(1, "ERROR: test_inv_element on FE element FAILED");
+  
+  
+  // Try a FE2 elelemnt
+  in2[0] = random_vector(384/8) % P;
+  in2[1] = random_vector(384/8) % P;
+  
+  exp2 =  fe2_inv(in2);
+  $display("Trying FE2 element ...");
+  
+  // See what current instruction pointer is
+  axi_lite_if.peek(.addr(32'h10), .data(rdata));
+
+  data = '{dat:in2[0], pt:FE2};
+  axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 5*64), .len(48));
+  data = '{dat:in2[1], pt:FE2};
+  axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 6*64), .len(48));
+  
+
+  inst = '{code:SEND_INTERRUPT, a:16'd9, b:16'h5678, c:16'd0};
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata+1)*8), .len(8));
+
+  // Write to current slot to start
+  inst = '{code:INV_ELEMENT, a:16'd5, b:16'd9, c:16'd0};
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata)*8), .len(8));
+
+  fork
+    begin
+      out_if.get_stream(get_dat, get_len, 0);
+      interrupt_rpl = get_dat;
+
+      assert(interrupt_rpl.hdr.cmd == BLS12_381_INTERRUPT_RPL) else $fatal(1, "ERROR: Received non-interrupt message");
+      assert(interrupt_rpl.index == 16'h5678) else $fatal(1, "ERROR: Received wrong index value in message");
+      assert(interrupt_rpl.data_type == FE2) else $fatal(1, "ERROR: Received wrong data type value in message");
+
+      get_dat = get_dat >> $bits(bls12_381_interrupt_rpl_t);
+      for (int i = 0; i < 2; i++)
+        out2[i] = get_dat[i*(48*8) +: 381];
+
+      if (out2 == exp2) begin
+        $display("INFO: Output element matched expected:");
+        $display("0x%x", out2);
+      end else begin
+        $display("ERROR: Output element did NOT match expected:");
+        $display("0x%x 0x%x", out2[1], out2[0]);
+        $display("Expected:");
+        $display("0x%x 0x%x", exp2[1], exp2[0]);
+        failed = 1;
+      end
+    end
+    begin
+      repeat(100000) @(posedge out_if.i_clk);
+      $fatal("ERROR: Timeout while waiting for result");
+    end
+  join_any
+  disable fork;
+
+  axi_lite_if.peek(.addr(32'h14), .data(rdata));
+  $display("INFO: Last cycle count was %d", rdata);
+  
+  if(failed)
+    $fatal(1, "ERROR: test_inv_element on FE element FAILED");
+   
+  $display("INFO: test_inv_element PASSED both FE and FE2 elements!");
+
+endtask;
+
 initial begin
   axi_lite_if.reset_source();
   out_if.rdy = 0;
@@ -227,8 +360,9 @@ initial begin
        !bls12_381_top.data_uram_reset.reset_done)
     @(posedge clk);
 
-  test_fp_fpoint_mult();
-  test_fp2_fpoint_mult();
+  //test_fp_fpoint_mult();
+  //test_fp2_fpoint_mult();
+  test_inv_element();
 
 
   #1us $finish();
