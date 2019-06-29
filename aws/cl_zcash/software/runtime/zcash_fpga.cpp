@@ -14,7 +14,7 @@ zcash_fpga& zcash_fpga::get_instance() {
 int zcash_fpga::init_fpga(int slot_id) {
   // Initialize the FPGA
   if (initialized) {
-    printf("INFO: FPGA already initialized, skipping initialization");
+    printf("INFO: FPGA already initialized, skipping initialization\n");
     return 0;
   }
 
@@ -91,7 +91,7 @@ int zcash_fpga::init_fpga(int slot_id) {
 }
 
 int zcash_fpga::check_afi_ready(int slot_id) {
-  struct fpga_mgmt_image_info info = {0}; 
+  struct fpga_mgmt_image_info info = {0};
   int rc;
 
   /* get local image description, contains status, vendor id, and device id. */
@@ -135,7 +135,7 @@ int zcash_fpga::check_afi_ready(int slot_id) {
 
   return rc;
   out:
-    return 1;  
+    return 1;
 }
 
 int zcash_fpga::get_status(fpga_status_rpl_t& status_rpl) {
@@ -143,7 +143,7 @@ int zcash_fpga::get_status(fpga_status_rpl_t& status_rpl) {
   int rc;
   unsigned int timeout = 0;
   unsigned int read_len = 0;
-  
+
   header_t hdr;
   hdr.cmd = FPGA_STATUS;
   hdr.len = 8;
@@ -161,9 +161,9 @@ int zcash_fpga::get_status(fpga_status_rpl_t& status_rpl) {
       goto out;
     }
   }
-  
+
   status_rpl = *(fpga_status_rpl_t*)reply;
-  printf("INFO: Received FPGA reply, FPGA version: 0x%x", status_rpl.version); // TODO print more
+  printf("INFO: Received FPGA reply, FPGA version: 0x%x\n", status_rpl.version); // TODO print more
 
 
   return rc;
@@ -176,8 +176,8 @@ int zcash_fpga::write_stream(uint8_t* data, unsigned int len) {
   uint32_t rdata;
   unsigned int len_send = 0;
 
-  if (~initialized) {
-    printf("INFO: FPGA not initialized!");
+  if (!initialized) {
+    printf("INFO: FPGA not initialized!\n");
     goto out;
   }
 
@@ -228,8 +228,8 @@ int zcash_fpga::read_stream(uint8_t* data, unsigned int size) {
   unsigned int read_len = 0;
   int rc;
 
-  if (~initialized) {
-    printf("INFO: FPGA not initialized!");
+  if (!initialized) {
+    printf("INFO: FPGA not initialized!\n");
     goto out;
   }
 
@@ -279,8 +279,8 @@ int zcash_fpga::read_stream(uint8_t* data, unsigned int size) {
 int zcash_fpga::bls12_381_write_data_slot(unsigned int id, bls12_381_slot_t slot_data) {
   char data[48];
   int rc = 0;
-  if (~initialized) {
-    printf("INFO: FPGA not initialized!");
+  if (!initialized) {
+    printf("INFO: FPGA not initialized!\n");
     goto out;
   }
 
@@ -291,7 +291,7 @@ int zcash_fpga::bls12_381_write_data_slot(unsigned int id, bls12_381_slot_t slot
 
   for(int i = 0; i < 48/4; i=i+4) {
     rc = fpga_pci_poke(pci_bar_handle_bar0, BLS12_381_OFFSET + BLS12_381_DATA_OFFSET + id*64 + i, *((uint32_t*)&data[i]));
-    fail_on(rc, out, "Unable to write to FPGA!");
+    fail_on(rc, out, "Unable to write to FPGA!\n");
   }
   return 0;
   out:
@@ -300,14 +300,14 @@ int zcash_fpga::bls12_381_write_data_slot(unsigned int id, bls12_381_slot_t slot
 
 int zcash_fpga::bls12_381_read_data_slot(unsigned int id, bls12_381_slot_t& slot_data) {
   int rc = 0;
-  if (~initialized) {
-    printf("INFO: FPGA not initialized!");
+  if (!initialized) {
+    printf("INFO: FPGA not initialized!\n");
     goto out;
   }
 
   for(int i = 0; i < 48/4; i=i+4) {
     rc = fpga_pci_peek(pci_bar_handle_bar0, BLS12_381_OFFSET + BLS12_381_DATA_OFFSET + id*64 + i, (uint32_t*)(&slot_data));
-    fail_on(rc, out, "Unable to read from FPGA!");
+    fail_on(rc, out, "Unable to read from FPGA!\n");
   }
 
   slot_data.point_type = (point_type_t)(*((uint8_t*)&slot_data + 47) >> 5);
