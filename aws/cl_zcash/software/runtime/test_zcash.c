@@ -170,15 +170,21 @@ int write_stream(uint8_t* data, unsigned int len) {
 
 
   while(len_send < len) {
-    fpga_pci_poke64(pci_bar_handle_bar4, 0, *(uint64_t*)(&data[len_send]));
-    len_send += 8;
+    if (AXI4_enabled) {
+      fpga_pci_poke64(pci_bar_handle_bar4, 0, *(uint64_t*)(&data[len_send]));
+      len_send += 8;
+    } else {
+      rc = fpga_pci_poke(pci_bar_handle_bar0, AXI_FIFO_OFFSET+0x10ULL, *(uint32_t*)(&data[len_send])); // Reset ISR
+      fail_on(rc, out, "Unable to write to FPGA!");
+      len_send += 4;
+    }
   }
 
   rc = fpga_pci_poke(pci_bar_handle_bar0, AXI_FIFO_OFFSET+0x14ULL, len); // Reset ISR
   fail_on(rc, out, "Unable to write to FPGA!");
 
 
-  printf("INFO: write_stream::Wrote %d bytes of data", len);
+  printf("INFO: write_stream::Wrote %d bytes of data\n", len);
 
   // Check transmit complete bit and reset it
   rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET, &rdata);
@@ -224,9 +230,15 @@ int read_stream(uint8_t* data, unsigned int size) {
   fail_on(rc, out, "Unable to read from FPGA!");
 
   while(rdata > 0 && size >= read_len+8) {
-    rc = fpga_pci_peek64(pci_bar_handle_bar4, 0x1000, (uint64_t*)(&data[read_len]));
-    fail_on(rc, out, "Unable to read from FPGA PCIS!");
-    read_len += 8;
+    if (AXI4_enabled) {
+      rc = fpga_pci_peek64(pci_bar_handle_bar4, 0x1000, (uint64_t*)(&data[read_len]));
+      fail_on(rc, out, "Unable to read from FPGA PCIS!");
+      read_len += 8;
+    } else {
+      rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET + 0x20ULL, (uint32_t*)(&data[read_len]));
+      fail_on(rc, out, "Unable to read from FPGA!");
+      read_len += 4;
+    }
   }
 
   printf("INFO: Read %d bytes from read_stream()\n", read_len);
