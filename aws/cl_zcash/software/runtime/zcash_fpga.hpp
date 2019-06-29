@@ -141,13 +141,13 @@ class zcash_fpga {
     int bls12_381_read_data_slot(unsigned int id, bls12_381_slot_t& slot_data);
 
   private:
-    zcash_fpga(){}; 
-    ~zcash_fpga(){};    
+    zcash_fpga(){};
+    ~zcash_fpga(){};
 
     int check_afi_ready(int slot_id);
-    int read_stream(uint8_t* data, unsigned int size);
-    int write_stream(uint8_t* data, unsigned int len);
-   
+    int read_stream(char* data, unsigned int size);
+    int write_stream(char* data, unsigned int len);
+
 
 }; // zcash_fpga
 

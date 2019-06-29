@@ -147,7 +147,7 @@ int zcash_fpga::get_status(fpga_status_rpl_t& status_rpl) {
   header_t hdr;
   hdr.cmd = FPGA_STATUS;
   hdr.len = 8;
-  rc = write_stream((uint8_t*)&hdr, sizeof(hdr));
+  rc = write_stream((char*)&hdr, sizeof(hdr));
   fail_on(rc, out, "Unable to read from FPGA!");
 
   // Try read reply
@@ -171,7 +171,7 @@ out:
   return 1;
 }
 
-int zcash_fpga::write_stream(uint8_t* data, unsigned int len) {
+int zcash_fpga::write_stream(char* data, unsigned int len) {
   int rc;
   uint32_t rdata;
   unsigned int len_send = 0;
