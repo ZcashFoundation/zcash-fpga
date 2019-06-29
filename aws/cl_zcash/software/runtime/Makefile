@@ -20,11 +20,11 @@ INCLUDES += -I $(HDK_DIR)/common/software/include
 INCLUDES += -I ./include
 
 CC = gcc
-CFLAGS = -DCONFIG_LOGLEVEL=4 -g -Wall $(INCLUDES)
+CFLAGS = -DCONFIG_LOGLEVEL=4 -g -Wall $(INCLUDES) -lstdc++
 
 LDLIBS = -lfpga_mgmt -lrt -lpthread
 
-SRC = ${SDK_DIR}/userspace/utils/sh_dpi_tasks.c test_zcash.c
+SRC = zcash_fpga.cpp test_zcash.cpp ${SDK_DIR}/userspace/utils/sh_dpi_tasks.c 
 OBJ = $(SRC:.c=.o)
 BIN = test_zcash
 
