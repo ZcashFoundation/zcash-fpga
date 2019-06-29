@@ -1,17 +1,20 @@
-// Amazon FPGA Hardware Development Kit
 //
-// Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+//  ZCash FPGA test.
 //
-// Licensed under the Amazon Software License (the "License"). You may not use
-// this file except in compliance with the License. A copy of the License is
-// located at
+//  Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 //
-//    http://aws.amazon.com/asl/
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-// or in the "license" file accompanying this file. This file is distributed on
-// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
-// implied. See the License for the specific language governing permissions and
-// limitations under the License.
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #define _XOPEN_SOURCE 500
