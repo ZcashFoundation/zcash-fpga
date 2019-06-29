@@ -151,7 +151,7 @@ int zcash_fpga::get_status(fpga_status_rpl_t& status_rpl) {
   fail_on(rc, out, "Unable to read from FPGA!");
 
   // Try read reply
-  uint8_t reply[256];
+  char reply[256];
   while ((read_len = read_stream(reply, 256)) == 0) {
     usleep(1);
     timeout++;
@@ -222,7 +222,7 @@ int zcash_fpga::write_stream(char* data, unsigned int len) {
     return 1;
 }
 
-int zcash_fpga::read_stream(uint8_t* data, unsigned int size) {
+int zcash_fpga::read_stream(char* data, unsigned int size) {
 
   uint32_t rdata;
   unsigned int read_len = 0;
