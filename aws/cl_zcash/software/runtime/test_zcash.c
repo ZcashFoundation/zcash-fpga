@@ -207,11 +207,6 @@ int read_stream(uint8_t* data, unsigned int size) {
   int read_len = 0;
   int rc;
 
-  if (size == 0) {
-    printf("WARNING: Size was 0, cannot read into empty buffer!\n");
-    return 0;
-  }
-
   rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET, &rdata);
   fail_on(rc, out, "Unable to read from FPGA!");
   if ((rdata & (1 << 26)) == 0) return 0;  // Nothing to read
@@ -228,8 +223,14 @@ int read_stream(uint8_t* data, unsigned int size) {
 
   rc = fpga_pci_peek(pci_bar_handle_bar0, AXI_FIFO_OFFSET + 0x24ULL, &rdata);  //RLR - length of packet in bytes
   fail_on(rc, out, "Unable to read from FPGA!");
+  printf("INFO: Read FIFO shows %d waiting to be read from FPGA\n", rdata);
 
-  while(rdata > 0 && size >= read_len+8) {
+  if (size < rdata) {
+    printf("ERROR: Size of buffer (%d bytes) not big enough to read data!\n", size);
+    return 0;
+  }
+
+  while(read_len < rdata) {
     if (AXI4_enabled) {
       rc = fpga_pci_peek64(pci_bar_handle_bar4, 0x1000, (uint64_t*)(&data[read_len]));
       fail_on(rc, out, "Unable to read from FPGA PCIS!");
