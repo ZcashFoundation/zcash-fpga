@@ -68,12 +68,13 @@ logic [31:0] wr_addr, araddr;
 logic axi_fifo_dec;
 logic zcash_dec;
 
+// Only 2 memory areas at the moment
 always_comb begin
-  zcash_dec = (wr_active && wr_addr >= `ZCASH_OFFSET && wr_addr < (`ZCASH_OFFSET + `AXI_MEMORY_SIZE)) ||
-              (rd_active && araddr >= `ZCASH_OFFSET && araddr < (`ZCASH_OFFSET + `AXI_MEMORY_SIZE));
+  axi_fifo_dec = (wr_active && wr_addr < `ZCASH_OFFSET) ||
+                 (rd_active && araddr < `ZCASH_OFFSET);
 
-  axi_fifo_dec = (wr_active && wr_addr >= `AXI_FIFO_OFFSET && wr_addr < (`AXI_FIFO_OFFSET + `AXI_MEMORY_SIZE)) ||
-                 (rd_active && araddr >= `AXI_FIFO_OFFSET && araddr < (`AXI_FIFO_OFFSET + `AXI_MEMORY_SIZE));
+  zcash_dec = (wr_active && wr_addr >= `ZCASH_OFFSET) ||
+              (rd_active && araddr >= `ZCASH_OFFSET);
 end
 
 always_comb begin

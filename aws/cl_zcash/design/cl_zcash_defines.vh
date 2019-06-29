@@ -20,8 +20,6 @@
 `define CL_NAME cl_zcash
 
 `define UNIMPLEMENTED_REG_VALUE 32'hffffffff
-`define AXI_MEMORY_SIZE 32'h1000
-`define AXI_FIFO_OFFSET 32'h0
 `define ZCASH_OFFSET  32'h1000
 
 //Highly recommeneded.  For lib FIFO block, uses less async reset (take advantage of
