@@ -185,6 +185,14 @@ always_ff @ (posedge i_clk) begin
         if (cnt == 0) last_inst_cnt <= 0;
         task_mul_element();
       end
+      SUB_ELEMENT: begin
+        if (cnt == 0) last_inst_cnt <= 0;
+        task_sub_element();
+      end
+      ADD_ELEMENT: begin
+        if (cnt == 0) last_inst_cnt <= 0;
+        task_add_element();
+      end
       SEND_INTERRUPT: begin
         last_inst_cnt <= last_inst_cnt;
         task_send_interrupt();
@@ -427,6 +435,138 @@ task get_next_inst();
     cnt <= 0;
   end
 endtask
+
+task task_sub_element();
+  case(cnt)
+    0: begin
+      sub_out_if[2].rdy <= 1;
+      data_ram_sys_if.a <= curr_inst.a;
+      data_ram_read[0] <= 1;
+      cnt <= 1;
+    end
+    1: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        sub_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+        pt_l <= curr_data.pt;
+        data_ram_sys_if.a <=  curr_inst.b;
+        data_ram_read[0] <= 1;
+        cnt <= 2;
+      end
+    end
+    2: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        sub_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+        sub_in_if[2].val <= 1;
+      end
+      if (sub_out_if[2].val && sub_out_if[2].rdy) begin
+        data_ram_sys_if.a <=  curr_inst.c;
+        new_data.dat <= sub_out_if[2].dat;
+        new_data.pt <= pt_l;
+        data_ram_sys_if.we <= 1;
+        cnt <= 5;
+        if (pt_l == FE2) begin
+          // FE2 requires extra logic
+          cnt <= 3;
+        end
+      end
+    end
+    3: begin
+      if (!(|data_ram_read)) begin
+        data_ram_sys_if.a <= curr_inst.a + 1;
+        data_ram_read[0] <= 1;
+      end    
+      if (data_ram_read[READ_CYCLE]) begin
+        sub_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+        pt_l <= curr_data.pt;
+        data_ram_sys_if.a <=  curr_inst.b + 1;
+        data_ram_read[0] <= 1;
+        cnt <= 4;
+      end
+    end
+    4: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        sub_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+        sub_in_if[2].val <= 1;
+      end
+      if (sub_out_if[2].val && sub_out_if[2].rdy) begin
+        data_ram_sys_if.a <=  curr_inst.c + 1;
+        new_data.dat <= sub_out_if[2].dat;
+        new_data.pt <= pt_l;
+        data_ram_sys_if.we <= 1;
+        cnt <= 5;
+      end
+    end
+    5: begin
+      get_next_inst();
+    end
+  endcase
+endtask;
+
+task task_add_element();
+  case(cnt)
+    0: begin
+      add_out_if[2].rdy <= 1;
+      data_ram_sys_if.a <= curr_inst.a;
+      data_ram_read[0] <= 1;
+      cnt <= cnt + 1;
+    end
+    1: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        add_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+        pt_l <= curr_data.pt;
+        data_ram_sys_if.a <=  curr_inst.b;
+        data_ram_read[0] <= 1;
+        cnt <= 2;
+      end
+    end
+    2: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        add_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+        add_in_if[2].val <= 1;
+      end
+      if (add_out_if[2].val && add_out_if[2].rdy) begin
+        data_ram_sys_if.a <=  curr_inst.c;
+        new_data.dat <= add_out_if[2].dat;
+        new_data.pt <= pt_l;
+        data_ram_sys_if.we <= 1;
+        cnt <= 5;
+        if (pt_l == FE2) begin
+          // FE2 requires extra logic
+          cnt <= 3;
+        end
+      end
+    end
+    3: begin
+      if (!(|data_ram_read)) begin
+        data_ram_sys_if.a <= curr_inst.a + 1;
+        data_ram_read[0] <= 1;
+      end
+      if (data_ram_read[READ_CYCLE]) begin
+        add_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+        pt_l <= curr_data.pt;
+        data_ram_sys_if.a <=  curr_inst.b + 1;
+        data_ram_read[0] <= 1;
+        cnt <= 4;
+      end
+    end
+    4: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        add_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+        add_in_if[2].val <= 1;
+      end
+      if (add_out_if[2].val && add_out_if[2].rdy) begin
+        data_ram_sys_if.a <=  curr_inst.c + 1;
+        new_data.dat <= add_out_if[2].dat;
+        new_data.pt <= pt_l;
+        data_ram_sys_if.we <= 1;
+        cnt <= 5;
+      end
+    end
+    5: begin
+      get_next_inst();
+    end
+  endcase
+endtask;
 
 task task_mul_element();
   case(cnt)

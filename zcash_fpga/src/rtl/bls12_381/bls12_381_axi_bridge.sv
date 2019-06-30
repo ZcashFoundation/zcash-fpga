@@ -95,11 +95,11 @@ always_ff @ (posedge i_clk) begin
 
     // Read requests
     if (inst_ram_read[READ_CYCLE]) begin
-      axi_lite_if.rdata <= inst_ram_if.q;
+      axi_lite_if.rdata <= inst_ram_if.q >> ((axi_lite_if.araddr - INST_AXIL_START) % INST_RAM_ALIGN_BYTE)*8;
       axi_lite_if.rvalid <= 1;
     end
     if (data_ram_read[READ_CYCLE]) begin
-      axi_lite_if.rdata <= data_ram_if.q;
+      axi_lite_if.rdata <= data_ram_if.q >> ((axi_lite_if.araddr - DATA_AXIL_START) % DATA_RAM_ALIGN_BYTE)*8;
       axi_lite_if.rvalid <= 1;
     end
 

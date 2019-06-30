@@ -234,9 +234,13 @@ endtask;
 task test_bls12_381();
   // Try writing and reading a slot
   logic [1024*8-1:0] dat = 0;
+  logic failed = 0;
   logic [31:0] rdata;
   bls12_381_pkg::data_t slot_data;
   bls12_381_pkg::inst_t inst;
+  bls12_381_interrupt_rpl_t interrupt_rpl;
+  fp2_jb_point_t out_p, exp_p;
+  logic [380:0] in_k = 381'h33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333
 
   // Make sure we aren't in reset
   while(!tb.card.fpga.CL.zcash_fpga_top.bls12_381_top.inst_uram_reset.reset_done ||
@@ -273,6 +277,55 @@ task test_bls12_381();
   $display("INFO: Read: 0x%x", dat[48*8-1:0]);
   $display("INFO: Wrote: 0x%x", inst);
   assert(dat[2*8-1:0] == inst) else $fatal(1, "ERROR: Writing to slot and reading gave wrong results!");
+
+  slot_data = '{dat:in_k, pt:SCALAR};
+  for(int i = 0; i < 48; i = i + 4)
+    write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 3*64 + i), .data(slot_data[i*8 +: 32]));
+
+
+  inst = '{code:SEND_INTERRUPT, a:16'd0, b:16'habcd, c:16'd0};
+  for(int i = 0; i < 8; i = i + 4)
+    write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 1*8 + i), .data(inst[i*8 +: 32]));
+
+
+  // Write to current slot to start
+  inst = '{code:FP2_FPOINT_MULT, a:16'd3, b:16'd0, c:16'd0};
+  for(int i = 0; i < 8; i = i + 4)
+    write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 0*8 + i), .data(inst[i*8 +: 32]));
+
+  fork
+    begin
+      while(stream_len == 0) read_stream(.data(stream_data), .len(stream_len));
+      interrupt_rpl = stream_data;
+
+      assert(interrupt_rpl.hdr.cmd == BLS12_381_INTERRUPT_RPL) else $fatal(1, "ERROR: Received non-interrupt message");
+      assert(interrupt_rpl.index == 16'habcd) else $fatal(1, "ERROR: Received wrong index value in message");
+      assert(interrupt_rpl.data_type == FP2_JB) else $fatal(1, "ERROR: Received wrong data type value in message");
+
+      stream_data = stream_data >> $bits(bls12_381_interrupt_rpl_t);
+
+      for (int i = 0; i < 6; i++)
+        out_p[i*381 +: 381] = stream_data[i*(48*8) +: 381];
+
+      if (out_p == exp_p) begin
+        $display("INFO: Output point matched expected:");
+        print_fp2_jb_point(out_p);
+      end else begin
+        $display("ERROR: Output point did NOT match expected:");
+        print_fp2_jb_point(out_p);
+        $display("Expected:");
+        print_fp2_jb_point(exp_p);
+        failed = 1;
+      end
+    end
+    begin
+      repeat(10000) @(posedge tb.card.fpga.clk_main_a0);
+      $fatal(1, "ERROR: No reply received from test_bls12_381");
+    end
+  join_any
+  disable fork;
+
+  if(failed) $fatal(1, "ERROR: Test FAILED test_bls12_381");
 
   $display("test_bls12_381 PASSED");
 endtask;

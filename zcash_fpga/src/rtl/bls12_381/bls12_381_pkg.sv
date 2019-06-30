@@ -90,6 +90,8 @@ package bls12_381_pkg;
     COPY_REG        = 8'h1,
     SEND_INTERRUPT  = 8'h6,
 
+    SUB_ELEMENT     = 8'h10,
+    ADD_ELEMENT     = 8'h11,
     MUL_ELEMENT     = 8'h12,
     INV_ELEMENT     = 8'h13,
 
