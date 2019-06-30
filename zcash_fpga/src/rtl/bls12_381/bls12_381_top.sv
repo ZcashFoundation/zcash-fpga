@@ -141,7 +141,7 @@ always_ff @ (posedge i_clk) begin
 
     mul_in_if[2].sop <= 1;
     mul_in_if[2].eop <= 1;
-    
+
 
     new_inst_pt_val_l <= new_inst_pt_val || new_inst_pt_val_l; // Latch this pulse if we want to update instruction pointer
 
@@ -443,7 +443,7 @@ task task_mul_element();
         data_ram_sys_if.a <=  curr_inst.b;
         data_ram_read[0] <= 1;
         cnt <= 2;
-      end  
+      end
     end
     2: begin
       if (data_ram_read[READ_CYCLE]) begin
@@ -453,9 +453,9 @@ task task_mul_element();
         if (pt_l == FE2) begin
           data_ram_sys_if.a <= curr_inst.a + 1;
           data_ram_read[0] <= 1;
-          mul_in_if[2].rdy <= 0;
+          mul_out_if[2].rdy <= 0;
           // FE2 requires extra logic
-          cnt <= 3;          
+          cnt <= 3;
         end
       end
       if (mul_out_if[2].val && mul_out_if[2].rdy) begin
@@ -465,7 +465,7 @@ task task_mul_element();
         data_ram_sys_if.we <= 1;
         cnt <= 8;
       end
-    end    
+    end
     3: begin
       if (data_ram_read[READ_CYCLE]) begin
          mul_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
@@ -529,7 +529,7 @@ task task_mul_element();
         data_ram_sys_if.we <= 1;
         data_ram_sys_if.a <=  curr_inst.c + 1;
         cnt <= 8;
-      end  
+      end
     end
     8: begin
       get_next_inst();

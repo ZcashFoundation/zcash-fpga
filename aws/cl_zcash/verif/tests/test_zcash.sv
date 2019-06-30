@@ -28,6 +28,7 @@ parameter [5:0] AXI_ID = 6'h0;
 import zcash_fpga_pkg::*;
 import secp256k1_pkg::*;
 import equihash_pkg::*;
+import bls12_381_pkg::*;
 import common_pkg::*;
 
 zcash_fpga_pkg::header_t  header;
@@ -44,13 +45,13 @@ initial begin
   tb.power_up();
 
   // Setup the AXI streaming interface
-  read_ocl_reg(.addr(`AXI_FIFO_OFFSET), .exp_data(32'h01D00000), .rdata(rdata)); //ISR
-  write_ocl_reg(.addr(`AXI_FIFO_OFFSET), .data(32'hFFFFFFFF)); // Reset ISR
-  read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'hC), .exp_data(32'h000001FC), .rdata(rdata)); //TDFV
-  read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h1C), .exp_data(32'h00000000), .rdata(rdata)); //RDFO
-  write_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h4), .data(32'h0C000000)); //IER
+  read_ocl_reg(.addr(), .exp_data(32'h01D00000), .rdata(rdata)); //ISR
+  write_ocl_reg(.addr(), .data(32'hFFFFFFFF)); // Reset ISR
+  read_ocl_reg(.addr(32'hC), .exp_data(32'h000001FC), .rdata(rdata)); //TDFV
+  read_ocl_reg(.addr(32'h1C), .exp_data(32'h00000000), .rdata(rdata)); //RDFO
+  write_ocl_reg(.addr(32'h4), .data(32'h0C000000)); //IER
   // See if AXI4 is enabled or not
-  read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h44), .rdata(rdata));
+  read_ocl_reg(.addr(32'h44), .rdata(rdata));
   AXI4_ENABLED = rdata[31];
   $display("INFO: AXI4_ENABLED is set to %d", AXI4_ENABLED);
   if (tb.card.fpga.CL.USE_AXI4 == "YES")
@@ -62,6 +63,7 @@ initial begin
   // Run our test cases
   test_status_message();
   test_block_secp256k1();
+  test_bls12_381();
 
   $display("INFO: All tests passed");
   tb.kernel_reset();
@@ -92,7 +94,7 @@ task write_stream(input logic [1024*8-1:0] data, input integer len);
   logic [63:0] strb;
   integer len_;
   len_ = len;
-  read_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'hC), .rdata(rdata));
+  read_ocl_reg(.addr(32'hC), .rdata(rdata));
   if (len > rdata) $fatal(1, "ERROR: write_pcis::AXI-FIFO does not have enough space to write %d bytes (%d free)", len, rdata);
 
   while(len_ > 0) begin
@@ -103,20 +105,20 @@ task write_stream(input logic [1024*8-1:0] data, input integer len);
       len_ = len_ - 512/8;
       data = data >> 512;
     end else begin
-      write_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h10), .data(data[31:0]));
+      write_ocl_reg(.addr(32'h10), .data(data[31:0]));
       len_ = len_ - 32/8;
       data = data >> 32;
     end
   end
-  write_ocl_reg(.addr(`AXI_FIFO_OFFSET+32'h14), .data(len));
+  write_ocl_reg(.addr(+32'h14), .data(len));
 
   $display ("INFO: write_pcis::Wrote %d bytes of data", len);
 
   // Wait a few clocks then check transmit complete bit and reset it
   repeat (10) @(posedge tb.card.fpga.clk_main_a0);
-  read_ocl_reg(.addr(`AXI_FIFO_OFFSET), .rdata(rdata));
+  read_ocl_reg(.addr(), .rdata(rdata));
   if(rdata[27] == 0) $display("WARNING: write_stream transmit complete bit not set (read 0x%x)", rdata);
-  write_ocl_reg(.addr(`AXI_FIFO_OFFSET), .data(32'h08000000));
+  write_ocl_reg(.addr(), .data(32'h08000000));
 
 endtask
 
@@ -126,14 +128,14 @@ task read_stream(output logic [1024*8-1:0] data, integer len);
   logic [511:0] pcis_data;
   len = 0;
   data = 0;
-  read_ocl_reg(.addr(`AXI_FIFO_OFFSET), .rdata(rdata));
+  read_ocl_reg(.addr(), .rdata(rdata));
   if (rdata[26] == 0) return;
-  write_ocl_reg(.addr(`AXI_FIFO_OFFSET), .data(32'h04000000)); //clear ISR
+  write_ocl_reg(.addr(), .data(32'h04000000)); //clear ISR
 
-  read_ocl_reg(.addr(`AXI_FIFO_OFFSET+ 32'h1C), .rdata(rdata)); //RDFO should be non-zero (slots used in FIFO)
+  read_ocl_reg(.addr(32'h1C), .rdata(rdata)); //RDFO should be non-zero (slots used in FIFO)
   if (rdata == 0) return;
 
-  read_ocl_reg(.addr(`AXI_FIFO_OFFSET+ 32'h24), .rdata(rdata)); //RLR - length of packet in bytes
+  read_ocl_reg(.addr(32'h24), .rdata(rdata)); //RLR - length of packet in bytes
   while(rdata > 0) begin
     if (tb.card.fpga.CL.USE_AXI4 == "YES") begin
       tb.peek_pcis(.addr(32'h1000), .data(pcis_data));
@@ -141,7 +143,7 @@ task read_stream(output logic [1024*8-1:0] data, integer len);
       len = len + rdata > (512/8) ? 512/8 : rdata/8;
       rdata = rdata < 512/8 ? 0 : rdata - 512/8;
     end else begin
-      read_ocl_reg(.addr(`AXI_FIFO_OFFSET+ 32'h20), .rdata(rdata_int));
+      read_ocl_reg(.addr(32'h20), .rdata(rdata_int));
       data[len*8 +: 32] = rdata_int;
       len = len + (rdata > (32/8) ? 32/8 : rdata/8);
       rdata = rdata < 32/8 ? 0 : rdata - 32/8;
@@ -227,6 +229,31 @@ begin
 
   $display("test_block_secp256k1 PASSED");
 end
+endtask;
+
+task test_bls12_381();
+  // Try writing and reading a slot
+  logic [1024*8-1:0] dat = 0;
+  logic [31:0] rdata;
+  data_t slot_data;
+  slot_data.dat = random_vector(384/8) % P;
+  slot_data.pt = FE;
+  dat = slot_data;
+  for(int i = 0; i < 48; i = i + 4)
+    write_ocl_reg(.addr(`ZCASH_OFFSET + `INST_AXIL_START + 3*8), .data(dat[i*8 +: 32]));
+
+  // Check we can read it back
+  dat = 0;
+  for(int i = 0; i < 48; i = i + 4) begin
+    read_ocl_reg(.addr(`ZCASH_OFFSET + `INST_AXIL_START + 3*8), .rdata(rdata));
+    dat[i*8 +: 32] = rdata;
+  end
+  $display("INFO: Wrote: 0x%x", dat[48*8-1:0]);
+  $display("INFO: Read: 0x%x", slot_data);
+  assert(dat[48*8-1:0] == slot_data) else $fatal(1, "ERROR: Writing to slot and reading gav ewrong results!)";
+
+
+  $display("test_bls12_381 PASSED");
 endtask;
 
 endmodule
