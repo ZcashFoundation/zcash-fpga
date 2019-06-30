@@ -240,7 +240,7 @@ task test_bls12_381();
   bls12_381_pkg::inst_t inst;
   bls12_381_interrupt_rpl_t interrupt_rpl;
   fp2_jb_point_t out_p, exp_p;
-  logic [380:0] in_k = 381'h33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333
+  logic [380:0] in_k = 381'h33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333;
 
   // Make sure we aren't in reset
   while(!tb.card.fpga.CL.zcash_fpga_top.bls12_381_top.inst_uram_reset.reset_done ||
