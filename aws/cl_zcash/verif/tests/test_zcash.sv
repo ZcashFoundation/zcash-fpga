@@ -45,8 +45,8 @@ initial begin
   tb.power_up();
 
   // Setup the AXI streaming interface
-  read_ocl_reg(.addr(), .exp_data(32'h01D00000), .rdata(rdata)); //ISR
-  write_ocl_reg(.addr(), .data(32'hFFFFFFFF)); // Reset ISR
+  read_ocl_reg(.addr(0), .exp_data(32'h01D00000), .rdata(rdata)); //ISR
+  write_ocl_reg(.addr(0), .data(32'hFFFFFFFF)); // Reset ISR
   read_ocl_reg(.addr(32'hC), .exp_data(32'h000001FC), .rdata(rdata)); //TDFV
   read_ocl_reg(.addr(32'h1C), .exp_data(32'h00000000), .rdata(rdata)); //RDFO
   write_ocl_reg(.addr(32'h4), .data(32'h0C000000)); //IER
@@ -61,8 +61,8 @@ initial begin
 
 
   // Run our test cases
-  test_status_message();
-  test_block_secp256k1();
+ // test_status_message();
+ // test_block_secp256k1();
   test_bls12_381();
 
   $display("INFO: All tests passed");
@@ -116,9 +116,9 @@ task write_stream(input logic [1024*8-1:0] data, input integer len);
 
   // Wait a few clocks then check transmit complete bit and reset it
   repeat (10) @(posedge tb.card.fpga.clk_main_a0);
-  read_ocl_reg(.addr(), .rdata(rdata));
+  read_ocl_reg(.addr(0), .rdata(rdata));
   if(rdata[27] == 0) $display("WARNING: write_stream transmit complete bit not set (read 0x%x)", rdata);
-  write_ocl_reg(.addr(), .data(32'h08000000));
+  write_ocl_reg(.addr(0), .data(32'h08000000));
 
 endtask
 
@@ -128,9 +128,9 @@ task read_stream(output logic [1024*8-1:0] data, integer len);
   logic [511:0] pcis_data;
   len = 0;
   data = 0;
-  read_ocl_reg(.addr(), .rdata(rdata));
+  read_ocl_reg(.addr(0), .rdata(rdata));
   if (rdata[26] == 0) return;
-  write_ocl_reg(.addr(), .data(32'h04000000)); //clear ISR
+  write_ocl_reg(.addr(0), .data(32'h04000000)); //clear ISR
 
   read_ocl_reg(.addr(32'h1C), .rdata(rdata)); //RDFO should be non-zero (slots used in FIFO)
   if (rdata == 0) return;
@@ -235,23 +235,44 @@ task test_bls12_381();
   // Try writing and reading a slot
   logic [1024*8-1:0] dat = 0;
   logic [31:0] rdata;
-  data_t slot_data;
-  slot_data.dat = random_vector(384/8) % P;
+  bls12_381_pkg::data_t slot_data;
+  bls12_381_pkg::inst_t inst;
+
+  // Make sure we aren't in reset
+  while(!tb.card.fpga.CL.zcash_fpga_top.bls12_381_top.inst_uram_reset.reset_done ||
+     !tb.card.fpga.CL.zcash_fpga_top.bls12_381_top.data_uram_reset.reset_done) @(posedge tb.card.fpga.clk_main_a0);
+
+  slot_data.dat = random_vector(384/8) % bls12_381_pkg::P;
   slot_data.pt = FE;
   dat = slot_data;
   for(int i = 0; i < 48; i = i + 4)
-    write_ocl_reg(.addr(`ZCASH_OFFSET + `INST_AXIL_START + 3*8), .data(dat[i*8 +: 32]));
+    write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 3*64 + i), .data(dat[i*8 +: 32]));
 
   // Check we can read it back
   dat = 0;
   for(int i = 0; i < 48; i = i + 4) begin
-    read_ocl_reg(.addr(`ZCASH_OFFSET + `INST_AXIL_START + 3*8), .rdata(rdata));
+    read_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 3*64 + i), .rdata(rdata));
     dat[i*8 +: 32] = rdata;
   end
-  $display("INFO: Wrote: 0x%x", dat[48*8-1:0]);
-  $display("INFO: Read: 0x%x", slot_data);
-  assert(dat[48*8-1:0] == slot_data) else $fatal(1, "ERROR: Writing to slot and reading gav ewrong results!)";
+  $display("INFO: Read: 0x%x", dat[48*8-1:0]);
+  $display("INFO: Wrote: 0x%x", slot_data);
+  assert(dat[48*8-1:0] == slot_data) else $fatal(1, "ERROR: Writing to slot and reading gave wrong results!");
 
+  // Same for instruction
+  inst = '{code:MUL_ELEMENT, a:16'd0, b:16'd11, c:16'd2};
+  dat = inst;
+  for(int i = 0; i < 8; i = i + 4)
+    write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 3*8 + i), .data(dat[i*8 +: 32]));
+
+  // Check we can read it back
+  dat = 0;
+  for(int i = 0; i < 2; i = i + 4) begin
+    read_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 3*8 + i), .rdata(rdata));
+    dat[i*8 +: 32] = rdata;
+  end
+  $display("INFO: Read: 0x%x", dat[48*8-1:0]);
+  $display("INFO: Wrote: 0x%x", inst);
+  assert(dat[2*8-1:0] == inst) else $fatal(1, "ERROR: Writing to slot and reading gave wrong results!");
 
   $display("test_bls12_381 PASSED");
 endtask;
