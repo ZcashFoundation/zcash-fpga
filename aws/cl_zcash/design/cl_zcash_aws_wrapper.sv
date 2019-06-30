@@ -90,14 +90,14 @@ always_comb begin
   zcash_axi_lite_if.arvalid = rx_axi_lite_if.arvalid && zcash_dec;
 
   axi_fifo_if.awvalid = rx_axi_lite_if.awvalid && axi_fifo_dec;
-  axi_fifo_if.awaddr  = rx_axi_lite_if.awaddr - `AXI_FIFO_OFFSET;
+  axi_fifo_if.awaddr  = rx_axi_lite_if.awaddr;
   axi_fifo_if.wvalid  = rx_axi_lite_if.wvalid && axi_fifo_dec;
   axi_fifo_if.wdata   = rx_axi_lite_if.wdata;
   axi_fifo_if.wstrb   = rx_axi_lite_if.wstrb;
   axi_fifo_if.bready  = rx_axi_lite_if.bready;
   axi_fifo_if.arvalid = rx_axi_lite_if.arvalid && axi_fifo_dec;
   axi_fifo_if.rready  = rx_axi_lite_if.rready;
-  axi_fifo_if.araddr  = rx_axi_lite_if.araddr - `AXI_FIFO_OFFSET;
+  axi_fifo_if.araddr  = rx_axi_lite_if.araddr;
   axi_fifo_if.arvalid = rx_axi_lite_if.arvalid && axi_fifo_dec;
 
 
