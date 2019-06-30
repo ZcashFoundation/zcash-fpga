@@ -310,7 +310,7 @@ int zcash_fpga::bls12_381_read_data_slot(unsigned int id, bls12_381_slot_t& slot
     fail_on(rc, out, "Unable to read from FPGA!\n");
   }
 
-  slot_data.point_type = (point_type_t)(*((uint8_t*)&slot_data + 47) >> 5);
+  slot_data.point_type = (point_type_t)(*((char*)&slot_data + 47) >> 5);
   // Clear top 3 bits
   *((char*)&slot_data + 47) &= 0x1F;
 

@@ -181,6 +181,10 @@ always_ff @ (posedge i_clk) begin
         if (cnt == 0) last_inst_cnt <= 0;
         task_inv_element();
       end
+      MUL_ELEMENT: begin
+        if (cnt == 0) last_inst_cnt <= 0;
+        task_mul_element();
+      end
       SEND_INTERRUPT: begin
         last_inst_cnt <= last_inst_cnt;
         task_send_interrupt();
@@ -423,6 +427,115 @@ task get_next_inst();
     cnt <= 0;
   end
 endtask
+
+task task_mul_element();
+  case(cnt)
+    0: begin
+      mul_out_if[2].rdy <= 1;
+      data_ram_sys_if.a <= curr_inst.a;
+      data_ram_read[0] <= 1;
+      cnt <= cnt + 1;
+    end
+    1: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        mul_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+        pt_l <= curr_data.pt;
+        data_ram_sys_if.a <=  curr_inst.b;
+        data_ram_read[0] <= 1;
+        cnt <= 2;
+      end  
+    end
+    2: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        mul_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+        mul_in_if[2].val <= 1;
+        mul_in_if[2].ctl <= 0;
+        if (pt_l == FE2) begin
+          data_ram_sys_if.a <= curr_inst.a + 1;
+          data_ram_read[0] <= 1;
+          mul_in_if[2].rdy <= 0;
+          // FE2 requires extra logic
+          cnt <= 3;          
+        end
+      end
+      if (mul_out_if[2].val && mul_out_if[2].rdy) begin
+        data_ram_sys_if.a <=  curr_inst.c;
+        new_data.dat <= mul_out_if[2].dat;
+        new_data.pt <= pt_l;
+        data_ram_sys_if.we <= 1;
+        cnt <= 8;
+      end
+    end    
+    3: begin
+      if (data_ram_read[READ_CYCLE]) begin
+         mul_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+         mul_in_if[2].val <= 1;
+         mul_in_if[2].ctl <= 3;
+         data_ram_sys_if.a <= curr_inst.b + 1;
+         data_ram_read[0] <= 1;
+         cnt <= 4;
+      end
+    end
+    4: begin
+      if (data_ram_read[READ_CYCLE]) begin
+         mul_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+         mul_in_if[2].val <= 1;
+         mul_in_if[2].ctl <= 1;
+         data_ram_sys_if.a <= curr_inst.a;
+         data_ram_read[0] <= 1;
+         cnt <= 5;
+      end
+    end
+    5: begin
+      if (data_ram_read[READ_CYCLE]) begin
+         mul_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+         mul_in_if[2].val <= 1;
+         mul_in_if[2].ctl <= 2;
+         mul_out_if[2].rdy <= 1;
+         cnt <= 6;
+      end
+    end
+    6: begin
+      sub_out_if[2].rdy <= 1;
+      if (mul_out_if[2].val && mul_out_if[2].rdy) begin
+        case(mul_out_if[2].ctl)
+          0: begin
+            sub_in_if[2].dat[0 +: $bits(fe_t)] <= mul_out_if[2].dat;
+          end
+          1: begin
+            sub_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= mul_out_if[2].dat;
+            sub_in_if[2].val <= 1;
+          end
+          2: begin
+            add_in_if[2].dat[0 +: $bits(fe_t)] <= mul_out_if[2].dat;
+            add_in_if[2].val <= 1;
+          end
+          3: begin
+            add_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= mul_out_if[2].dat;
+          end
+        endcase
+      end
+
+      if (sub_out_if[2].val && sub_out_if[2].rdy) begin
+        new_data.dat <= sub_out_if[2].dat;
+        new_data.pt <= pt_l;
+        data_ram_sys_if.we <= 1;
+        data_ram_sys_if.a <=  curr_inst.c;
+        add_out_if[2].rdy <= 1;
+      end
+      if (add_out_if[2].val && add_out_if[2].rdy) begin
+        new_data.dat <= add_out_if[2].dat;
+        new_data.pt <= pt_l;
+        data_ram_sys_if.we <= 1;
+        data_ram_sys_if.a <=  curr_inst.c + 1;
+        cnt <= 8;
+      end  
+    end
+    8: begin
+      get_next_inst();
+    end
+  endcase
+endtask;
 
 task task_copy_reg();
   case(cnt)

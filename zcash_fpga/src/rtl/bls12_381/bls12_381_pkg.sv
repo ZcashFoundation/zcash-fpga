@@ -37,7 +37,7 @@ package bls12_381_pkg;
     FP2_AF = 6,
     FP2_JB = 7
   } point_type_t;
-  
+
   function integer unsigned get_point_type_size(point_type_t pt);
     case(pt)
       SCALAR: get_point_type_size = 1;
@@ -58,7 +58,7 @@ package bls12_381_pkg;
     fe_t y;
     fe_t x;
   } jb_point_t;
-  
+
   typedef fe_t  [1:0] fe2_t;
   typedef fe2_t [2:0] fe6_t;
   typedef fe6_t [1:0] fe12_t;
@@ -81,7 +81,7 @@ package bls12_381_pkg;
   } fp2_jb_point_t;
 
   fp2_jb_point_t g2_point = '{x:G2x, y:G2y, z:FE2_one};
-  
+
   fp2_jb_point_t g_point_fp2 = '{x:{381'd0, Gx}, y:{381'd0, Gy}, z:FE2_one};  // Fp Generator point used in dual mode point multiplication
 
   // Instruction codes
@@ -90,7 +90,8 @@ package bls12_381_pkg;
     COPY_REG        = 8'h1,
     SEND_INTERRUPT  = 8'h6,
 
-    SCALAR_INV      = 8'h13,
+    MUL_ELEMENT     = 8'h12,
+    INV_ELEMENT     = 8'h13,
 
     POINT_MULT      = 8'h24,
     FP_FPOINT_MULT  = 8'h25,

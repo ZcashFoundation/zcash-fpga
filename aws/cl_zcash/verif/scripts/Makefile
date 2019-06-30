@@ -20,7 +20,7 @@ $(info VIVADO_TOOL_VERSION = $(VIVADO_TOOL_VERSION))
 endif
 
 export TEST ?= test_zcash
-export C_TEST ?= test_zcash
+export C_TEST ?= test_null
 
 export CL_ROOT = $(PWD)/../..
 export SDK_DIR = $(AWS_FPGA_REPO_DIR)/sdk
