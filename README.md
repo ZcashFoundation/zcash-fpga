@@ -28,6 +28,8 @@ These contain shared IP cores used by the projects in this repo. These include m
   - AXI4-lite
   - Block RAM
 * Fifo implementations
+* Hash map implementation
+  - Fully parameterized for bit widths and uses CRC as the hashing function
 * Blocks for parsing/processing streams
 * Karabutsa multiplier
   - Fully parameterized for number of levels
