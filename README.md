@@ -9,9 +9,8 @@ Each top level folder is explained below. Inside each folder is source code writ
 
 This contains the top / project files for building on a AWS (Amazon FPGA VU9P w/ 64GB DDR4).
 
-### aws/cl_zcash/software/runtime
-
-This contains the zcash_fpga cpp library that can be used to interface with the FPGA over PCIe.
+* This contains the zcash_fpga library (aws/cl_zcash/software/runtime/zcash_fpga.hpp) that can be used to interface with the FPGA over PCIe.
+* Instructions on how to build are in the architecture document.
 
 ## bittware_xupvvh
 
