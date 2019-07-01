@@ -68,7 +68,9 @@ int main(int argc, char **argv) {
     int slot_id = 0;
     int rc;
     uint32_t value = 0;
-
+    unsigned int timeout = 0;
+    unsigned int read_len = 0;
+    char reply[512];
     // Process command line args
     {
         int i;
@@ -100,36 +102,35 @@ int main(int argc, char **argv) {
     zcash_fpga::bls12_381_slot_t data;
     zcash_fpga::bls12_381_inst_t inst;
 
-    data_slot.point_type = zcash_fpga::SCALAR;
+    data.point_type = zcash_fpga::SCALAR;
     memset(&data.dat, 0x0, 48);
     data.dat[0] = 10;
     rc = zfpga.bls12_381_write_data_slot(0, data);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
-    inst.code = SEND_INTERRUPT;
+    inst.code = zcash_fpga::SEND_INTERRUPT;
     inst.a = 0;
     inst.b = 123;
     rc = zfpga.bls12_381_write_inst_slot(1, inst);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
-    inst.code = SEND_INTERRUPT;
+    inst.code = zcash_fpga::SEND_INTERRUPT;
     inst.a = 1;
     inst.b = 456;
     rc = zfpga.bls12_381_write_inst_slot(2, inst);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
-    inst.code = FP2_FPOINT_MULT;
+    inst.code = zcash_fpga::FP2_FPOINT_MULT;
     inst.a = 0;
     inst.b = 1;
     rc = zfpga.bls12_381_write_inst_slot(0, inst);   // This will start the coprocessor
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     // Wait for interrupts
-    unsigned int timeout = 0;
-    unsigned int read_len = 0;
-
     // Try read reply - should be our scalar value
-    char reply[512];
+
+    timeout = 0;
+    read_len = 0;
     memset(reply, 0, 512);
     while ((read_len = read_stream(reply, 256)) == 0) {
       usleep(1);
@@ -148,6 +149,7 @@ int main(int argc, char **argv) {
     // Try read second reply - should be point value - 6 slots
     memset(reply, 0, 512);
     timeout = 0;
+    read_len = 0;
     while ((read_len = read_stream(reply, 256)) == 0) {
       usleep(1);
       timeout++;
@@ -163,10 +165,10 @@ int main(int argc, char **argv) {
     printf("\n");
 
     // Read current instruction
-    rc = bls12_381_get_curr_inst_slot();
+    rc = bls12_381_get_curr_inst_slot(slot_id);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
-    printf("Data slot is now d\n", slot_id);
+    printf("Data slot is now %d\n", slot_id);
 
     return rc;
 out:
