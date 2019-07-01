@@ -29,9 +29,6 @@
 
 #define AXI_FIFO_OFFSET       UINT64_C(0x0)
 #define BLS12_381_OFFSET      UINT64_C(0x1000)
-#define BLS12_381_INST_OFFSET UINT64_C(0x1000)
-#define BLS12_381_DATA_OFFSET UINT64_C(0x2000)
-
 
 // These match the structs and commands defined in zcash_fpga_pkg.sv
 class zcash_fpga {
@@ -77,6 +74,29 @@ class zcash_fpga {
       point_type_t point_type;
     } bls12_381_slot_t;
 
+    typedef enum uint8_t {
+      NOOP_WAIT       = 0x0,
+      COPY_REG        = 0x1,
+      SEND_INTERRUPT  = 0x6,
+
+      SUB_ELEMENT     = 0x10,
+      ADD_ELEMENT     = 0x11,
+      MUL_ELEMENT     = 0x12,
+      INV_ELEMENT     = 0x13,
+
+      POINT_MULT      = 0x24,
+      FP_FPOINT_MULT  = 0x25,
+      FP2_FPOINT_MULT = 0x26
+    } code_t;
+
+    // Instruction format
+    typedef struct __attribute__((__packed__)) {
+      code_t code;
+      uint16_t a;
+      uint16_t b;
+      uint16_t c;
+    } inst_t;
+
     typedef struct __attribute__((__packed__)) {
       uint32_t  len;
       command_t cmd;
@@ -110,14 +130,19 @@ class zcash_fpga {
     } fpga_status_rpl_t;
 
   private:
-    static const uint16_t pci_vendor_id = 0x1D0F; /* Amazon PCI Vendor ID */
-    static const uint16_t pci_device_id = 0xF000; /* PCI Device ID preassigned by Amazon for F1 applications */
+    static const uint16_t s_pci_vendor_id = 0x1D0F; /* Amazon PCI Vendor ID */
+    static const uint16_t s_pci_device_id = 0xF000; /* PCI Device ID preassigned by Amazon for F1 applications */
 
-    pci_bar_handle_t pci_bar_handle_bar0 = PCI_BAR_HANDLE_INIT;
-    pci_bar_handle_t pci_bar_handle_bar4 = PCI_BAR_HANDLE_INIT;
+    pci_bar_handle_t m_pci_bar_handle_bar0 = PCI_BAR_HANDLE_INIT;
+    pci_bar_handle_t m_pci_bar_handle_bar4 = PCI_BAR_HANDLE_INIT;
 
-    bool AXI4_enabled = false;
-    bool initialized = false;
+    unsigned int m_bls12_381_inst_axil_offset;
+    unsigned int m_bls12_381_data_axil_offset;
+    unsigned int m_bls12_381_inst_size;
+    unsigned int m_bls12_381_data_size;
+
+    bool m_AXI4_enabled = false;
+    bool m_initialized = false;
 
   public:
     static zcash_fpga& get_instance();
@@ -128,6 +153,7 @@ class zcash_fpga {
      * This connects to the FPGA and must be called at least once
      */
     int init_fpga(int slot_id = 0);
+
     /*
      * This sends a status request to the FPGA and waits for the reply,
      * checking for any errors.
@@ -135,14 +161,25 @@ class zcash_fpga {
     int get_status(fpga_status_rpl_t& status_rpl);
 
     /*
-     * Functions for writing and reading data slots in the BLS12_381 coprocessor
+     * Functions for writing and reading data/instruction slots in the BLS12_381 coprocessor
      */
     int bls12_381_write_data_slot(unsigned int id, bls12_381_slot_t slot_data);
     int bls12_381_read_data_slot(unsigned int id, bls12_381_slot_t& slot_data);
 
+    int bls12_381_write_inst_slot(unsigned int id, bls12_381_inst_t inst_data);
+    int bls12_381_read_inst_slot(unsigned int id, bls12_381_inst_t inst_data);
+
+    int bls12_381_set_curr_inst_slot(unsigned int id);
+    int bls12_381_get_curr_inst_slot(unsigned int& id);
+
+    /*
+     * This will clear the entire memory back to the initial state (will not change instruction pointer)
+     */
+    int bls12_381_reset_memory(bool inst_memory, bool data_memory);
+
   private:
-    zcash_fpga(){};
-    ~zcash_fpga(){};
+    zcash_fpga();
+    ~zcash_fpga();
 
     int check_afi_ready(int slot_id);
     int read_stream(char* data, unsigned int size);

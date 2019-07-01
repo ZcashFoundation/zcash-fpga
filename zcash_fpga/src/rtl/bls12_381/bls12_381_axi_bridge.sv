@@ -110,8 +110,8 @@ always_ff @ (posedge i_clk) begin
         case(axi_lite_if.araddr)
           32'h0: axi_lite_if.rdata <= INST_AXIL_START;
           32'h4: axi_lite_if.rdata <= DATA_AXIL_START;
-          32'h8: axi_lite_if.rdata <= DATA_RAM_DEPTH*DATA_RAM_ALIGN_BYTE;
-          32'hc: axi_lite_if.rdata <= INST_RAM_DEPTH*INST_RAM_ALIGN_BYTE;
+          32'h8: axi_lite_if.rdata <= DATA_RAM_DEPTH;
+          32'hc: axi_lite_if.rdata <= INST_RAM_DEPTH;
           32'h10: axi_lite_if.rdata <= curr_inst_pt;
           32'h14: axi_lite_if.rdata <= last_inst_cnt;
           default: axi_lite_if.rdata <= 32'hbeef;

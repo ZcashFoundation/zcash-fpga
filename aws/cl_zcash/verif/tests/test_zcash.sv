@@ -61,8 +61,8 @@ initial begin
 
 
   // Run our test cases
- // test_status_message();
- // test_block_secp256k1();
+  test_status_message();
+  test_block_secp256k1();
   test_bls12_381();
 
   $display("INFO: All tests passed");
@@ -270,13 +270,13 @@ task test_bls12_381();
 
   // Check we can read it back
   dat = 0;
-  for(int i = 0; i < 2; i = i + 4) begin
+  for(int i = 0; i < 8; i = i + 4) begin
     read_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 3*8 + i), .rdata(rdata));
     dat[i*8 +: 32] = rdata;
   end
-  $display("INFO: Read: 0x%x", dat[48*8-1:0]);
+  $display("INFO: Read: 0x%x", dat[8*8-1:0]);
   $display("INFO: Wrote: 0x%x", inst);
-  assert(dat[2*8-1:0] == inst) else $fatal(1, "ERROR: Writing to slot and reading gave wrong results!");
+  assert(dat[8*8-1:0] == inst) else $fatal(1, "ERROR: Writing to slot and reading gave wrong results!");
 
   slot_data = '{dat:in_k, pt:SCALAR};
   for(int i = 0; i < 48; i = i + 4)
@@ -295,6 +295,7 @@ task test_bls12_381();
 
   fork
     begin
+      stream_len = 0;
       while(stream_len == 0) read_stream(.data(stream_data), .len(stream_len));
       interrupt_rpl = stream_data;
 
@@ -319,7 +320,7 @@ task test_bls12_381();
       end
     end
     begin
-      repeat(10000) @(posedge tb.card.fpga.clk_main_a0);
+      repeat(100000) @(posedge tb.card.fpga.clk_main_a0);
       $fatal(1, "ERROR: No reply received from test_bls12_381");
     end
   join_any

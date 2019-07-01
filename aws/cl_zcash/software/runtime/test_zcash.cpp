@@ -92,15 +92,14 @@ int main(int argc, char **argv) {
             }
         }
     }
-    
+
     zcash_fpga& zfpga = zcash_fpga::get_instance();
-    zfpga.init_fpga();
 
     // Get FPGA status
     zcash_fpga::fpga_status_rpl_t status_rpl;
     rc = zfpga.get_status(status_rpl);
     fail_on(rc, out, "Unable toget FPGA status!");
-    
+
     // Read and write a data slot in BLS12_381
     zcash_fpga::bls12_381_slot_t data_slot;
     rc = zfpga.bls12_381_read_data_slot(0, data_slot);
