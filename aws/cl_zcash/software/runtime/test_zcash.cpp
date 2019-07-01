@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
     timeout = 0;
     read_len = 0;
     memset(reply, 0, 512);
-    while ((read_len = zcash_fpga.read_stream(reply, 256)) == 0) {
+    while ((read_len = zfpga.read_stream(reply, 256)) == 0) {
       usleep(1);
       timeout++;
       if (timeout > 1000) {
@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
     memset(reply, 0, 512);
     timeout = 0;
     read_len = 0;
-    while ((read_len = zcash_fpga.read_stream(reply, 256)) == 0) {
+    while ((read_len = zfpga.read_stream(reply, 256)) == 0) {
       usleep(1);
       timeout++;
       if (timeout > 1000) {
@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
     printf("\n");
 
     // Read current instruction
-    rc = zcash_fpga.bls12_381_get_curr_inst_slot(slot_id);
+    rc = zfpga.bls12_381_get_curr_inst_slot(slot_id);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     printf("Data slot is now %d\n", slot_id);
