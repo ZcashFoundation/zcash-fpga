@@ -2,10 +2,6 @@
 
 Repo for Zcash FPGA projects code and documents. Architecture document is [here]().
 
-## apps
-
-This contains general apps used in generating data / interfacing with the FPGA
-
 ## aws
 
 This contains the top / project files for building on AWS (Amazon FPGA)
