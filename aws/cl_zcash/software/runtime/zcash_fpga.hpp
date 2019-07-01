@@ -178,14 +178,17 @@ class zcash_fpga {
      */
     int bls12_381_reset_memory(bool inst_memory, bool data_memory);
 
+    /*
+     * These can be used to send data / read data directly from the FPGAs stream interface
+     */
+    int read_stream(char* data, unsigned int size);
+    int write_stream(char* data, unsigned int len);
+
   private:
     zcash_fpga();
     ~zcash_fpga();
 
     int check_afi_ready(int slot_id);
-    int read_stream(char* data, unsigned int size);
-    int write_stream(char* data, unsigned int len);
-
 
 }; // zcash_fpga
 

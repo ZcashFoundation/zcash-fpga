@@ -95,29 +95,78 @@ int main(int argc, char **argv) {
 
     zcash_fpga& zfpga = zcash_fpga::get_instance();
 
-    // Get FPGA status
-    zcash_fpga::fpga_status_rpl_t status_rpl;
-    rc = zfpga.get_status(status_rpl);
-    fail_on(rc, out, "Unable toget FPGA status!");
 
-    // Read and write a data slot in BLS12_381
-    zcash_fpga::bls12_381_slot_t data_slot;
-    rc = zfpga.bls12_381_read_data_slot(0, data_slot);
-    printf("Data slot type was: %i, data is 0x", data_slot.point_type);
-    for (int i = 47; i >= 0; i--)
-      printf("%x", data_slot.dat[i]);
+    // Test Fp2 point multiplication
+    zcash_fpga::bls12_381_slot_t data;
+    zcash_fpga::bls12_381_inst_t inst;
+
+    data_slot.point_type = zcash_fpga::SCALAR;
+    memset(&data.dat, 0x0, 48);
+    data.dat[0] = 10;
+    rc = zfpga.bls12_381_write_data_slot(0, data);
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+    inst.code = SEND_INTERRUPT;
+    inst.a = 0;
+    inst.b = 123;
+    rc = zfpga.bls12_381_write_inst_slot(1, inst);
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+    inst.code = SEND_INTERRUPT;
+    inst.a = 1;
+    inst.b = 456;
+    rc = zfpga.bls12_381_write_inst_slot(2, inst);
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+    inst.code = FP2_FPOINT_MULT;
+    inst.a = 0;
+    inst.b = 1;
+    rc = zfpga.bls12_381_write_inst_slot(0, inst);   // This will start the coprocessor
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+    // Wait for interrupts
+    unsigned int timeout = 0;
+    unsigned int read_len = 0;
+
+    // Try read reply - should be our scalar value
+    char reply[512];
+    memset(reply, 0, 512);
+    while ((read_len = read_stream(reply, 256)) == 0) {
+      usleep(1);
+      timeout++;
+      if (timeout > 1000) {
+        printf("ERROR: No reply received, timeout\n");
+        rc = 1;
+        goto out;
+      }
+    }
+
+    printf("Received data: 0x");
+    for (int i = read_len-1; i>=0; i--) printf("%x", reply[i]);
     printf("\n");
 
-    printf("Writing to data slot...\n");
-    data_slot.point_type = zcash_fpga::FE;
-    memset(&data_slot.dat, 0x0a, 48);
-    rc = zfpga.bls12_381_read_data_slot(0, data_slot);
+    // Try read second reply - should be point value - 6 slots
+    memset(reply, 0, 512);
+    timeout = 0;
+    while ((read_len = read_stream(reply, 256)) == 0) {
+      usleep(1);
+      timeout++;
+      if (timeout > 1000) {
+        printf("ERROR: No reply received, timeout\n");
+        rc = 1;
+        goto out;
+      }
+    }
 
-    rc = zfpga.bls12_381_read_data_slot(0, data_slot);
-    printf("Data slot type was: %i, data is 0x", data_slot.point_type);
-    for (int i = 47; i >= 0; i--)
-      printf("%x", data_slot.dat[i]);
+    printf("Received data: 0x");
+    for (int i = read_len-1; i>=0; i--) printf("%x", reply[i]);
     printf("\n");
+
+    // Read current instruction
+    rc = bls12_381_get_curr_inst_slot();
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+    printf("Data slot is now d\n", slot_id);
 
     return rc;
 out:

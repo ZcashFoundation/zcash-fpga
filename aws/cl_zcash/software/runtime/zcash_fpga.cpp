@@ -100,14 +100,14 @@ int zcash_fpga::init_fpga(int slot_id) {
 
 
   printf("INFO: FPGA version: 0x%x, built on 0x%lx\n", status_rpl.version, status_rpl.build_date);
-  printf("INFO: FPGA capability register: 0x%lx [ENB_VERIFY_EQUIHASH_200_9: %lu, ENB_VERIFY_EQUIHASH_144_5 %lu, ENB_VERIFY_SECP256K1_SIG %lu, ENB_BLS12_381 %lu]\n",
+  printf("INFO: FPGA capability register: 0x%lx [ENB_VERIFY_EQUIHASH_200_9: %d, ENB_VERIFY_EQUIHASH_144_5 %d, ENB_VERIFY_SECP256K1_SIG %d, ENB_BLS12_381 %d]\n",
       status_rpl.cmd_cap,
-      status_rpl.cmd_cap & (1 << ENB_VERIFY_EQUIHASH_200_9),
-      status_rpl.cmd_cap & (1 << ENB_VERIFY_EQUIHASH_144_5),
-      status_rpl.cmd_cap & (1 << ENB_VERIFY_SECP256K1_SIG),
-      status_rpl.cmd_cap & (1 << ENB_BLS12_381));
+      (status_rpl.cmd_cap & ENB_VERIFY_EQUIHASH_200_9) != 0,
+      (status_rpl.cmd_cap & ENB_VERIFY_EQUIHASH_144_5) != 0,
+      (status_rpl.cmd_cap & ENB_VERIFY_SECP256K1_SIG) != 0,
+      (status_rpl.cmd_cap & ENB_BLS12_381) != 0);
 
-  if (status_rpl.cmd_cap & (1 << ENB_BLS12_381)) {
+  if ((status_rpl.cmd_cap & ENB_BLS12_381) != 0) {
     rc = fpga_pci_peek(m_pci_bar_handle_bar0, BLS12_381_OFFSET + 0, &rdata);
     fail_on(rc, out, "ERROR: Unable to read from FPGA!\n");
     m_bls12_381_inst_axil_offset = rdata;
