@@ -27,6 +27,7 @@
 #include <utils/lcd.h>
 #include <utils/sh_dpi_tasks.h>
 
+
 #define AXI_FIFO_OFFSET       UINT64_C(0x0)
 #define BLS12_381_OFFSET      UINT64_C(0x1000)
 
@@ -35,14 +36,14 @@ class zcash_fpga {
 
   public:
 
-    enum uint64_t {
+    typedef enum : uint64_t {
       ENB_BLS12_381             = 1 << 3,
       ENB_VERIFY_SECP256K1_SIG  = 1 << 2,
       ENB_VERIFY_EQUIHASH_144_5 = 1 << 1,
       ENB_VERIFY_EQUIHASH_200_9 = 1 << 0
     } command_cap_e;
 
-    typedef enum uin32_t {
+    typedef enum : uint32_t {
       RESET_FPGA            = 0x00000000,
       FPGA_STATUS           = 0x00000001,
       VERIFY_EQUIHASH       = 0x00000100,
@@ -57,7 +58,7 @@ class zcash_fpga {
       BLS12_381_INTERRUPT_RPL   = 0x80000200
     } command_t;
 
-    typedef enum uint8_t {
+    typedef enum : uint8_t {
       SCALAR = 0,
       FE     = 1,
       FE2    = 2,
@@ -74,7 +75,7 @@ class zcash_fpga {
       point_type_t point_type;
     } bls12_381_slot_t;
 
-    typedef enum uint8_t {
+    typedef enum : uint8_t {
       NOOP_WAIT       = 0x0,
       COPY_REG        = 0x1,
       SEND_INTERRUPT  = 0x6,
@@ -87,15 +88,15 @@ class zcash_fpga {
       POINT_MULT      = 0x24,
       FP_FPOINT_MULT  = 0x25,
       FP2_FPOINT_MULT = 0x26
-    } code_t;
+    } bls12_381_code_t;
 
     // Instruction format
     typedef struct __attribute__((__packed__)) {
-      code_t code;
-      uint16_t a;
-      uint16_t b;
-      uint16_t c;
-    } inst_t;
+      bls12_381_code_t code;
+      uint16_t         a;
+      uint16_t         b;
+      uint16_t         c;
+    } bls12_381_inst_t;
 
     typedef struct __attribute__((__packed__)) {
       uint32_t  len;
@@ -141,7 +142,7 @@ class zcash_fpga {
     unsigned int m_bls12_381_inst_size;
     unsigned int m_bls12_381_data_size;
 
-    bool m_AXI4_enabled = false;
+    bool m_axi4_enabled = false;
     bool m_initialized = false;
 
   public:
@@ -167,7 +168,7 @@ class zcash_fpga {
     int bls12_381_read_data_slot(unsigned int id, bls12_381_slot_t& slot_data);
 
     int bls12_381_write_inst_slot(unsigned int id, bls12_381_inst_t inst_data);
-    int bls12_381_read_inst_slot(unsigned int id, bls12_381_inst_t inst_data);
+    int bls12_381_read_inst_slot(unsigned int id, bls12_381_inst_t& inst_data);
 
     int bls12_381_set_curr_inst_slot(unsigned int id);
     int bls12_381_get_curr_inst_slot(unsigned int& id);
