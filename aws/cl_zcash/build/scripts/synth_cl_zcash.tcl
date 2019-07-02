@@ -69,6 +69,7 @@ read_ip [ list \
   $CL_DIR/ip/axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci \
   $CL_DIR/ip/axis_dwidth_converter_48_to_8/axis_dwidth_converter_48_to_8.xci \
   $CL_DIR/ip/axi_fifo_mm_s_0/axi_fifo_mm_s_0.xci \
+  $CL_DIR/ip/ila_2/ila_2.xci \
   $CL_DIR/ip/axi_fifo_mm_s_lite/axi_fifo_mm_s_lite.xci
 ]
 
@@ -81,6 +82,7 @@ set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_8_
 set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_48_to_8.xci]
 set_property generate_synth_checkpoint false [get_files axi_fifo_mm_s_0.xci]
 set_property generate_synth_checkpoint false [get_files axi_fifo_mm_s_lite.xci]
+set_property generate_synth_checkpoint false [get_files ila_2.xci]
 
 generate_target all [get_ips axis_dwidth_converter_64_to_8]
 generate_target all [get_ips axis_dwidth_converter_8_to_64]
@@ -89,6 +91,7 @@ generate_target all [get_ips axis_dwidth_converter_8_to_4]
 generate_target all [get_ips axis_dwidth_converter_48_to_8]
 generate_target all [get_ips axi_fifo_mm_s_0]
 generate_target all [get_ips axi_fifo_mm_s_lite]
+generate_target all [get_ips ila_2]
 
 #Read IP for axi register slices
 read_ip [ list \
@@ -101,11 +104,27 @@ read_ip [ list \
 #Read IP for virtual jtag / ILA/VIO
 read_ip [ list \
   $HDK_SHELL_DESIGN_DIR/ip/ila_0/ila_0.xci \
-  $CL_DIR/ip/ila_2/ila_2.xci \
   $HDK_SHELL_DESIGN_DIR/ip/cl_debug_bridge/cl_debug_bridge.xci \
   $HDK_SHELL_DESIGN_DIR/ip/ila_vio_counter/ila_vio_counter.xci \
   $HDK_SHELL_DESIGN_DIR/ip/vio_0/vio_0.xci
 ]
+
+upgrade_ip [get_ips ila_0]
+set_property generate_synth_checkpoint false [get_files ila_0.xci]
+generate_target all [get_ips ila_0]
+
+upgrade_ip [get_ips ila_vio_counter]
+set_property generate_synth_checkpoint false [get_files ila_vio_counter.xci]
+generate_target all [get_ips ila_vio_counter]
+
+upgrade_ip [get_ips cl_debug_bridge]
+set_property generate_synth_checkpoint false [get_files cl_debug_bridge.xci]
+generate_target all [get_ips cl_debug_bridge]
+
+upgrade_ip [get_ips vio_0]
+set_property generate_synth_checkpoint false [get_files vio_0.xci]
+generate_target all [get_ips vio_0]
+
 
 # Additional IP's that might be needed if using the DDR
 #read_bd [ list \

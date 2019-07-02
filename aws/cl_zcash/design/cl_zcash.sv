@@ -256,7 +256,7 @@ generate
                      .probe5 (sh_ocl_rready_q)
                      );
 
-      la_2 CL_ILA_2 (
+      ila_2 CL_ILA_2 (
         .clk(clk_main_a0),
 
         .probe0(zcash_fpga_top.bls12_381_top.tx_if.val), // input wire [0:0]  probe0

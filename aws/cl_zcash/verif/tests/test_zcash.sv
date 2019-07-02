@@ -279,14 +279,16 @@ task test_bls12_381();
   for(int i = 0; i < 48; i = i + 4)
     write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 3*64 + i), .data(slot_data[i*8 +: 32]));
 
-
-  inst = '{code:SEND_INTERRUPT, a:16'd0, b:16'habcd, c:16'd0};
+  inst = '{code:FP2_FPOINT_MULT, a:16'd3, b:16'd0, c:16'd0};
   for(int i = 0; i < 8; i = i + 4)
     write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 1*8 + i), .data(inst[i*8 +: 32]));
 
+  inst = '{code:SEND_INTERRUPT, a:16'd0, b:16'habcd, c:16'd0};
+  for(int i = 0; i < 8; i = i + 4)
+    write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 2*8 + i), .data(inst[i*8 +: 32]));
 
   // Write to current slot to start
-  inst = '{code:FP2_FPOINT_MULT, a:16'd3, b:16'd0, c:16'd0};
+  inst = '{code:ADD_ELEMENT, a:16'd3, b:16'h0, c:16'd3};
   for(int i = 0; i < 8; i = i + 4)
     write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 0*8 + i), .data(inst[i*8 +: 32]));
 
