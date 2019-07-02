@@ -82,6 +82,7 @@ if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_o_if(i_clk);
 
 logic [31:0] new_inst_pt;
 logic        new_inst_pt_val, new_inst_pt_val_l;
+logic        reset_done_inst, reset_done_data;
 
 logic [7:0] cnt;
 integer unsigned pt_size;
@@ -223,6 +224,7 @@ bls12_381_axi_bridge bls12_381_axi_bridge (
   .inst_ram_if        ( inst_ram_usr_if ),
   .i_curr_inst_pt     ( curr_inst_pt    ),
   .i_last_inst_cnt    ( last_inst_cnt   ),
+  .i_reset_done       ( reset_done_data && reset_done_inst ),
   .o_new_inst_pt      ( new_inst_pt     ),
   .o_new_inst_pt_val  ( new_inst_pt_val ),
   .o_reset_inst_ram   ( reset_inst_ram  ),
@@ -241,7 +243,8 @@ uram_reset #(
 )
 inst_uram_reset (
   .a ( inst_ram_usr_if ),
-  .b ( inst_ram_sys_if )
+  .b ( inst_ram_sys_if ),
+  .o_reset_done ( reset_done_inst )
 );
 
 uram_reset #(
@@ -251,7 +254,8 @@ uram_reset #(
 )
 data_uram_reset (
   .a ( data_ram_usr_if ),
-  .b ( data_ram_sys_if )
+  .b ( data_ram_sys_if ),
+  .o_reset_done ( reset_done_data )
 );
 
 ec_point_mult #(
@@ -474,7 +478,7 @@ task task_sub_element();
       if (!(|data_ram_read)) begin
         data_ram_sys_if.a <= curr_inst.a + 1;
         data_ram_read[0] <= 1;
-      end    
+      end
       if (data_ram_read[READ_CYCLE]) begin
         sub_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
         pt_l <= curr_data.pt;
@@ -821,8 +825,8 @@ task task_inv_element();
 endtask
 
 task task_point_mult();
-// TODO
   fp2_pt_mul_out_if.rdy <= 0;
+  fp_pt_mult_mode <= 0;
   case(cnt) inside
     0: begin
       data_ram_sys_if.a <= curr_inst.a;
@@ -832,42 +836,28 @@ task task_point_mult();
     1: begin
       if (data_ram_read[READ_CYCLE]) begin
         data_ram_sys_if.a <= curr_inst.b;
+        pt_l <= curr_data.pt;
+        fp_pt_mult_mode <= curr_data.pt == FE2 ? 0 : 1;
         fp2_pt_mul_in_if.ctl <= curr_data.dat;
-        data_ram_sys_if.a <= curr_inst.b;
-        data_ram_read[0] <= 1;
+        fp2_pt_mul_in_if.dat <= bls12_381_pkg::g2_point;
+        fp2_pt_mul_in_if.val <= 1;
         cnt <= cnt + 1;
       end
     end
-    2: begin
-      if (data_ram_read[READ_CYCLE]) begin
-        data_ram_sys_if.a <= data_ram_sys_if.a + 1;
-        if (curr_data.pt == FP_AF || curr_data.pt == FP_JB)
-          fp_pt_mult_mode <= 1;
-        else
-          fp_pt_mult_mode <= 0;
-        if (curr_data.pt == FP_AF || curr_data.pt == FP_JB) begin
-          fp2_pt_mul_in_if.dat <= {DAT_BITS'(1), curr_data.dat};
-        end
-        cnt <= cnt + 1;
-      end
-    end
-
     // Wait for result
-    2,3,4: begin
+    2,3,4,5,6,7: begin
       if (fp2_pt_mul_out_if.val) begin
-         new_data.pt <= FP_JB;
-         new_data.dat <= fp2_pt_mul_out_if.dat >> ((cnt-2)*2*DAT_BITS);
+         new_data.pt <= FP2_JB;
+         new_data.dat <= fp2_pt_mul_out_if.dat >> ((cnt-2)*DAT_BITS);
          data_ram_sys_if.we <= 1;
-         data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+         if (cnt > 2) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
          cnt <= cnt + 1;
-         if (cnt == 4) begin
+         if (cnt == 7) begin
            fp2_pt_mul_out_if.rdy <= 1;
-           inst_ram_sys_if.a <= inst_ram_sys_if.a + 1;
-           inst_ram_read[0] <= 1;
          end
       end
     end
-    5: begin
+    8: begin
       get_next_inst();
     end
   endcase
@@ -885,7 +875,7 @@ task task_fp_fpoint_mult();
     1: begin
       if (data_ram_read[READ_CYCLE]) begin
         data_ram_sys_if.a <= curr_inst.b;
-        fp2_pt_mul_in_if.ctl <= {1'b0, curr_data.dat};
+        fp2_pt_mul_in_if.ctl <= curr_data.dat;
         fp2_pt_mul_in_if.dat <= g_point_fp2;
         fp2_pt_mul_in_if.val <= 1;
         cnt <= cnt + 1;
@@ -922,7 +912,7 @@ task task_fp2_fpoint_mult();
     1: begin
       if (data_ram_read[READ_CYCLE]) begin
         data_ram_sys_if.a <= curr_inst.b;
-        fp2_pt_mul_in_if.ctl <= {1'b1, curr_data.dat};
+        fp2_pt_mul_in_if.ctl <= curr_data.dat;
         fp2_pt_mul_in_if.dat <= bls12_381_pkg::g2_point;
         fp2_pt_mul_in_if.val <= 1;
         cnt <= cnt + 1;

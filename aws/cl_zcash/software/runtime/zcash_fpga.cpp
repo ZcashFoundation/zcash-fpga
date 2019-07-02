@@ -332,8 +332,8 @@ int zcash_fpga::read_stream(char* data, unsigned int size) {
     return -1;
 }
 
-int zcash_fpga::bls12_381_set_data_slot(unsigned int id, bls12_381_slot_t slot_data) {
-  char data[48];
+int zcash_fpga::bls12_381_set_data_slot(unsigned int id, bls12_381_data_t slot_data) {
+  uint8_t data[48];
   int rc = 0;
   if (!m_initialized) {
     printf("ERROR: FPGA not m_initialized!\n");
@@ -344,7 +344,7 @@ int zcash_fpga::bls12_381_set_data_slot(unsigned int id, bls12_381_slot_t slot_d
     goto out;
   }
 
-  *(bls12_381_slot_t*)data = slot_data;
+  *(bls12_381_data_t*)data = slot_data;
   // Set the top 3 bits to the point type
   data[47] &= 0x1F;
   data[47] |= (slot_data.point_type << 5);
@@ -358,7 +358,7 @@ int zcash_fpga::bls12_381_set_data_slot(unsigned int id, bls12_381_slot_t slot_d
     return rc;
 }
 
-int zcash_fpga::bls12_381_get_data_slot(unsigned int id, bls12_381_slot_t& slot_data) {
+int zcash_fpga::bls12_381_get_data_slot(unsigned int id, bls12_381_data_t& slot_data) {
   int rc = 0;
   if (!m_initialized) {
     printf("ERROR: FPGA not m_initialized!\n");
@@ -374,9 +374,9 @@ int zcash_fpga::bls12_381_get_data_slot(unsigned int id, bls12_381_slot_t& slot_
     fail_on(rc, out, "ERROR: Unable to read from FPGA!\n");
   }
 
-  slot_data.point_type = (point_type_t)(*((char*)&slot_data + 47) >> 5);
+  slot_data.point_type = (point_type_t)(*((uint8_t*)&slot_data + 47) >> 5);
   // Clear top 3 bits
-  *((char*)&slot_data + 47) &= 0x1F;
+  *((uint8_t*)&slot_data + 47) &= 0x1F;
 
   return 0;
   out:
@@ -394,8 +394,8 @@ int zcash_fpga::bls12_381_set_inst_slot(unsigned int id, bls12_381_inst_t inst_d
     goto out;
   }
 
-  for(int i = 0; i < 2; i=i+1) {
-    rc = fpga_pci_poke(m_pci_bar_handle_bar0, BLS12_381_OFFSET + m_bls12_381_inst_axil_offset + id*8 + i*4, *((uint32_t*)&inst_data) + i);
+  for(int i = 0; i < 8; i=i+4) {
+    rc = fpga_pci_poke(m_pci_bar_handle_bar0, BLS12_381_OFFSET + m_bls12_381_inst_axil_offset + id*8 + i, *((uint32_t*)&data[i]));
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
   }
   return 0;
@@ -414,8 +414,8 @@ int zcash_fpga::bls12_381_get_inst_slot(unsigned int id, bls12_381_inst_t& inst_
     goto out;
   }
 
-  for(int i = 0; i < 2; i=i+1) {
-    rc = fpga_pci_peek(m_pci_bar_handle_bar0, BLS12_381_OFFSET + m_bls12_381_inst_axil_offset + id*8 + i*4, ((uint32_t*)(&inst_data) + i));
+  for(int i = 0; i < 8; i=i+4) {
+    rc = fpga_pci_peek(m_pci_bar_handle_bar0, BLS12_381_OFFSET + m_bls12_381_inst_axil_offset + id*8 + i, (uint32_t*)(((uint8_t*)&slot_data + i)));
     fail_on(rc, out, "ERROR: Unable to read from FPGA!\n");
   }
 
@@ -509,7 +509,6 @@ int zcash_fpga::bls12_381_reset_memory(bool inst_memory, bool data_memory) {
 
 int zcash_fpga::bls12_381_get_last_cycle_cnt(unsigned int& cnt) {
   int rc = 0;
-  uint32_t data = 0;
   if (!m_initialized) {
     printf("ERROR: FPGA not m_initialized!\n");
     goto out;

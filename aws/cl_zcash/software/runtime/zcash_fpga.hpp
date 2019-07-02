@@ -73,7 +73,7 @@ class zcash_fpga {
     typedef struct __attribute__((__packed__)) {
       uint8_t      dat[48];
       point_type_t point_type;
-    } bls12_381_slot_t;
+    } bls12_381_data_t;
 
     typedef enum : uint8_t {
       NOOP_WAIT       = 0x0,
@@ -164,8 +164,8 @@ class zcash_fpga {
     /*
      * Functions for writing and reading data/instruction slots in the BLS12_381 coprocessor
      */
-    int bls12_381_set_data_slot(unsigned int id, bls12_381_slot_t slot_data);
-    int bls12_381_get_data_slot(unsigned int id, bls12_381_slot_t& slot_data);
+    int bls12_381_set_data_slot(unsigned int id, bls12_381_data_t slot_data);
+    int bls12_381_get_data_slot(unsigned int id, bls12_381_data_t& slot_data);
 
     int bls12_381_set_inst_slot(unsigned int id, bls12_381_inst_t inst_data);
     int bls12_381_get_inst_slot(unsigned int id, bls12_381_inst_t& inst_data);

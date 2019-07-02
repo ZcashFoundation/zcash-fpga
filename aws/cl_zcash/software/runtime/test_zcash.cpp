@@ -99,15 +99,16 @@ int main(int argc, char **argv) {
 
 
     // Test Fp2 point multiplication
-    zcash_fpga::bls12_381_slot_t data;
+    zcash_fpga::bls12_381_data_t data;
     zcash_fpga::bls12_381_inst_t inst;
 
     data.point_type = zcash_fpga::SCALAR;
-    memset(&data.dat, 0x0, 48);
+    memset(&data, 0x0, sizeof(zcash_fpga::bls12_381_data_t));
     data.dat[0] = 10;
     rc = zfpga.bls12_381_set_data_slot(0, data);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
+    memset(&inst, 0x0, sizeof(zcash_fpga::bls12_381_inst_t));
     inst.code = zcash_fpga::SEND_INTERRUPT;
     inst.a = 0;
     inst.b = 123;
@@ -150,7 +151,7 @@ int main(int argc, char **argv) {
     memset(reply, 0, 512);
     timeout = 0;
     read_len = 0;
-    while ((read_len = zfpga.read_stream(reply, 256)) == 0) {
+    while ((read_len = zfpga.read_stream(reply, 512)) == 0) {
       usleep(1);
       timeout++;
       if (timeout > 1000) {
@@ -165,7 +166,7 @@ int main(int argc, char **argv) {
     printf("\n");
 
     // Read current instruction
-    rc = zfpga.bls12_381_get_curr_inst_slot(&slot_id);
+    rc = zfpga.bls12_381_get_curr_inst_slot(slot_id);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     printf("Data slot is now %d\n", slot_id);
@@ -174,3 +175,4 @@ int main(int argc, char **argv) {
 out:
     return 1;
 }
+

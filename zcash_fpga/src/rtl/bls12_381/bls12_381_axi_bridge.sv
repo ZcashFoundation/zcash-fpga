@@ -26,6 +26,8 @@ module bls12_381_axi_bridge (
   // Configuration signals
   input [31:0] i_curr_inst_pt,
   input [31:0] i_last_inst_cnt,
+  input        i_reset_done,
+
   output logic [31:0] o_new_inst_pt,
   output logic        o_new_inst_pt_val,
   output logic        o_reset_inst_ram,
@@ -79,10 +81,10 @@ always_ff @ (posedge i_clk) begin
     data_ram_if.we <= 0;
 
     axi_lite_if.arready <= data_ram_read == 0 && inst_ram_read == 0 &&
-                           axi_lite_if.arvalid == 0 && wr_active == 0;
+                           wr_active == 0 && i_reset_done == 1;
 
     axi_lite_if.awready <= data_ram_read == 0 && inst_ram_read == 0 &&
-                           axi_lite_if.awvalid == 0 && wr_active == 0;
+                           wr_active == 0 && i_reset_done == 1;
 
     if (axi_lite_if.bready && axi_lite_if.bvalid) axi_lite_if.bvalid <= 0;
     if (axi_lite_if.rvalid && axi_lite_if.rready) axi_lite_if.rvalid <= 0;
