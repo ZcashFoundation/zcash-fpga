@@ -25,6 +25,7 @@ module cl_zcash
 `include "cl_zcash_defines.vh"       // CL Defines for cl_hello_world
 
 localparam USE_AXI4 = "NO";
+localparam USE_ILA = "YES";
 
 logic rst_main_n_sync;
 
@@ -230,5 +231,86 @@ zcash_fpga_top (
   .tx_if ( zcash_if_tx ),
   .axi_lite_if (zcash_axi_lite_if)
 );
+
+generate
+  if (USE_ILA == "YES") begin: ILA_GEN
+
+    // Integrated Logic Analyzers (ILA)
+     ila_0 CL_ILA_0 (
+                     .clk    (clk_main_a0),
+                     .probe0 (sh_ocl_awvalid_q),
+                     .probe1 (sh_ocl_awaddr_q ),
+                     .probe2 (ocl_sh_awready_q),
+                     .probe3 (sh_ocl_arvalid_q),
+                     .probe4 (sh_ocl_araddr_q ),
+                     .probe5 (ocl_sh_arready_q)
+                     );
+
+     ila_0 CL_ILA_1 (
+                     .clk    (clk_main_a0),
+                     .probe0 (ocl_sh_bvalid_q),
+                     .probe1 (sh_cl_glcount0_q),
+                     .probe2 (sh_ocl_bready_q),
+                     .probe3 (ocl_sh_rvalid_q),
+                     .probe4 ({32'b0,ocl_sh_rdata_q[31:0]}),
+                     .probe5 (sh_ocl_rready_q)
+                     );
+
+      la_2 CL_ILA_2 (
+        .clk(clk_main_a0),
+
+        .probe0(zcash_fpga_top.bls12_381_top.tx_if.val), // input wire [0:0]  probe0
+        .probe1(zcash_fpga_top.bls12_381_top.tx_if.sop), // input wire [0:0]  probe1
+        .probe2(zcash_fpga_top.bls12_381_top.tx_if.eop), // input wire [0:0]  probe2
+        .probe3(zcash_fpga_top.bls12_381_top.tx_if.rdy), // input wire [0:0]  probe3
+        .probe4(zcash_fpga_top.bls12_381_top.tx_if.dat), // input wire [63:0]  probe4
+        .probe5(zcash_fpga_top.bls12_381_top.interrupt_state), // input wire [7:0]  probe5
+        .probe6(zcash_fpga_top.bls12_381_top.idx_out_if.val), // input wire [0:0]  probe6
+        .probe7(zcash_fpga_top.bls12_381_top.idx_out_if.sop), // input wire [0:0]  probe7
+        .probe8(zcash_fpga_top.bls12_381_top.idx_out_if.eop), // input wire [0:0]  probe8
+        .probe9(zcash_fpga_top.bls12_381_top.idx_out_if.rdy), // input wire [0:0]  probe9
+        .probe10(zcash_fpga_top.bls12_381_top.idx_out_if.dat), // input wire [18:0]  probe10
+        .probe11(zcash_fpga_top.bls12_381_top.interrupt_in_if.val), // input wire [0:0]  probe11
+        .probe12(zcash_fpga_top.bls12_381_top.interrupt_in_if.sop), // input wire [0:0]  probe12
+        .probe13(zcash_fpga_top.bls12_381_top.interrupt_in_if.eop), // input wire [0:0]  probe13
+        .probe14(zcash_fpga_top.bls12_381_top.interrupt_in_if.rdy), // input wire [0:0]  probe14
+        .probe15(zcash_fpga_top.bls12_381_top.interrupt_in_if.dat), // input wire [380:0]  probe15
+        .probe16(zcash_fpga_top.bls12_381_top.interrupt_out_if.val), // input wire [0:0]  probe16
+        .probe17(zcash_fpga_top.bls12_381_top.interrupt_out_if.sop), // input wire [0:0]  probe17
+        .probe18(zcash_fpga_top.bls12_381_top.interrupt_out_if.eop), // input wire [0:0]  probe18
+        .probe19(zcash_fpga_top.bls12_381_top.interrupt_out_if.rdy), // input wire [0:0]  probe19
+        .probe20(zcash_fpga_top.bls12_381_top.interrupt_out_if.dat), // input wire [63:0]  probe20
+        .probe21(zcash_fpga_top.bls12_381_top.curr_inst_pt), // input wire [31:0]  probe21
+        .probe22(zcash_fpga_top.bls12_381_top.inst_state), // input wire [7:0]  probe22
+        .probe23(), // input wire [0:0]  probe23
+        .probe24(), // input wire [0:0]  probe24
+        .probe25(), // input wire [0:0]  probe25
+        .probe26(), // input wire [0:0]  probe26
+        .probe27(), // input wire [0:0]  probe27
+        .probe28(), // input wire [0:0]  probe28
+        .probe29(), // input wire [0:0]  probe29
+        .probe30(), // input wire [0:0]  probe30
+        .probe31() // input wire [0:0]  probe31
+      );
+
+  // Debug Bridge
+   cl_debug_bridge CL_DEBUG_BRIDGE (
+        .clk(clk_main_a0),
+        .S_BSCAN_drck(drck),
+        .S_BSCAN_shift(shift),
+        .S_BSCAN_tdi(tdi),
+        .S_BSCAN_update(update),
+        .S_BSCAN_sel(sel),
+        .S_BSCAN_tdo(tdo),
+        .S_BSCAN_tms(tms),
+        .S_BSCAN_tck(tck),
+        .S_BSCAN_runtest(runtest),
+        .S_BSCAN_reset(reset),
+        .S_BSCAN_capture(capture),
+        .S_BSCAN_bscanid_en(bscanid_en)
+     );
+
+  end
+endgenerate
 
 endmodule

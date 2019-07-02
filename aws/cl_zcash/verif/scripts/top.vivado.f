@@ -72,6 +72,8 @@ ${CL_ROOT}/ip/axis_dwidth_converter_48_to_8/sim/axis_dwidth_converter_48_to_8.v
 ${CL_ROOT}/ip/axis_dwidth_converter_4_to_8/sim/axis_dwidth_converter_4_to_8.v
 ${CL_ROOT}/ip/axis_dwidth_converter_8_to_4/sim/axis_dwidth_converter_8_to_4.v
 
+${CL_ROOT}/ip/ila_2/sim/ila_2.v
+
 -f ${ZCASH_DIR}/zcash_fpga/src/rtl/top/include.f
 
 

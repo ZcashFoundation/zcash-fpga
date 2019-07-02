@@ -15,6 +15,7 @@
 
 #Param needed to avoid clock name collisions
 set_param sta.enableAutoGenClkNamePersistence 0
+set_param chipscope.enablePRFlow true
 set CL_MODULE $CL_MODULE
 set VDEFINES $VDEFINES
 
@@ -99,7 +100,8 @@ read_ip [ list \
 
 #Read IP for virtual jtag / ILA/VIO
 read_ip [ list \
-  $HDK_SHELL_DESIGN_DIR/ip/ila_0/ila_0.xci\
+  $HDK_SHELL_DESIGN_DIR/ip/ila_0/ila_0.xci \
+  $CL_DIR/ip/ila_2/ila_2.xci \
   $HDK_SHELL_DESIGN_DIR/ip/cl_debug_bridge/cl_debug_bridge.xci \
   $HDK_SHELL_DESIGN_DIR/ip/ila_vio_counter/ila_vio_counter.xci \
   $HDK_SHELL_DESIGN_DIR/ip/vio_0/vio_0.xci

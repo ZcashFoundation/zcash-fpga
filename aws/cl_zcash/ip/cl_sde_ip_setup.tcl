@@ -9,6 +9,7 @@ axis_dwidth_converter_8_to_64/axis_dwidth_converter_8_to_64.xci
 axis_dwidth_converter_48_to_8/axis_dwidth_converter_48_to_8.xci
 axis_dwidth_converter_4_to_8/axis_dwidth_converter_4_to_8.xci
 axis_dwidth_converter_8_to_4/axis_dwidth_converter_8_to_4.xci
+ila_2/ila_2.xci
 }
 
 upgrade_ip [get_ips *]
@@ -20,3 +21,4 @@ generate_target all [get_files  axis_dwidth_converter_8_to_64/axis_dwidth_conver
 generate_target all [get_files axis_dwidth_converter_48_to_8/axis_dwidth_converter_48_to_8.xci]
 generate_target all [get_files  axis_dwidth_converter_4_to_8/axis_dwidth_converter_4_to_8.xci]
 generate_target all [get_files  axis_dwidth_converter_8_to_4/axis_dwidth_converter_8_to_4.xci]
+generate_target all [get_files  ila_2/ila_2.xci]
