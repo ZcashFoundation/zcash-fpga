@@ -65,7 +65,7 @@ uint32_t byte_swap(uint32_t value) {
 
 int main(int argc, char **argv) {
 
-    int slot_id = 0;
+    unsigned int slot_id = 0;
     int rc;
     uint32_t value = 0;
     unsigned int timeout = 0;
@@ -105,25 +105,25 @@ int main(int argc, char **argv) {
     data.point_type = zcash_fpga::SCALAR;
     memset(&data.dat, 0x0, 48);
     data.dat[0] = 10;
-    rc = zfpga.bls12_381_write_data_slot(0, data);
+    rc = zfpga.bls12_381_set_data_slot(0, data);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     inst.code = zcash_fpga::SEND_INTERRUPT;
     inst.a = 0;
     inst.b = 123;
-    rc = zfpga.bls12_381_write_inst_slot(1, inst);
+    rc = zfpga.bls12_381_set_inst_slot(1, inst);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     inst.code = zcash_fpga::SEND_INTERRUPT;
     inst.a = 1;
     inst.b = 456;
-    rc = zfpga.bls12_381_write_inst_slot(2, inst);
+    rc = zfpga.bls12_381_set_inst_slot(2, inst);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     inst.code = zcash_fpga::FP2_FPOINT_MULT;
     inst.a = 0;
     inst.b = 1;
-    rc = zfpga.bls12_381_write_inst_slot(0, inst);   // This will start the coprocessor
+    rc = zfpga.bls12_381_set_inst_slot(0, inst);   // This will start the coprocessor
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     // Wait for interrupts
@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
     printf("\n");
 
     // Read current instruction
-    rc = zfpga.bls12_381_get_curr_inst_slot(slot_id);
+    rc = zfpga.bls12_381_get_curr_inst_slot(&slot_id);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     printf("Data slot is now %d\n", slot_id);

@@ -164,11 +164,11 @@ class zcash_fpga {
     /*
      * Functions for writing and reading data/instruction slots in the BLS12_381 coprocessor
      */
-    int bls12_381_write_data_slot(unsigned int id, bls12_381_slot_t slot_data);
-    int bls12_381_read_data_slot(unsigned int id, bls12_381_slot_t& slot_data);
+    int bls12_381_set_data_slot(unsigned int id, bls12_381_slot_t slot_data);
+    int bls12_381_get_data_slot(unsigned int id, bls12_381_slot_t& slot_data);
 
-    int bls12_381_write_inst_slot(unsigned int id, bls12_381_inst_t inst_data);
-    int bls12_381_read_inst_slot(unsigned int id, bls12_381_inst_t& inst_data);
+    int bls12_381_set_inst_slot(unsigned int id, bls12_381_inst_t inst_data);
+    int bls12_381_get_inst_slot(unsigned int id, bls12_381_inst_t& inst_data);
 
     int bls12_381_set_curr_inst_slot(unsigned int id);
     int bls12_381_get_curr_inst_slot(unsigned int& id);
