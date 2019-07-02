@@ -142,7 +142,10 @@ always_ff @ (posedge i_clk) begin
 
     mul_in_if[2].sop <= 1;
     mul_in_if[2].eop <= 1;
-
+    add_in_if[2].sop <= 1;
+    add_in_if[2].eop <= 1;
+    sub_in_if[2].sop <= 1;
+    sub_in_if[2].eop <= 1;
 
     new_inst_pt_val_l <= new_inst_pt_val || new_inst_pt_val_l; // Latch this pulse if we want to update instruction pointer
 
@@ -1034,7 +1037,7 @@ always_ff @ (posedge i_clk) begin
           interrupt_hdr_byt <= $bits(bls12_381_interrupt_rpl_t)/8;
         end
       end
-      // Header needs to be alined to AXI_STREAM_BYTS
+      // Header needs to be aligned to AXI_STREAM_BYTS
       SEND_HDR: begin
         if (~tx_if.val || (tx_if.val && tx_if.rdy)) begin
           tx_if.sop <= interrupt_hdr_byt == $bits(bls12_381_interrupt_rpl_t)/8;

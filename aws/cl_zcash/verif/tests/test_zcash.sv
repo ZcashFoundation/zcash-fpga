@@ -243,10 +243,6 @@ task test_bls12_381();
   logic [380:0] in_k = 381'h33;
   exp_p =  fp2_point_mult(in_k, g2_point);
 
-  // Make sure we aren't in reset
-  while(!tb.card.fpga.CL.zcash_fpga_top.bls12_381_top.inst_uram_reset.reset_done ||
-     !tb.card.fpga.CL.zcash_fpga_top.bls12_381_top.data_uram_reset.reset_done) @(posedge tb.card.fpga.clk_main_a0);
-
   slot_data.dat = random_vector(384/8) % bls12_381_pkg::P;
   slot_data.pt = FE;
   dat = slot_data;
