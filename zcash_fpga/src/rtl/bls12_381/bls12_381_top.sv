@@ -100,7 +100,6 @@ logic [31:0] last_inst_cnt, curr_inst_pt;
 
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
-    tx_if.reset_source();
     inst_ram_sys_if.reset_source();
     data_ram_sys_if.we <= 0;
     data_ram_sys_if.a <= 0;
