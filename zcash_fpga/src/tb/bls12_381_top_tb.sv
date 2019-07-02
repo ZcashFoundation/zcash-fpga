@@ -76,10 +76,10 @@ begin
   assert(rdata == DATA_AXIL_START) else $fatal("ERROR: AXI lite register returned wrong value");
 
   axi_lite_if.peek(.addr(8), .data(rdata));
-  assert(rdata == DATA_RAM_DEPTH*DATA_RAM_ALIGN_BYTE) else $fatal("ERROR: AXI lite register returned wrong value");
+  assert(rdata == DATA_RAM_DEPTH) else $fatal("ERROR: AXI lite register returned wrong value");
 
   axi_lite_if.peek(.addr(12), .data(rdata));
-  assert(rdata == INST_RAM_DEPTH*INST_RAM_ALIGN_BYTE) else $fatal("ERROR: AXI lite register returned wrong value");
+  assert(rdata == INST_RAM_DEPTH) else $fatal("ERROR: AXI lite register returned wrong value");
 
   data = '{dat:in_k, pt:SCALAR};
   axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START), .len(48));
@@ -377,9 +377,6 @@ task test_mul_add_sub_element();
   //Reset the RAM
   axi_lite_if.poke(.addr(32'h0), .data(2'b11));
 
-  while(!bls12_381_top.inst_uram_reset.reset_done ||
-     !bls12_381_top.data_uram_reset.reset_done) @(posedge clk);
-
   axi_lite_if.poke(.addr(32'h10), .data(0));
 
   data = '{dat:in_a, pt:FE};
@@ -402,7 +399,7 @@ task test_mul_add_sub_element();
 
   fork
     begin
-      out_if.get_stream(get_dat, get_len, 0);
+      while(1) @(posedge clk);//out_if.get_stream(get_dat, get_len, 0);
       interrupt_rpl = get_dat;
 
       assert(interrupt_rpl.hdr.cmd == BLS12_381_INTERRUPT_RPL) else $fatal(1, "ERROR: Received non-interrupt message");
@@ -507,11 +504,7 @@ initial begin
   axi_lite_if.reset_source();
   out_if.rdy = 0;
   #100ns;
-  // Wait for memories to reset
-  while(!bls12_381_top.inst_uram_reset.reset_done ||
-       !bls12_381_top.data_uram_reset.reset_done)
-    @(posedge clk);
-
+  
   test_fp_fpoint_mult();
   test_fp2_fpoint_mult();
   test_inv_element();
