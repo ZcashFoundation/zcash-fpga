@@ -507,4 +507,18 @@ int zcash_fpga::bls12_381_reset_memory(bool inst_memory, bool data_memory) {
     return rc;
 }
 
+int zcash_fpga::bls12_381_get_last_cycle_cnt(unsigned int& cnt) {
+  int rc = 0;
+  uint32_t data = 0;
+  if (!m_initialized) {
+    printf("ERROR: FPGA not m_initialized!\n");
+    goto out;
+  }
 
+  rc = fpga_pci_peek(m_pci_bar_handle_bar0, BLS12_381_OFFSET + 0x14, &cnt);
+  fail_on(rc, out, "ERROR: Unable to read from FPGA!\n");
+
+  return 0;
+  out:
+    return rc;
+}

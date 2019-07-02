@@ -174,6 +174,11 @@ class zcash_fpga {
     int bls12_381_get_curr_inst_slot(unsigned int& id);
 
     /*
+     * Return the number of cycles the last cycle took (excluding INTERRUPT and NOOP)
+     */
+    int bls12_381_get_last_cycle_cnt(unsigned int& cnt);
+
+    /*
      * This will clear the entire memory back to the initial state (will not change instruction pointer)
      */
     int bls12_381_reset_memory(bool inst_memory, bool data_memory);
