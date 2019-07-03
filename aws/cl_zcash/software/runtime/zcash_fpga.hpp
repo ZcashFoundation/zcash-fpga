@@ -151,11 +151,6 @@ class zcash_fpga {
     void operator=(zcash_fpga const&) = delete;
 
     /*
-     * This connects to the FPGA and must be called at least once
-     */
-    int init_fpga(int slot_id = 0);
-
-    /*
      * This sends a status request to the FPGA and waits for the reply,
      * checking for any errors.
      */
@@ -190,6 +185,11 @@ class zcash_fpga {
     int write_stream(char* data, unsigned int len);
 
   private:
+    /*
+     * This connects to the FPGA and is called by the constructor on the first call of get_instance()
+     */
+    int init_fpga(int slot_id = 0);
+
     zcash_fpga();
     ~zcash_fpga();
 

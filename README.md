@@ -1,6 +1,8 @@
 The work in this repo is the result of a Zcash foundation grant to develop open-source FPGA code that can be used to accelerate various aspects of the network.
 **An Architecture document is [here](https://docs.google.com/document/d/1zKZP0SlvL1LxzCStOaIWPoddgXfRXx6f_vveiZj8w0E/edit?usp=sharing)** (comments are enabled so if you have questions / comments please feel free to add them).
 
+** Currently still a work in progress
+
 # Repo folder structure
 
 Each top level folder is explained below. Inside each folder is source code written in systemverilog, and most blocks have a standalone self-checking testbench.
