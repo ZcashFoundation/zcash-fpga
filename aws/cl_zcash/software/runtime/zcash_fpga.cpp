@@ -395,7 +395,7 @@ int zcash_fpga::bls12_381_set_inst_slot(unsigned int id, bls12_381_inst_t inst_d
   }
 
   for(int i = 0; i < 8; i=i+4) {
-    rc = fpga_pci_poke(m_pci_bar_handle_bar0, BLS12_381_OFFSET + m_bls12_381_inst_axil_offset + id*8 + i, *((uint32_t*)&data[i]));
+    rc = fpga_pci_poke(m_pci_bar_handle_bar0, BLS12_381_OFFSET + m_bls12_381_inst_axil_offset + id*8 + i, *(uint32_t*)((uint8_t*)&inst_data + i))));
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
   }
   return 0;
@@ -415,7 +415,7 @@ int zcash_fpga::bls12_381_get_inst_slot(unsigned int id, bls12_381_inst_t& inst_
   }
 
   for(int i = 0; i < 8; i=i+4) {
-    rc = fpga_pci_peek(m_pci_bar_handle_bar0, BLS12_381_OFFSET + m_bls12_381_inst_axil_offset + id*8 + i, (uint32_t*)(((uint8_t*)&slot_data + i)));
+    rc = fpga_pci_peek(m_pci_bar_handle_bar0, BLS12_381_OFFSET + m_bls12_381_inst_axil_offset + id*8 + i, (uint32_t*)(((uint8_t*)&inst_data + i)));
     fail_on(rc, out, "ERROR: Unable to read from FPGA!\n");
   }
 
