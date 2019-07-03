@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
     uint32_t value = 0;
     unsigned int timeout = 0;
     unsigned int read_len = 0;
-    char reply[512];
+    uint8_t reply[512];
     // Process command line args
     {
         int i;
@@ -97,6 +97,8 @@ int main(int argc, char **argv) {
 
     zcash_fpga& zfpga = zcash_fpga::get_instance();
 
+    zfpga.bls12_381_reset_memory(true, true);
+    zfpga.bls12_381_set_curr_inst_slot(0);
 
     // Test Fp2 point multiplication
     zcash_fpga::bls12_381_data_t data;
@@ -170,6 +172,15 @@ int main(int argc, char **argv) {
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     printf("Data slot is now %d\n", slot_id);
+
+    // Print out data slots
+    for(int i = 0; i < 10; i++) {
+      zfpga.bls12_381_get_data_slot(i, data);
+      printf("slot %d, pt: %d, data:0x", i, data.point_type);
+      for(int j = 47; j >= 0; j--) printf("%02x", data.dat[j]);
+      printf("\n");
+    }
+
 
     return rc;
 out:

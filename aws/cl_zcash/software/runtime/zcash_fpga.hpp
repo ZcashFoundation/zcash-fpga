@@ -181,8 +181,8 @@ class zcash_fpga {
     /*
      * These can be used to send data / read data directly from the FPGAs stream interface
      */
-    int read_stream(char* data, unsigned int size);
-    int write_stream(char* data, unsigned int len);
+    int read_stream(uint8_t* data, unsigned int size);
+    int write_stream(uint8_t* data, unsigned int len);
 
   private:
     /*
