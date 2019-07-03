@@ -956,27 +956,32 @@ task task_send_interrupt();
     1: begin
       if (data_ram_read[READ_CYCLE]) begin
         pt_size <= get_point_type_size(curr_data.pt);
-        cnt <= cnt + 1;
         idx_in_if.val <= 1;
         idx_in_if.dat <= {curr_data.pt, curr_inst.b};
+      end
+      if (idx_in_if.val && idx_in_if.rdy) begin
+        cnt <= cnt + 1;
+        data_ram_read[0] <= 1;
+        data_ram_sys_if.a <= curr_inst.a;
       end
     end
     // Write the slot fifo
     2: begin
-      if (data_ram_read == 0) begin
-        // Only load next slot if FIFO has space
-        data_ram_read[0] <= interrupt_in_if.rdy;
-      end
-      if (data_ram_read[READ_CYCLE]) begin
-        pt_size <= pt_size - 1;
+
+      if (~interrupt_in_if.val) begin
         interrupt_in_if.dat <= curr_data.dat;
-        interrupt_in_if.val <= 1;
-        data_ram_sys_if.a <= data_ram_sys_if.a + 1;
-        if (pt_size == 1) begin
-          interrupt_in_if.eop <= 1;
-          cnt <= cnt + 1;
-        end
+        interrupt_in_if.val <= data_ram_read[READ_CYCLE];
+        interrupt_in_if.eop <= pt_size == 1;
       end
+
+      if (interrupt_in_if.val && interrupt_in_if.rdy) begin
+        pt_size <= pt_size - 1;
+        interrupt_in_if.val <= 0;
+        data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+        data_ram_read[0] <= 1;
+        if (pt_size == 1) cnt <= cnt + 1;
+      end
+
     end
     3: begin
       get_next_inst();

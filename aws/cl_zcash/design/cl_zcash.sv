@@ -25,7 +25,7 @@ module cl_zcash
 `include "cl_zcash_defines.vh"       // CL Defines for cl_hello_world
 
 localparam USE_AXI4 = "NO";
-localparam USE_ILA = "YES";
+localparam USE_ILA = "NO";
 
 logic rst_main_n_sync;
 
