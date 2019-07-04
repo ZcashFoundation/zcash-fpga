@@ -150,6 +150,9 @@ read_xdc [ list \
 set_property USED_IN {synthesis implementation OUT_OF_CONTEXT} [get_files cl_clocks_aws.xdc]
 set_property PROCESSING_ORDER EARLY  [get_files cl_clocks_aws.xdc]
 
+set buildDate [ clock format [ clock seconds ] -format %y%m%d ]
+set_property generic {zcash_fpga_top.control_top.BUILD_DATE={\"$buildDate\"}} [current_fileset]
+
 ########################
 # CL Synthesis
 ########################

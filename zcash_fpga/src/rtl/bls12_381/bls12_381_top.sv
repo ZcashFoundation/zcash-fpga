@@ -213,6 +213,7 @@ always_ff @ (posedge i_clk) begin
         if (cnt == 0) last_inst_cnt <= 0;
         task_fp2_fpoint_mult();
       end
+      default: get_next_inst();
     endcase
 
   end
@@ -828,7 +829,6 @@ endtask
 
 task task_point_mult();
   fp2_pt_mul_out_if.rdy <= 0;
-  fp_pt_mult_mode <= 0;
   case(cnt) inside
     0: begin
       data_ram_sys_if.a <= curr_inst.a;
@@ -838,28 +838,67 @@ task task_point_mult();
     1: begin
       if (data_ram_read[READ_CYCLE]) begin
         data_ram_sys_if.a <= curr_inst.b;
-        pt_l <= curr_data.pt;
-        fp_pt_mult_mode <= curr_data.pt == FE2 ? 0 : 1;
+        data_ram_read[0] <= 1;
+        pt_size <= 0;
         fp2_pt_mul_in_if.ctl <= curr_data.dat;
-        fp2_pt_mul_in_if.dat <= bls12_381_pkg::g2_point;
-        fp2_pt_mul_in_if.val <= 1;
+        fp2_pt_mul_in_if.dat <= {FE2_one, {DAT_BITS*4{1'd0}}}; // This is in case we use affine coordinates
         cnt <= cnt + 1;
       end
     end
-    // Wait for result
-    2,3,4,5,6,7: begin
+    2: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        fp_pt_mult_mode <= (curr_data.pt == FP_AF) || (curr_data.pt == FP_JB);
+
+        if (curr_data.pt == FP2_JB || curr_data.pt == FP2_AF) begin
+          fp2_pt_mul_in_if.dat[DAT_BITS*pt_size +: DAT_BITS] <= curr_data.dat;
+        end else begin
+          fp2_pt_mul_in_if.dat[2*DAT_BITS*pt_size +: 2*DAT_BITS] <= {(DAT_BITS)'(0), curr_data.dat};
+        end
+
+        if (pt_size == get_point_type_size(curr_data.pt)-1) begin
+          data_ram_sys_if.a <= curr_inst.c;
+          if (curr_data.pt == FP2_AF || curr_data.pt == FP2_JB)
+            cnt <= 6;
+          else
+            cnt <= 3;
+          fp2_pt_mul_in_if.val <= 1;
+        end else begin
+          pt_size <= pt_size + 1;
+          data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+          data_ram_read[0] <= 1;
+        end
+
+      end
+    end
+    // Wait for result of FP_JB
+    3,4,5: begin
+      if (fp2_pt_mul_out_if.val) begin
+         new_data.pt <= FP_JB;
+         new_data.dat <= fp2_pt_mul_out_if.dat >> ((cnt-3)*2*DAT_BITS);
+         data_ram_sys_if.we <= 1;
+         if (cnt > 3) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+         cnt <= cnt + 1;
+         if (cnt == 5) begin
+           fp2_pt_mul_out_if.rdy <= 1;
+           cnt <= 12;
+         end
+       end
+    end
+    // Wait for result of FP2_JB
+    6,7,8,9,10,11: begin
       if (fp2_pt_mul_out_if.val) begin
          new_data.pt <= FP2_JB;
-         new_data.dat <= fp2_pt_mul_out_if.dat >> ((cnt-2)*DAT_BITS);
+         new_data.dat <= fp2_pt_mul_out_if.dat >> ((cnt-6)*DAT_BITS);
          data_ram_sys_if.we <= 1;
-         if (cnt > 2) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+         if (cnt > 6) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
          cnt <= cnt + 1;
-         if (cnt == 7) begin
+         if (cnt == 11) begin
            fp2_pt_mul_out_if.rdy <= 1;
+           cnt <= 12;
          end
       end
     end
-    8: begin
+    12: begin
       get_next_inst();
     end
   endcase

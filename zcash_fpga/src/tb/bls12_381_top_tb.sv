@@ -65,7 +65,7 @@ begin
   bls12_381_interrupt_rpl_t interrupt_rpl;
 
   failed = 0;
-  in_k = 381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+  in_k = 381'h10;//381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
   exp_p =  point_mult(in_k, g_point);
   $display("Running test_fp_fpoint_mult...");
 
@@ -87,13 +87,18 @@ begin
   inst = '{code:SEND_INTERRUPT, a:16'd1, b:16'hbeef, c:16'd0};
   axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 8), .len(8));
 
+
   // Write slot 0 to start
   inst = '{code:FP_FPOINT_MULT, a:16'd0, b:16'd1, c:16'd0};
   axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START), .len(8));
 
   fork
     begin
-      out_if.get_stream(get_dat, get_len, 0);
+      out_if.get_stream(get_dat, get_len, 50);
+      /*while(1) begin
+        out_if.rdy = ~out_if.rdy;
+        @(posedge clk);
+      end*/
       interrupt_rpl = get_dat;
 
       assert(interrupt_rpl.hdr.cmd == BLS12_381_INTERRUPT_RPL) else $fatal(1, "ERROR: Received non-interrupt message");
@@ -389,9 +394,9 @@ task test_mul_add_sub_element();
 
   inst = '{code:ADD_ELEMENT, a:16'd2, b:16'd2, c:16'd4};
   axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 1*8), .len(8));
-  
+
   inst = '{code:SUB_ELEMENT, a:16'd4, b:16'd2, c:16'd6};
-  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 2*8), .len(8));  
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 2*8), .len(8));
 
   inst = '{code:MUL_ELEMENT, a:16'd0, b:16'd11, c:16'd2};
   axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 0*8), .len(8));
@@ -399,7 +404,7 @@ task test_mul_add_sub_element();
 
   fork
     begin
-      while(1) @(posedge clk);//out_if.get_stream(get_dat, get_len, 0);
+      out_if.get_stream(get_dat, get_len, 0);
       interrupt_rpl = get_dat;
 
       assert(interrupt_rpl.hdr.cmd == BLS12_381_INTERRUPT_RPL) else $fatal(1, "ERROR: Received non-interrupt message");
@@ -500,15 +505,206 @@ task test_mul_add_sub_element();
 
 endtask;
 
+task test_point_mult();
+  integer signed get_len;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
+  inst_t inst;
+  logic failed;
+  data_t data;
+  logic [31:0] rdata;
+  fe_t in_k;
+  fp2_jb_point_t p2_in, p2_out, p2_exp;
+  jb_point_t p_in, p_out, p_exp;
+  bls12_381_interrupt_rpl_t interrupt_rpl;
+
+  failed = 0;
+
+  $display("Running test_point_mult...");
+  //Reset the RAM
+  axi_lite_if.poke(.addr(32'h0), .data(2'b11));
+  axi_lite_if.poke(.addr(32'h10), .data(0));
+
+  for (int i = 0; i < 4; i++) begin
+    in_k = random_vector(384/8) % P;
+    p_in = 0;
+    p2_in = 0;
+    $display("INFO: Case %d", i);
+
+    inst = '{code:SEND_INTERRUPT, a:16'd10, b:i, c:16'd0};
+    axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 1*8), .len(8));
+
+    data = '{dat:in_k, pt:SCALAR};
+    axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 0*64), .len(48));
+
+    p_in.x = random_vector(384/8) % P;
+    p_in.y = random_vector(384/8) % P;
+
+    p2_in.x[0] = random_vector(384/8) % P;
+    p2_in.x[1] = random_vector(384/8) % P;
+    p2_in.y[0] = random_vector(384/8) % P;
+    p2_in.y[1] = random_vector(384/8) % P;
+
+    case(i)
+      // FP_AF
+      0: begin
+
+        p_in.z = 1;
+
+        data = '{dat:p_in.x, pt:FP_AF};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 1*64), .len(48));
+
+        data = '{dat:p_in.y, pt:FP_AF};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 2*64), .len(48));
+
+        p_exp = point_mult(in_k, p_in);
+
+      end
+      // FP_JB
+      1: begin
+
+        p_in.z = random_vector(384/8) % P;
+
+        data = '{dat:p_in.x, pt:FP_JB};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 1*64), .len(48));
+
+        data = '{dat:p_in.y, pt:FP_JB};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 2*64), .len(48));
+
+        data = '{dat:p_in.z, pt:FP_JB};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 3*64), .len(48));
+
+        p_exp = point_mult(in_k, p_in);
+
+      end
+      // FP2_AF
+      2: begin
+
+        p2_in.z = FE2_one;
+
+        data = '{dat:p2_in.x[0], pt:FP2_AF};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 1*64), .len(48));
+
+        data = '{dat:p2_in.x[1], pt:FP2_AF};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 2*64), .len(48));
+
+        data = '{dat:p2_in.y[0], pt:FP2_AF};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 3*64), .len(48));
+
+        data = '{dat:p2_in.y[1], pt:FP2_AF};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 4*64), .len(48));
+
+        p2_exp = fp2_point_mult(in_k, p2_in);
+
+      end
+      // FP2_JB
+      3: begin
+
+        p2_in.z[0] = random_vector(384/8) % P;
+        p2_in.z[1] = random_vector(384/8) % P;
+
+        data = '{dat:p2_in.x[0], pt:FP2_JB};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 1*64), .len(48));
+
+        data = '{dat:p2_in.x[1], pt:FP2_JB};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 2*64), .len(48));
+
+        data = '{dat:p2_in.y[0], pt:FP2_JB};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 3*64), .len(48));
+
+        data = '{dat:p2_in.y[1], pt:FP2_JB};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 4*64), .len(48));
+
+        data = '{dat:p2_in.z[0], pt:FP2_JB};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 5*64), .len(48));
+
+        data = '{dat:p2_in.z[1], pt:FP2_JB};
+        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 6*64), .len(48));
+
+        p2_exp = fp2_point_mult(in_k, p2_in);
+
+      end
+    endcase
+
+    inst = '{code:POINT_MULT, a:16'd0, b:16'd1, c:16'd10};
+    axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 0*8), .len(8));
+
+    if (i > 0)
+      axi_lite_if.poke(.addr(32'h10), .data(0));
+
+    fork
+      begin
+        out_if.get_stream(get_dat, get_len, 0);
+        interrupt_rpl = get_dat;
+        get_dat = get_dat >> $bits(bls12_381_interrupt_rpl_t);
+
+        assert(interrupt_rpl.hdr.cmd == BLS12_381_INTERRUPT_RPL) else $fatal(1, "ERROR: Received non-interrupt message");
+        assert(interrupt_rpl.index == i) else $fatal(1, "ERROR: Received wrong index value in message");
+        if (i == 0 || i == 1) begin
+          assert(interrupt_rpl.data_type == FP_JB) else $fatal(1, "ERROR: Received wrong data type value in message");
+
+          p_out = 0;
+          for (int i = 0; i < 3; i++) p_out[i*381 +: 381] = get_dat[i*(48*8) +: 381];
+
+          if (p_out == p_exp) begin
+            $display("INFO: Output element matched expected:");
+            print_jb_point(p_out);
+          end else begin
+            $display("ERROR: Output element did NOT match expected:");
+            print_jb_point(p_out);
+            $display("Expected:");
+            print_jb_point(p_exp);
+            failed = 1;
+          end
+
+        end else begin
+          assert(interrupt_rpl.data_type == FP2_JB) else $fatal(1, "ERROR: Received wrong data type value in message");
+
+          p2_out = 0;
+          for (int i = 0; i < 6; i++) p2_out[i*381 +: 381] = get_dat[i*(48*8) +: 381];
+
+          if (p2_out == p2_exp) begin
+            $display("INFO: Output element matched expected:");
+            print_fp2_jb_point(p2_out);
+          end else begin
+            $display("ERROR: Output element did NOT match expected:");
+            print_fp2_jb_point(p2_out);
+            $display("Expected:");
+            print_fp2_jb_point(p2_exp);
+            failed = 1;
+          end
+        end
+      end
+      begin
+        repeat(100000) @(posedge out_if.i_clk);
+        $fatal("ERROR: Timeout while waiting for result");
+      end
+    join_any
+    disable fork;
+
+    axi_lite_if.peek(.addr(32'h14), .data(rdata));
+    $display("INFO: Last cycle count was %d", rdata);
+    
+    if(failed) break;
+
+  end
+
+  if(failed)
+    $fatal(1, "ERROR: test_point_mult FAILED");
+
+  $display("INFO: test_point_mult PASSED!");
+
+endtask;
+
 initial begin
   axi_lite_if.reset_source();
   out_if.rdy = 0;
   #100ns;
-  
+
   test_fp_fpoint_mult();
   test_fp2_fpoint_mult();
   test_inv_element();
   test_mul_add_sub_element();
+  test_point_mult();
 
 
   #1us $finish();
