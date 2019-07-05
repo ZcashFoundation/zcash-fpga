@@ -140,8 +140,7 @@ int main(int argc, char **argv) {
       timeout++;
       if (timeout > 1000) {
         printf("ERROR: No reply received, timeout\n");
-        rc = 1;
-        goto out;
+        break;
       }
     }
 
@@ -158,8 +157,7 @@ int main(int argc, char **argv) {
       timeout++;
       if (timeout > 1000) {
         printf("ERROR: No reply received, timeout\n");
-        rc = 1;
-        goto out;
+        break;
       }
     }
 
