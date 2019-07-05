@@ -301,7 +301,7 @@ int zcash_fpga::read_stream(uint8_t* data, unsigned int size) {
   fail_on(rc, out, "ERROR: Unable to read from FPGA!");
   if (rdata == 0) {
     printf("WARNING: Read FIFO shows data but length was 0!\n");
-    return 0;
+    goto out;
   }
 
   rc = fpga_pci_peek(m_pci_bar_handle_bar0, AXI_FIFO_OFFSET + 0x24ULL, &rdata);  //RLR - length of packet in bytes
@@ -310,7 +310,7 @@ int zcash_fpga::read_stream(uint8_t* data, unsigned int size) {
 
   if (size < rdata) {
     printf("ERROR: Size of buffer (%d bytes) not big enough to read data!\n", size);
-    return 0;
+    goto out;
   }
 
   while(read_len < rdata) {
@@ -501,6 +501,9 @@ int zcash_fpga::bls12_381_reset_memory(bool inst_memory, bool data_memory) {
 
   rc = fpga_pci_poke(m_pci_bar_handle_bar0, BLS12_381_OFFSET, data);
   fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+  // Add a small delay
+  usleep(1);
 
   return 0;
   out:
