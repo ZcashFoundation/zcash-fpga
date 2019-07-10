@@ -1,5 +1,5 @@
 The work in this repo is the result of a Zcash foundation grant to develop open-source FPGA code that can be used to accelerate various aspects of the network.
-**An Architecture document is [here](https://docs.google.com/document/d/1zKZP0SlvL1LxzCStOaIWPoddgXfRXx6f_vveiZj8w0E/edit?usp=sharing)** (comments are enabled so if you have questions / comments please feel free to add them).
+**An Architecture document is [here](zcash_fpga_design_doc_v1.1.x.pdf)**.
 
 ** Currently still a work in progress
 
@@ -50,10 +50,9 @@ This is the top level for the Zcash FPGA. It contains source code and testbenche
 It optionally contains the following top-level engines (you can include in a build via parameters in the top level package):
 * Equihash verification engine
   - Verifies the equihash solution and difficulty filters
-* EC secp256k1 signature verification engine
+* Transparent Signature Verification Engine (secp256k1 ECDSA core)
   - Uses efficient endomorphism to reduce key bit size
   - Signature verification calculates multiple EC point operations in parallel, using a resource-shared single fully pipelined karabutsa multiplier and quick modulo reduction technique
-* EC bls12-381 coprocessor
+* BLS12-381 Coprocessor (zk-SNARK accelerator)
   - General arithmetic over bls12-381 curve
   - Dual Point multiplication in Fp and Fp^2
-  - ate Pairing (miller loop and final exponentiation)
