@@ -80,6 +80,12 @@ package bls12_381_pkg;
     fe2_t x;
   } fp2_jb_point_t;
 
+  typedef struct packed {
+    fe12_t z;
+    fe12_t y;
+    fe12_t x;
+  } fp12_jb_point_t;
+
   fp2_jb_point_t g2_point = '{x:G2x, y:G2y, z:FE2_one};
 
   fp2_jb_point_t g_point_fp2 = '{x:{381'd0, Gx}, y:{381'd0, Gy}, z:FE2_one};  // Fp Generator point used in dual mode point multiplication
@@ -380,6 +386,68 @@ package bls12_381_pkg;
      factor = fe_inv(fe_add(t0, t1));
      fe2_inv[0]= fe_mul(a[0], factor);
      fe2_inv[1] = fe_mul(fe_sub(P, a[1]), factor);
+   endfunction
+
+   // Taken from Zcash Rust implementation of Fp6
+   // https://github.com/zkcrypto/pairing/blob/master/src/bls12_381/fq6.rs
+   function fe2_t fe2_mul_by_nonresidue(fe2_t a);
+     fe2_mul_by_nonresidue[0] = fe_sub(a[0], a[1]);
+     fe2_mul_by_nonresidue[1] = fe_add(a[0], a[1]);
+   endfunction
+
+   function fe6_t fe6_mul_by_nonresidue(fe6_t a);
+     fe6_mul_by_nonresidue[1] = a[0];
+     fe6_mul_by_nonresidue[2] = a[1];
+     fe6_mul_by_nonresidue[0] = fe2_mul_by_nonresidue(a[2]);
+   endfunction
+
+   function fe6_t fe6_add(fe6_t a, b);
+     for(int i = 0; i < 3; i++)
+       fe6_add[i] = fe2_add(a[i], b[i]);
+   endfunction
+
+   function fe6_t fe6_sub(fe6_t a, b);
+     for(int i = 0; i < 3; i++)
+       fe6_sub[i] = fe2_sub(a[i], b[i]);
+   endfunction
+
+   function fe6_t fe6_mul(fe6_t a, b);
+     fe2_t a_a, b_b, c_c;
+     a_a = fe2_mul(a[0], b[0]);
+     b_b = fe2_mul(a[1], b[1]);
+     c_c = fe2_mul(a[2], b[2]);
+
+     fe6_mul[0] = fe2_mul(fe2_add(a[1], a[2]), fe2_add(b[1], b[2]));
+     fe6_mul[1] = fe2_mul(fe2_add(b[0], b[1]), fe2_add(a[0], a[1]));
+     fe6_mul[2] = fe2_mul(fe2_add(b[0], b[2]), fe2_add(a[0], a[2]));
+
+     fe6_mul[0] = fe2_sub(fe6_mul[0], b_b);
+     fe6_mul[0] = fe2_sub(fe6_mul[0], c_c);
+     fe6_mul[0] = fe2_add(fe2_mul_by_nonresidue(fe6_mul[0]), a_a);
+
+     fe6_mul[1] = fe2_sub(fe6_mul[1], a_a);
+     fe6_mul[1] = fe2_sub(fe6_mul[1], b_b);
+     fe6_mul[1] = fe2_add(fe2_mul_by_nonresidue(c_c), fe6_mul[1]);
+
+     fe6_mul[2] = fe2_sub(fe6_mul[2], a_a);
+     fe6_mul[2] = fe2_add(fe6_mul[2], b_b);
+     fe6_mul[2] = fe2_add(fe6_mul[2], c_c);
+   endfunction
+
+   function fe12_t fe12_mul(fe12_t a, b);
+     fe6_t aa, bb;
+     aa = fe6_mul(a[0], b[0]);
+     bb = fe6_mul(a[1], b[1]);
+
+     fe12_mul[1] = fe6_add(a[1], a[0]);
+     fe12_mul[1] = fe6_mul(fe12_mul[1], fe6_add(b[0], b[1]));
+     fe12_mul[1] = fe6_sub(fe12_mul[1], aa);
+     fe12_mul[1] = fe6_sub(fe12_mul[1], bb);
+     fe12_mul[0] = fe6_add(fe6_mul_by_nonresidue(bb), aa);
+   endfunction
+
+   function fp12_jb_point_t untiwst(fp2_jb_point_t P);
+
    endfunction
 
    function jb_point_t to_affine(jb_point_t p);
