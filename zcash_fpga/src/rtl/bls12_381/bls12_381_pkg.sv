@@ -379,6 +379,11 @@ package bls12_381_pkg;
      return fe_inv(a, b);
    endfunction
 
+   task print_fe2(fe2_t a);
+     for (int i = 0; i < 2; i++)
+       $display("c%d: 0x%h", i, a[i]);
+   endtask
+   
    function fe2_t fe2_inv(fe2_t a);
      fe_t factor, t0, t1;
      t0 = fe_mul(a[0], a[0]);
@@ -413,25 +418,35 @@ package bls12_381_pkg;
 
    function fe6_t fe6_mul(fe6_t a, b);
      fe2_t a_a, b_b, c_c;
+
      a_a = fe2_mul(a[0], b[0]);
      b_b = fe2_mul(a[1], b[1]);
      c_c = fe2_mul(a[2], b[2]);
 
+
      fe6_mul[0] = fe2_mul(fe2_add(a[1], a[2]), fe2_add(b[1], b[2]));
-     fe6_mul[1] = fe2_mul(fe2_add(b[0], b[1]), fe2_add(a[0], a[1]));
      fe6_mul[2] = fe2_mul(fe2_add(b[0], b[2]), fe2_add(a[0], a[2]));
+     fe6_mul[1] = fe2_mul(fe2_add(b[0], b[1]), fe2_add(a[0], a[1]));
+
 
      fe6_mul[0] = fe2_sub(fe6_mul[0], b_b);
      fe6_mul[0] = fe2_sub(fe6_mul[0], c_c);
-     fe6_mul[0] = fe2_add(fe2_mul_by_nonresidue(fe6_mul[0]), a_a);
-
-     fe6_mul[1] = fe2_sub(fe6_mul[1], a_a);
-     fe6_mul[1] = fe2_sub(fe6_mul[1], b_b);
-     fe6_mul[1] = fe2_add(fe2_mul_by_nonresidue(c_c), fe6_mul[1]);
-
+     
      fe6_mul[2] = fe2_sub(fe6_mul[2], a_a);
      fe6_mul[2] = fe2_add(fe6_mul[2], b_b);
-     fe6_mul[2] = fe2_add(fe6_mul[2], c_c);
+     
+     fe6_mul[1] = fe2_sub(fe6_mul[1], a_a);
+     fe6_mul[1] = fe2_sub(fe6_mul[1], b_b);
+
+
+     fe6_mul[0] = fe2_mul_by_nonresidue(fe6_mul[0]);
+     fe6_mul[2] = fe2_sub(fe6_mul[2], c_c);
+     c_c = fe2_mul_by_nonresidue(c_c);
+
+     fe6_mul[0] = fe2_add(fe6_mul[0], a_a);
+     fe6_mul[1] = fe2_add(c_c, fe6_mul[1]);
+
+
    endfunction
 
    function fe12_t fe12_mul(fe12_t a, b);
@@ -468,18 +483,22 @@ package bls12_381_pkg;
      fp2_to_affine.y = fe2_mul(p.y, fe2_inv(z_));
    endfunction
 
-   function print_jb_point(jb_point_t p);
+   task print_fe6(fe6_t a);
+     for (int i = 0; i < 3; i++)
+       for (int j = 0; j < 2; j++)
+         $display("c%d: 0x%h", i*2+j, a[i][j]);
+   endtask
+
+   task print_jb_point(jb_point_t p);
      $display("x:%h", p.x);
      $display("y:%h", p.y);
      $display("z:%h", p.z);
-     return;
-   endfunction
+   endtask
 
-   function print_fp2_jb_point(fp2_jb_point_t p);
+   task print_fp2_jb_point(fp2_jb_point_t p);
      $display("x:(c1:%h, c0:%h)", p.x[1], p.x[0]);
      $display("y:(c1:%h, c0:%h)", p.y[1], p.y[0]);
      $display("z:(c1:%h, c0:%h)", p.z[1], p.z[0]);
-     return;
-   endfunction
+   endtask
 
 endpackage
