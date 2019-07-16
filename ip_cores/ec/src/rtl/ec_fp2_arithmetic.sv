@@ -24,7 +24,7 @@ module ec_fe2_arithmetic
 #(
   parameter type FE_TYPE,
   parameter type FE2_TYPE,
-  parameter CTL_BIT = 8        // From this bit 2 bits are used for control
+  parameter CTL_BIT = 8        // From this bit 4 bits are used for control
 )(
   input i_clk, i_rst,
   input i_fp_mode,      // If this bit is high then we operate in fp mode
@@ -48,11 +48,11 @@ module ec_fe2_arithmetic
   if_axi_stream.sink   i_sub_fe2_if
 );
 
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(16))   add_if_fe_i [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(16)) add_if_fe_o [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BIT+4))   add_if_fe_i [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BIT+4)) add_if_fe_o [1:0] (i_clk);
 
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(16))   sub_if_fe_i [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(16)) sub_if_fe_o [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BIT+4))   sub_if_fe_i [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BIT+4)) sub_if_fe_o [1:0] (i_clk);
 
 logic fp_mode_add, fp_mode_sub, fp_mode_mul;
 
@@ -71,6 +71,9 @@ always_ff @ (posedge i_clk) begin
     fp_mode_add <= 0;
   end else begin
     fp_mode_add <= i_fp_mode;
+    
+    o_add_fe2_if.sop <= 1;
+    o_add_fe2_if.eop <= 1;
 
     if (add_if_fe_o[0].val && add_if_fe_o[0].rdy) add_if_fe_o[0].val <= 0;
     if (o_add_fe2_if.val && o_add_fe2_if.rdy) o_add_fe2_if.val <= 0;
@@ -126,6 +129,9 @@ always_ff @ (posedge i_clk) begin
     sub_if_fe_o[0].reset_source();
     fp_mode_sub <= 0;
   end else begin
+
+    o_sub_fe2_if.sop <= 1;
+    o_sub_fe2_if.eop <= 1;
 
     fp_mode_sub <= i_fp_mode;
 
@@ -295,8 +301,8 @@ end
 resource_share # (
   .NUM_IN       ( 2                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
-  .CTL_BITS     ( 16               ),
-  .OVR_WRT_BIT  ( 12               ),
+  .CTL_BITS     ( CTL_BIT + 4      ),
+  .OVR_WRT_BIT  ( CTL_BIT + 2      ),
   .PIPELINE_IN  ( 0                ),
   .PIPELINE_OUT ( 0                )
 )
@@ -312,8 +318,8 @@ resource_share_sub (
 resource_share # (
   .NUM_IN       ( 2                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
-  .CTL_BITS     ( 16               ),
-  .OVR_WRT_BIT  ( 12               ),
+  .CTL_BITS     ( CTL_BIT + 4      ),
+  .OVR_WRT_BIT  ( CTL_BIT + 2      ),
   .PIPELINE_IN  ( 0                ),
   .PIPELINE_OUT ( 0                )
 )
