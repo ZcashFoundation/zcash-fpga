@@ -56,7 +56,7 @@ always_comb begin
   result1[0] = 0;
   rdy[LEVEL] = o_add.rdy;
   i_add.rdy = rdy[0];
-  o_add.copy_if_comb(carry_neg[LEVEL] ? result0[LEVEL] : result1[LEVEL], val[LEVEL], 1, 1, 1, 0, ctl[LEVEL]);
+  o_add.copy_if_comb(carry_neg[LEVEL] ? result0[LEVEL] : result1[LEVEL], val[LEVEL], 1, 1, 0, 0, ctl[LEVEL]);
 end
 
 generate
