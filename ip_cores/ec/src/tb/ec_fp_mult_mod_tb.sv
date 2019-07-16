@@ -25,8 +25,8 @@ localparam CLK_PERIOD = 100;
 
 logic clk, rst;
 
-if_axi_stream #(.DAT_BYTS(384*2/8), .CTL_BITS(16)) in_if(clk);
-if_axi_stream #(.DAT_BYTS(384/8), .CTL_BITS(16))   out_if(clk);
+if_axi_stream #(.DAT_BYTS(2*384/8), .CTL_BITS(16)) in_if(clk);
+if_axi_stream #(.DAT_BYTS(384/8), .CTL_BITS(16)) out_if(clk);
 
 initial begin
   rst = 0;
@@ -57,20 +57,13 @@ always_comb out_if.dat = {3'd0, out_dat};
 ec_fp_mult_mod #(
   .P             ( bls12_381_pkg::P ),
   .KARATSUBA_LVL ( 3                ),
-  .CTL_BITS      ( 8               )
+  .CTL_BITS      ( 16               )
 )
 ec_fp_mult_mod (
-  .i_clk( clk         ),
-  .i_rst( rst         ),
-  .i_ctl ( 8'd0       ),
-  .i_dat_a( in_if.dat[0 +: 384]   ),
-  .i_dat_b( in_if.dat[384 +: 384] ),
-  .i_val( in_if.val   ),
-  .i_err( in_if.err   ),
-  .o_rdy( in_if.rdy   ),
-  .o_dat( out_dat  ),
-  .i_rdy( out_if.rdy  ),
-  .o_val( out_if.val  )
+  .i_clk( clk    ),
+  .i_rst( rst    ),
+  .i_mul ( in_if ),
+  .o_mul( out_if )
 );
 
 task test_loop();
@@ -78,6 +71,7 @@ begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
   logic [383:0] in_a, in_b;
+  logic [2*383:0] in_dat;
   integer i, max;
 
   $display("Running test_loop...");
@@ -85,16 +79,28 @@ begin
   max = 10000;
 
   while (i < max) begin
+    logic [15:0] ctl_out, ctl_exp;
     in_a = random_vector(384/8) % bls12_381_pkg::P;
     in_b = random_vector(384/8) % bls12_381_pkg::P;
     expected = (in_a * in_b) % bls12_381_pkg::P;
-
+    ctl_exp = expected % (1 << 16);
+    in_dat = 0;
+    in_dat[0 +: 381] = in_a;
+    in_dat[381 +: 381] = in_b;
     fork
-      in_if.put_stream({in_b, in_a}, (384*2)/8, 0);
+      in_if.put_stream(in_dat, (384*2)/8, ctl_exp);
       out_if.get_stream(get_dat, get_len, 0);
+      while(1) begin
+        @(posedge out_if.i_clk);
+        if (out_if.val && out_if.rdy && out_if.sop) begin
+          ctl_out = out_if.ctl;
+          break;
+        end
+      end
     join
 
     common_pkg::compare_and_print(get_dat, expected);
+    assert(ctl_out == ctl_exp) else $fatal(1, "ERROR: Ctl did not match - was 0x%x, expected 0x%h", ctl_out, ctl_exp);
     $display("test_loop PASSED loop %d/%d", i, max);
     i = i + 1;
   end
@@ -113,9 +119,15 @@ begin
     fork
       begin
         logic [383:0] i;
+        logic [2*383:0] in_dat;
+        logic [15:0] ctl_in;
         i = 0;
         while (i < max) begin
-          in_if.put_stream({i, i}, (384*2)/8, 0);
+          in_dat = 0;
+          in_dat[0 +: 381] = i;
+          in_dat[381 +: 381] = i;
+          ctl_in = i*i;
+          in_if.put_stream(in_dat, (384*2)/8, ctl_in);
           i++;
         end
       end
@@ -123,10 +135,23 @@ begin
         integer i;
         integer signed get_len;
         logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
+        logic [15:0] ctl_out, ctl_exp;
         i = 0;
         while (i < max) begin
-          out_if.get_stream(get_dat, get_len, 0);
+          ctl_exp = (i * i);
+          fork 
+            out_if.get_stream(get_dat, get_len, 0);
+            while(1) begin
+              if (out_if.val && out_if.rdy && out_if.sop) begin
+                @(negedge out_if.i_clk);
+                ctl_out = out_if.ctl;
+                break;
+              end
+              @(negedge out_if.i_clk);
+            end
+          join
           common_pkg::compare_and_print(get_dat, (i * i) % bls12_381_pkg::P);
+          assert(ctl_out == ctl_exp) else $fatal(1, "ERROR: Ctl did not match - was 0x%x, expected 0x%h", ctl_out, ctl_exp);
           i++;
         end
       end
