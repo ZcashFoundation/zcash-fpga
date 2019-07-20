@@ -24,7 +24,8 @@ module ec_fe2_arithmetic
 #(
   parameter type FE_TYPE,
   parameter type FE2_TYPE,
-  parameter CTL_BIT = 8        // From this bit 4 bits are used for control
+  parameter CTL_BITS    = 12,
+  parameter OVR_WRT_BIT = 8        // From this bit 4 bits are used for control
 )(
   input i_clk, i_rst,
   input i_fp_mode,      // If this bit is high then we operate in fp mode
@@ -48,11 +49,12 @@ module ec_fe2_arithmetic
   if_axi_stream.sink   i_sub_fe2_if
 );
 
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BIT+4))   add_if_fe_i [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BIT+4)) add_if_fe_o [1:0] (i_clk);
+localparam NUM_OVR_WRT_BIT = 2;
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   add_if_fe_i [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) add_if_fe_o [1:0] (i_clk);
 
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BIT+4))   sub_if_fe_i [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BIT+4)) sub_if_fe_o [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   sub_if_fe_i [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) sub_if_fe_o [1:0] (i_clk);
 
 logic fp_mode_add, fp_mode_sub, fp_mode_mul;
 
@@ -85,7 +87,7 @@ always_ff @ (posedge i_clk) begin
           add_if_fe_o[0].copy_if({i_add_fe2_if.dat[0 +: $bits(FE_TYPE)],
                                   i_add_fe2_if.dat[$bits(FE2_TYPE) +: $bits(FE_TYPE)]},
                                   i_add_fe2_if.val, 1, 1, i_add_fe2_if.err, i_add_fe2_if.mod, i_add_fe2_if.ctl);
-          add_if_fe_o[0].ctl[CTL_BIT] <= 0;
+          add_if_fe_o[0].ctl[OVR_WRT_BIT] <= 0;
           if (i_add_fe2_if.val && ~fp_mode_add) add_state <= ADD1;
         end
       end
@@ -94,7 +96,7 @@ always_ff @ (posedge i_clk) begin
           add_if_fe_o[0].copy_if({i_add_fe2_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)],
                                 i_add_fe2_if.dat[$bits(FE2_TYPE)+$bits(FE_TYPE) +: $bits(FE_TYPE)]},
                                 i_add_fe2_if.val, 1, 1, i_add_fe2_if.err, i_add_fe2_if.mod, i_add_fe2_if.ctl);
-          add_if_fe_o[0].ctl[CTL_BIT] <= 1;
+          add_if_fe_o[0].ctl[OVR_WRT_BIT] <= 1;
           if (i_add_fe2_if.val) add_state <= ADD0;
         end
       end
@@ -103,7 +105,7 @@ always_ff @ (posedge i_clk) begin
     // One process to assign outputs
     if (~o_add_fe2_if.val || (o_add_fe2_if.val && o_add_fe2_if.rdy)) begin
       o_add_fe2_if.ctl <= add_if_fe_i[0].ctl;
-      if (add_if_fe_i[0].ctl[CTL_BIT] == 0) begin
+      if (add_if_fe_i[0].ctl[OVR_WRT_BIT] == 0) begin
         if (add_if_fe_i[0].val)
           o_add_fe2_if.dat[0 +: $bits(FE_TYPE)] <= add_if_fe_i[0].dat;
         if (fp_mode_add) o_add_fe2_if.val <= add_if_fe_i[0].val;
@@ -112,6 +114,7 @@ always_ff @ (posedge i_clk) begin
         o_add_fe2_if.val <= add_if_fe_i[0].val;
       end
     end
+    o_add_fe2_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= 0;
   end
 end
 
@@ -145,7 +148,7 @@ always_ff @ (posedge i_clk) begin
           sub_if_fe_o[0].copy_if({i_sub_fe2_if.dat[$bits(FE2_TYPE) +: $bits(FE_TYPE)],
                                   i_sub_fe2_if.dat[0 +: $bits(FE_TYPE)]},
                                   i_sub_fe2_if.val, 1, 1, i_sub_fe2_if.err, i_sub_fe2_if.mod, i_sub_fe2_if.ctl);
-          sub_if_fe_o[0].ctl[CTL_BIT] <= 0;
+          sub_if_fe_o[0].ctl[OVR_WRT_BIT] <= 0;
           if (i_sub_fe2_if.val && ~fp_mode_sub) sub_state <= SUB1;
         end
       end
@@ -154,7 +157,7 @@ always_ff @ (posedge i_clk) begin
           sub_if_fe_o[0].copy_if({i_sub_fe2_if.dat[$bits(FE_TYPE) + $bits(FE2_TYPE) +: $bits(FE_TYPE)],
                                   i_sub_fe2_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)]},
                                   i_sub_fe2_if.val, 1, 1, i_sub_fe2_if.err, i_sub_fe2_if.mod, i_sub_fe2_if.ctl);
-          sub_if_fe_o[0].ctl[CTL_BIT] <= 1;
+          sub_if_fe_o[0].ctl[OVR_WRT_BIT] <= 1;
           if (i_sub_fe2_if.val) sub_state <= SUB0;
         end
       end
@@ -163,7 +166,7 @@ always_ff @ (posedge i_clk) begin
     // One process to assign outputs
     if (~o_sub_fe2_if.val || (o_sub_fe2_if.val && o_sub_fe2_if.rdy)) begin
       o_sub_fe2_if.ctl <= sub_if_fe_i[0].ctl;
-      if (sub_if_fe_i[0].ctl[CTL_BIT] == 0) begin
+      if (sub_if_fe_i[0].ctl[OVR_WRT_BIT] == 0) begin
         if (sub_if_fe_i[0].val)
           o_sub_fe2_if.dat[0 +: $bits(FE_TYPE)] <= sub_if_fe_i[0].dat;
         if (fp_mode_sub) o_sub_fe2_if.val <= sub_if_fe_i[0].val;
@@ -172,6 +175,7 @@ always_ff @ (posedge i_clk) begin
         o_sub_fe2_if.val <= sub_if_fe_i[0].val;
       end
     end
+    o_sub_fe2_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= 0;
   end
 end
 
@@ -183,7 +187,7 @@ always_comb begin
   i_mul_fe2_if.rdy = (fp_mode_mul || mul_state == MUL3) && (~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy));
 
   i_mul_fe_if.rdy = fp_mode_mul ? ~o_mul_fe2_if.val ||  (o_mul_fe2_if.val && o_mul_fe2_if.rdy) :
-                  (i_mul_fe_if.ctl[CTL_BIT +: 2] == 0 || i_mul_fe_if.ctl[CTL_BIT +: 2] == 1) ?
+                  (i_mul_fe_if.ctl[OVR_WRT_BIT +: 2] == 0 || i_mul_fe_if.ctl[OVR_WRT_BIT +: 2] == 1) ?
                   (~sub_if_fe_o[1].val || (sub_if_fe_o[1].val && sub_if_fe_o[1].rdy)) :
                   (~add_if_fe_o[1].val || (add_if_fe_o[1].val && add_if_fe_o[1].rdy));
 
@@ -224,28 +228,28 @@ always_ff @ (posedge i_clk) begin
           o_mul_fe_if.copy_if({i_mul_fe2_if.dat[0 +: $bits(FE_TYPE)],
                             i_mul_fe2_if.dat[$bits(FE2_TYPE)  +: $bits(FE_TYPE)]},
                             i_mul_fe2_if.val, 1, 1, i_mul_fe2_if.err, i_mul_fe2_if.mod, i_mul_fe2_if.ctl);
-          o_mul_fe_if.ctl[CTL_BIT +: 2] <= 0;
+          o_mul_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= 0;
           if (i_mul_fe2_if.val && ~fp_mode_mul) mul_state <= MUL1;
         end
         MUL1: begin
           o_mul_fe_if.copy_if({i_mul_fe2_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)],
                             i_mul_fe2_if.dat[$bits(FE2_TYPE) + $bits(FE_TYPE) +: $bits(FE_TYPE)]},
                             i_mul_fe2_if.val, 1, 1, i_mul_fe2_if.err, i_mul_fe2_if.mod, i_mul_fe2_if.ctl);
-          o_mul_fe_if.ctl[CTL_BIT +: 2] <= 1;
+          o_mul_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= 1;
           if (i_mul_fe2_if.val) mul_state <= MUL2;
         end
         MUL2: begin
           o_mul_fe_if.copy_if({i_mul_fe2_if.dat[0 +: $bits(FE_TYPE)],
                             i_mul_fe2_if.dat[$bits(FE2_TYPE) + $bits(FE_TYPE) +: $bits(FE_TYPE)]},
                             i_mul_fe2_if.val, 1, 1, i_mul_fe2_if.err, i_mul_fe2_if.mod, i_mul_fe2_if.ctl);
-          o_mul_fe_if.ctl[CTL_BIT +: 2] <= 2;
+          o_mul_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= 2;
           if (i_mul_fe2_if.val) mul_state <= MUL3;
         end
         MUL3: begin
           o_mul_fe_if.copy_if({i_mul_fe2_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)],
                             i_mul_fe2_if.dat[$bits(FE2_TYPE)  +: $bits(FE_TYPE)]},
                             i_mul_fe2_if.val, 1, 1, i_mul_fe2_if.err, i_mul_fe2_if.mod, i_mul_fe2_if.ctl);
-          o_mul_fe_if.ctl[CTL_BIT +: 2] <= 3;
+          o_mul_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= 3;
           if (i_mul_fe2_if.val) mul_state <= MUL0;
         end
       endcase
@@ -253,10 +257,10 @@ always_ff @ (posedge i_clk) begin
 
     // Process multiplications and do subtraction
     if (~fp_mode_mul && (~sub_if_fe_o[1].val || (sub_if_fe_o[1].val && sub_if_fe_o[1].rdy))) begin
-      if (i_mul_fe_if.ctl[CTL_BIT +: 2] == 0) begin
+      if (i_mul_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] == 0) begin
         if (i_mul_fe_if.val) sub_if_fe_o[1].dat[0 +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
       end
-      if (i_mul_fe_if.ctl[CTL_BIT +: 2] == 1) begin
+      if (i_mul_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] == 1) begin
         sub_if_fe_o[1].val <= i_mul_fe_if.val;
         sub_if_fe_o[1].dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
       end
@@ -265,10 +269,10 @@ always_ff @ (posedge i_clk) begin
 
     // Process multiplications and do addition
     if (~fp_mode_mul && (~add_if_fe_o[1].val || (add_if_fe_o[1].val && add_if_fe_o[1].rdy))) begin
-      if (i_mul_fe_if.ctl[CTL_BIT +: 2] == 2) begin
+      if (i_mul_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] == 2) begin
         if (i_mul_fe_if.val) add_if_fe_o[1].dat[0 +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
       end
-      if (i_mul_fe_if.ctl[CTL_BIT +: 2] == 3) begin
+      if (i_mul_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] == 3) begin
         add_if_fe_o[1].val <= i_mul_fe_if.val;
         add_if_fe_o[1].dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
       end
@@ -295,14 +299,15 @@ always_ff @ (posedge i_clk) begin
           add_sub_val[1] <= sub_if_fe_i[1].val;
       end    
     end
+    o_mul_fe2_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= 0;
   end
 end
 
 resource_share # (
   .NUM_IN       ( 2                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
-  .CTL_BITS     ( CTL_BIT + 4      ),
-  .OVR_WRT_BIT  ( CTL_BIT + 2      ),
+  .CTL_BITS     ( CTL_BITS         ),
+  .OVR_WRT_BIT  ( OVR_WRT_BIT + NUM_OVR_WRT_BIT  ),
   .PIPELINE_IN  ( 0                ),
   .PIPELINE_OUT ( 0                )
 )
@@ -318,8 +323,8 @@ resource_share_sub (
 resource_share # (
   .NUM_IN       ( 2                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
-  .CTL_BITS     ( CTL_BIT + 4      ),
-  .OVR_WRT_BIT  ( CTL_BIT + 2      ),
+  .CTL_BITS     ( CTL_BITS         ),
+  .OVR_WRT_BIT  ( OVR_WRT_BIT + NUM_OVR_WRT_BIT  ),
   .PIPELINE_IN  ( 0                ),
   .PIPELINE_OUT ( 0                )
 )

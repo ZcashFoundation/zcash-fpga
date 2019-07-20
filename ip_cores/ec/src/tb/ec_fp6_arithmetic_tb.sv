@@ -34,6 +34,7 @@ parameter P             = bls12_381_pkg::P;
 `define G_POINT                bls12_381_pkg::g2_point
 `define TO_AFFINE              bls12_381_pkg::fp2_to_affine
 
+localparam CTL_BITS = 24;
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(24)) mul_fe_in_if(clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(24)) mul_fe_out_if(clk);
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(24)) add_fe_in_if[2:0] (clk);
@@ -70,7 +71,8 @@ end
 ec_fe2_arithmetic #(
   .FE_TYPE ( FE_TYPE  ),
   .FE2_TYPE( FE2_TYPE ),
-  .CTL_BIT ( 8 )
+  .OVR_WRT_BIT ( 8        ),
+  .CTL_BITS    ( CTL_BITS  )
 )
 ec_fe2_arithmetic (
   .i_clk ( clk ),
@@ -94,7 +96,8 @@ ec_fe6_arithmetic #(
   .FE_TYPE ( FE_TYPE  ),
   .FE2_TYPE( FE2_TYPE ),
   .FE6_TYPE( FE6_TYPE ),
-  .CTL_BIT ( 0 )
+  .OVR_WRT_BIT ( 0        ),
+  .CTL_BITS    ( CTL_BITS  )
 )
 ec_fe6_arithmetic (
   .i_clk ( clk ),
@@ -132,7 +135,7 @@ fe2_mul_by_nonresidue (
 ec_fp_mult_mod #(
   .P             ( P   ),
   .KARATSUBA_LVL ( 3   ),
-  .CTL_BITS      ( 16  )
+  .CTL_BITS      ( CTL_BITS  )
 )
 ec_fp_mult_mod (
   .i_clk( clk         ),
@@ -144,7 +147,7 @@ ec_fp_mult_mod (
 adder_pipe # (
   .BITS     ( bls12_381_pkg::DAT_BITS ),
   .P        ( P   ),
-  .CTL_BITS ( 24  ),
+  .CTL_BITS ( CTL_BITS  ),
   .LEVEL    ( 2   )
 )
 adder_pipe (
@@ -157,7 +160,7 @@ adder_pipe (
 subtractor_pipe # (
   .BITS     ( bls12_381_pkg::DAT_BITS ),
   .P        ( P   ),
-  .CTL_BITS ( 24  ),
+  .CTL_BITS ( CTL_BITS  ),
   .LEVEL    ( 2   )
 )
 subtractor_pipe (
@@ -170,7 +173,7 @@ subtractor_pipe (
 resource_share # (
   .NUM_IN       ( 2                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
-  .CTL_BITS     ( 24               ),
+  .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( 16               ),
   .PIPELINE_IN  ( 0                ),
   .PIPELINE_OUT ( 0                )
@@ -187,7 +190,7 @@ resource_share_sub (
 resource_share # (
   .NUM_IN       ( 2                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
-  .CTL_BITS     ( 24               ),
+  .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( 16               ),
   .PIPELINE_IN  ( 0                ),
   .PIPELINE_OUT ( 0                )
@@ -260,7 +263,7 @@ begin
   exp = fe6_sub(a, b);
 
   fork
-    sub_fe6_o_if.put_stream({a, b}, ((2*$bits(FE6_TYPE)+7)/8));
+    sub_fe6_o_if.put_stream({b, a}, ((2*$bits(FE6_TYPE)+7)/8));
     sub_fe6_i_if.get_stream(get_dat, get_len);
   join
 
@@ -300,11 +303,11 @@ begin
         b[i][j] = random_vector($bits(FE_TYPE)/8) % P;
       end
     end
-  
+   
     exp = fe6_mul(a, b);
     start_time = $time;
     fork
-      mul_fe6_o_if.put_stream({a, b}, ((2*$bits(FE6_TYPE)+7)/8));
+      mul_fe6_o_if.put_stream({b, a}, ((2*$bits(FE6_TYPE)+7)/8));
       mul_fe6_i_if.get_stream(get_dat, get_len);
     join
     finish_time = $time;
@@ -342,7 +345,7 @@ initial begin
   add_fe6_i_if.rdy <= 0;
   sub_fe6_o_if.reset_source();
   sub_fe6_i_if.rdy <= 0;
-
+  
   test_add();
   test_sub();
   test_mul();
