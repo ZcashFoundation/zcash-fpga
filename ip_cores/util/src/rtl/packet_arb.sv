@@ -112,15 +112,19 @@ always_ff @ (posedge i_clk) begin
     locked <= 0;
     idx <= 0;
   end else begin
-    if (~locked) begin
-      idx <= get_next(idx);
-      if (val[get_next(idx)] && ~(eop[idx] && rdy[idx])) begin
-        locked <= 1;
-      end
-    end else if (eop[idx] && val[idx] && rdy[idx]) begin
-      idx <= get_next(idx);
-      locked <= 0;
+  
+    if (~locked) idx <= get_next(idx);
+    
+    if (val[idx]) begin
+      locked <= 1;
+      idx <= idx;
     end
+    
+    if (eop[idx] && val[idx] && rdy[idx]) begin
+      locked <= 0;
+      idx <= get_next(idx);
+    end
+    
   end
 end
 
