@@ -417,32 +417,38 @@ package bls12_381_pkg;
    endfunction
 
    function fe6_t fe6_mul(fe6_t a, b);
-     fe2_t a_a, b_b, c_c;
-     a_a = fe2_mul(a[0], b[0]);
-     b_b = fe2_mul(a[1], b[1]);
-     c_c = fe2_mul(a[2], b[2]);
+     fe2_t a_a, b_b, c_c, t;
+     a_a = fe2_mul(a[0], b[0]);  // 0. a_a = fe2_mul(a[0], b[0])
+     b_b = fe2_mul(a[1], b[1]);  // 1. b_b = fe2_mul(a[1], b[1])
+     c_c = fe2_mul(a[2], b[2]);  // 2. c_c = fe2_mul(a[2], b[2])
 
-     fe6_mul[0] = fe2_mul(fe2_add(a[1], a[2]), fe2_add(b[1], b[2]));
-     fe6_mul[2] = fe2_mul(fe2_add(b[0], b[2]), fe2_add(a[0], a[2]));
-     fe6_mul[1] = fe2_mul(fe2_add(b[0], b[1]), fe2_add(a[0], a[1]));
+     fe6_mul[0] = fe2_add(a[1], a[2]); // 3. fe6_mul[0] = fe2_add(a[1], a[2])
+     t = fe2_add(b[1], b[2]);         // 4. t =  fe2_add(b[1], b[2])
+     fe6_mul[0] = fe2_mul(fe6_mul[0], t); // 5. fe6_mul[0] = fe2_mul(fe6_mul[0], t)   [3, 4]
+     fe6_mul[0] = fe2_sub(fe6_mul[0], b_b); // 6. fe6_mul[0] = fe2_sub(fe6_mul[0], b_b) [5, 1]
+     fe6_mul[0] = fe2_sub(fe6_mul[0], c_c); // 7. fe6_mul[0] = fe2_sub(fe6_mul[0], c_c)  [6, 2]
 
-     fe6_mul[0] = fe2_sub(fe6_mul[0], b_b);
-     fe6_mul[0] = fe2_sub(fe6_mul[0], c_c);
+     fe6_mul[2] = fe2_add(b[0], b[2]);  // 8. fe6_mul[2] = fe2_add(b[0], b[2])
+     t = fe2_add(a[0], a[2]);           // 9. t = fe2_add(a[0], a[2])    [wait 5]
+     fe6_mul[2] = fe2_mul(fe6_mul[2], t);  // 10. fe6_mul[2] = fe2_mul(fe6_mul[2], t)   [8, 9]
+     fe6_mul[2] = fe2_sub(fe6_mul[2], a_a); // 11. fe6_mul[2] = fe2_sub(fe6_mul[2], a_a)  [10, 0]
+     fe6_mul[2] = fe2_add(fe6_mul[2], b_b);  // 12. fe6_mul[2] = fe2_add(fe6_mul[2], b_b) [11, 1]
 
-     fe6_mul[2] = fe2_sub(fe6_mul[2], a_a);
-     fe6_mul[2] = fe2_add(fe6_mul[2], b_b);
+     fe6_mul[1] = fe2_add(b[0], b[1]);  // 13. fe6_mul[1] = fe2_add(b[0], b[1])
+     t = fe2_add(a[0], a[1]);  // 14. t = fe2_add(a[0], a[1])  [wait 10]   - can release input here
+     fe6_mul[1] = fe2_mul(fe6_mul[1], t); // 15. fe6_mul[1] = fe2_mul(fe6_mul[1], t)   [13, 14]
+     fe6_mul[1] = fe2_sub(fe6_mul[1], a_a);  // 16. fe6_mul[1] = fe2_sub(fe6_mul[1], a_a)   [15, 0]
+     fe6_mul[1] = fe2_sub(fe6_mul[1], b_b);  // 17. fe6_mul[1] = fe2_sub(fe6_mul[1], b_b)   [16, 1]
 
-     fe6_mul[1] = fe2_sub(fe6_mul[1], a_a);
-     fe6_mul[1] = fe2_sub(fe6_mul[1], b_b);
+     fe6_mul[0] = fe2_mul_by_nonresidue(fe6_mul[0]);  // 18. fe6_mul[0] = fe2_mul_by_nonresidue(fe6_mul[0])   [7]
+     fe6_mul[0] = fe2_add(fe6_mul[0], a_a);  // 19. fe6_mul[0] = fe2_add(fe6_mul[0], a_a)    [18, 0]
 
-     fe6_mul[0] = fe2_mul_by_nonresidue(fe6_mul[0]);
-     fe6_mul[2] = fe2_sub(fe6_mul[2], c_c);
-     c_c = fe2_mul_by_nonresidue(c_c);
+     fe6_mul[2] = fe2_sub(fe6_mul[2], c_c);   // 20. fe6_mul[2] = fe2_sub(fe6_mul[2], c_c)  [12, 2]
+     c_c = fe2_mul_by_nonresidue(c_c);  // 21. c_c = fe2_mul_by_nonresidue(c_c)   [20]
 
-     fe6_mul[0] = fe2_add(fe6_mul[0], a_a);
-     fe6_mul[1] = fe2_add(c_c, fe6_mul[1]);
+     fe6_mul[1] = fe2_add(c_c, fe6_mul[1]);   // 22. fe6_mul[1] = fe2_add(c_c, fe6_mul[1])   [17, 21]
    endfunction
-   
+
    function fe12_t fe12_add(fe12_t a, b);
      for(int i = 0; i < 2; i++)
        fe12_add[i] = fe6_add(a[i], b[i]);
@@ -457,14 +463,14 @@ package bls12_381_pkg;
      fe6_t aa, bb;
      aa = fe6_mul(a[0], b[0]);  // 0. add_i0 = mul(a[0], b[0])
      bb = fe6_mul(a[1], b[1]);  // 1. bb = mul(a[1], b[1])
-     
+
      fe12_mul[1] = fe6_add(a[1], a[0]); // 2. fe6_mul[1] = add(a[1], a[0])
      fe12_mul[0] = fe6_add(b[0], b[1]);  // 3. fe6_mul[0] = add(b[0], b[1])
      fe12_mul[1] = fe6_mul(fe12_mul[1], fe12_mul[0]); // 4. fe6_mul[1] = mul(fe6_mul[1], fe6_mul[0])  [2, 3]
 
-     fe12_mul[1] = fe6_sub(fe12_mul[1], aa); // 5. fe6_mul[1] = sub(fe6_mul[1], add_i0) [4, 0] 
+     fe12_mul[1] = fe6_sub(fe12_mul[1], aa); // 5. fe6_mul[1] = sub(fe6_mul[1], add_i0) [4, 0]
      fe12_mul[1] = fe6_sub(fe12_mul[1], bb); // 6. fe6_mul[1] = sub(fe6_mul[1], bb) [5, 1]
-     
+
      bb = fe6_mul_by_nonresidue(bb); // 7. bb = mnr(bb) [6]
      fe12_mul[0] = fe6_add(bb, aa); // 8. fe6_mul[0] = add(add_i0, bb) [0, 1, 7]
    endfunction
