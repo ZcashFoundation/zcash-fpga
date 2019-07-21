@@ -69,13 +69,18 @@ if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) add_o_if(i_clk)
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) dbl_i_if(i_clk);
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) dbl_o_if(i_clk);
 
+localparam CTL_BITS = 32;
 // Access to shared 381bit multiplier / adder / subtractor
-if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(16)) mul_in_if [4:0] (i_clk) ;
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(16))   mul_out_if [4:0](i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(16)) add_in_if [4:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(16))   add_out_if [4:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(16)) sub_in_if [4:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(16))   sub_out_if [4:0] (i_clk);
+// Fp logic uses control bits 7:0
+// Fp2 15:8
+// Fp6 23:16
+// Top level muxes 31:24
+if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) mul_in_if [4:0] (i_clk) ;
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   mul_out_if [4:0](i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) add_in_if [4:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   add_out_if [4:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) sub_in_if [4:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   sub_out_if [4:0] (i_clk);
 
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_i_if(i_clk);
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_o_if(i_clk);
@@ -279,7 +284,8 @@ ec_point_mult (
 ec_fp2_point_add #(
   .FP2_TYPE ( bls12_381_pkg::fp2_jb_point_t ),
   .FE_TYPE  ( bls12_381_pkg::fe_t           ),
-  .FE2_TYPE ( bls12_381_pkg::fe2_t          )
+  .FE2_TYPE ( bls12_381_pkg::fe2_t          ),
+  .CTL_BITS ( CTL_BITS                      )
 )
 ec_fp2_point_add (
   .i_clk ( i_clk ),
@@ -303,8 +309,9 @@ ec_fp2_point_add (
 
 ec_fp2_point_dbl #(
  .FP2_TYPE ( bls12_381_pkg::fp2_jb_point_t  ),
- .FE_TYPE  ( bls12_381_pkg::fe_t  ),
- .FE2_TYPE ( bls12_381_pkg::fe2_t )
+ .FE_TYPE  ( bls12_381_pkg::fe_t            ),
+ .FE2_TYPE ( bls12_381_pkg::fe2_t           ),
+ .CTL_BITS ( CTL_BITS                       )
 )
 ec_fp2_point_dbl (
   .i_clk ( i_clk ),
@@ -328,10 +335,10 @@ ec_fp2_point_dbl (
 resource_share # (
   .NUM_IN       ( 4  ),
   .DAT_BITS     ( 2*$bits(bls12_381_pkg::fe_t) ),
-  .CTL_BITS     ( 16 ),
-  .OVR_WRT_BIT  ( 14 ),
+  .CTL_BITS     ( CTL_BITS ),
+  .OVR_WRT_BIT  ( 24 ),
   .PIPELINE_IN  ( 1  ),
-  .PIPELINE_OUT ( 1  )
+  .PIPELINE_OUT ( 0  )
 )
 resource_share_mul (
   .i_clk ( i_clk ),
@@ -345,10 +352,10 @@ resource_share_mul (
 resource_share # (
   .NUM_IN       ( 4  ),
   .DAT_BITS     ( 2*$bits(bls12_381_pkg::fe_t) ),
-  .CTL_BITS     ( 16 ),
-  .OVR_WRT_BIT  ( 14 ),
+  .CTL_BITS     ( CTL_BITS ),
+  .OVR_WRT_BIT  ( 24 ),
   .PIPELINE_IN  ( 1  ),
-  .PIPELINE_OUT ( 1  )
+  .PIPELINE_OUT ( 0  )
 )
 resource_share_sub (
   .i_clk ( i_clk ),
@@ -362,10 +369,10 @@ resource_share_sub (
 resource_share # (
   .NUM_IN       ( 4  ),
   .DAT_BITS     ( 2*$bits(bls12_381_pkg::fe_t) ),
-  .CTL_BITS     ( 16 ),
-  .OVR_WRT_BIT  ( 14 ),
+  .CTL_BITS     ( CTL_BITS ),
+  .OVR_WRT_BIT  ( 24 ),
   .PIPELINE_IN  ( 1  ),
-  .PIPELINE_OUT ( 1  )
+  .PIPELINE_OUT ( 0  )
 )
 resource_share_add (
   .i_clk ( i_clk ),
@@ -379,7 +386,7 @@ resource_share_add (
 ec_fp_mult_mod #(
   .P             ( bls12_381_pkg::P ),
   .KARATSUBA_LVL ( 3                ),
-  .CTL_BITS      ( 16               )
+  .CTL_BITS      ( CTL_BITS         )
 )
 ec_fp_mult_mod (
   .i_clk( i_clk ),
@@ -390,7 +397,7 @@ ec_fp_mult_mod (
 
 adder_pipe # (
   .P        ( bls12_381_pkg::P ),
-  .CTL_BITS ( 16               ),
+  .CTL_BITS ( CTL_BITS         ),
   .LEVEL    ( 2                )
 )
 adder_pipe (
@@ -402,7 +409,7 @@ adder_pipe (
 
 subtractor_pipe # (
   .P        ( bls12_381_pkg::P ),
-  .CTL_BITS ( 16               ),
+  .CTL_BITS ( CTL_BITS         ),
   .LEVEL    ( 2                )
 )
 subtractor_pipe (

@@ -23,7 +23,8 @@ module ec_fp2_point_dbl
 #(
   parameter type FP2_TYPE,   // Should have FE2_TYPE elements
   parameter type FE_TYPE,
-  parameter type FE2_TYPE
+  parameter type FE2_TYPE,
+  parameter CTL_BITS
 )(
   input i_clk, i_rst,
   input i_fp_mode, // Operate in Fp mode
@@ -47,12 +48,12 @@ module ec_fp2_point_dbl
   if_axi_stream.sink   i_sub_if
 );
 
-if_axi_stream #(.DAT_BITS(2*$bits(FE2_TYPE)), .CTL_BITS(8)) mul_if_fe2_i(i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE2_TYPE)), .CTL_BITS(8))   mul_if_fe2_o(i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE2_TYPE)), .CTL_BITS(8)) add_if_fe2_i(i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE2_TYPE)), .CTL_BITS(8))   add_if_fe2_o(i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE2_TYPE)), .CTL_BITS(8)) sub_if_fe2_i(i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE2_TYPE)), .CTL_BITS(8))   sub_if_fe2_o(i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE2_TYPE)), .CTL_BITS(CTL_BITS)) mul_if_fe2_i(i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE2_TYPE)), .CTL_BITS(CTL_BITS))   mul_if_fe2_o(i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE2_TYPE)), .CTL_BITS(CTL_BITS)) add_if_fe2_i(i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE2_TYPE)), .CTL_BITS(CTL_BITS))   add_if_fe2_o(i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE2_TYPE)), .CTL_BITS(CTL_BITS)) sub_if_fe2_i(i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE2_TYPE)), .CTL_BITS(CTL_BITS))   sub_if_fe2_o(i_clk);
 
 ec_point_dbl #(
   .FP_TYPE ( FP2_TYPE ),
@@ -79,8 +80,10 @@ ec_point_dbl (
 
 ec_fe2_arithmetic
 #(
-  .FE_TYPE  ( FE_TYPE  ),
-  .FE2_TYPE ( FE2_TYPE )
+  .FE_TYPE     ( FE_TYPE  ),
+  .FE2_TYPE    ( FE2_TYPE ),
+  .CTL_BITS    ( 16       ),
+  .OVR_WRT_BIT ( 8        )
 )
 ec_fe2_arithmetic (
   .i_clk ( i_clk ),
