@@ -294,9 +294,6 @@ int zcash_fpga::read_stream(uint8_t* data, unsigned int size) {
   fail_on(rc, out, "ERROR: Unable to read from FPGA!");
   if ((rdata & (1 << 26)) == 0) return 0;  // Nothing to read
 
-  rc = fpga_pci_poke(m_pci_bar_handle_bar0, AXI_FIFO_OFFSET, 0x04000000); // clear ISR
-  fail_on(rc, out, "ERROR: Unable to write to FPGA!");
-
   rc = fpga_pci_peek(m_pci_bar_handle_bar0, AXI_FIFO_OFFSET + 0x1CULL, &rdata);  //RDFO should be non-zero (slots used in FIFO)
   fail_on(rc, out, "ERROR: Unable to read from FPGA!");
   if (rdata == 0) {
@@ -306,7 +303,7 @@ int zcash_fpga::read_stream(uint8_t* data, unsigned int size) {
 
   rc = fpga_pci_peek(m_pci_bar_handle_bar0, AXI_FIFO_OFFSET + 0x24ULL, &rdata);  //RLR - length of packet in bytes
   fail_on(rc, out, "Unable to read from FPGA!");
-  printf("INFO: Read FIFO shows %d waiting to be read from FPGA\n", rdata);
+  printf("INFO: Read FIFO shows %d bytes waiting to be read from FPGA\n", rdata);
 
   if (size < rdata) {
     printf("ERROR: Size of buffer (%d bytes) not big enough to read data!\n", size);
@@ -326,6 +323,14 @@ int zcash_fpga::read_stream(uint8_t* data, unsigned int size) {
   }
 
   printf("INFO: Read %d bytes from read_stream()\n", read_len);
+
+  // Check if there is still data to be read - if there isn't we can clear the ISR
+  rc = fpga_pci_peek(m_pci_bar_handle_bar0, AXI_FIFO_OFFSET + 0x1CULL, &rdata);  //RDFO
+  fail_on(rc, out, "ERROR: Unable to read from FPGA!");
+  if (rdata == 0) {
+    rc = fpga_pci_poke(m_pci_bar_handle_bar0, AXI_FIFO_OFFSET, 0x04000000); // clear ISR
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!");
+  }
 
   return read_len;
   out:
