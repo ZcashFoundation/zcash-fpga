@@ -27,7 +27,8 @@ package bls12_381_pkg;
   fe_t Gx = 381'h17F1D3A73197D7942695638C4FA9AC0FC3688C4F9774B905A14E3A3F171BAC586C55E83FF97A1AEFFB3AF00ADB22C6BB;
   fe_t Gy = 381'h08B3F481E3AAA0F1A09E30ED741D8AE4FCF5E095D5D00AF600DB18CB2C04B3EDD03CC744A2888AE40CAA232946C5E7E1;
 
-  logic [63:0] ATE_X = 64'hd201000000010000;
+  localparam [63:0] ATE_X = 64'hd201000000010000;
+  localparam ATE_X_START = 63;
 
   typedef enum logic [2:0] {
     SCALAR = 0,
@@ -61,26 +62,42 @@ package bls12_381_pkg;
     fe_t x;
   } jb_point_t;
 
+  // Affine points
+  typedef struct packed {
+    fe_t y;
+    fe_t x;
+  } af_point_t;
+
   typedef fe_t  [1:0] fe2_t;
   typedef fe2_t [2:0] fe6_t;
   typedef fe6_t [1:0] fe12_t;
 
-  fe2_t G2x = {381'd3059144344244213709971259814753781636986470325476647558659373206291635324768958432433509563104347017837885763365758,
-               381'd352701069587466618187139116011060144890029952792775240219908644239793785735715026873347600343865175952761926303160};
+  fe2_t G2x = {381'h13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e,
+               381'h024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8};
 
-  fe2_t G2y = {381'd927553665492332455747201965776037880757740193453592970025027978793976877002675564980949289727957565575433344219582,
-               381'd1985150602287291935568054521177171638300868978215655730859378665066344726373823718423869104263333984641494340347905};
+  fe2_t G2y = {381'h606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be,
+               381'hce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801};
 
-  fe2_t FE2_one =  {381'd0, 381'd1};
+  fe2_t FE2_one = {381'd0, 381'd1};
+  fe2_t FE2_zero = {381'd0, 381'd0};
+  fe6_t FE6_one = {FE2_zero, FE2_zero, FE2_one};
+  fe6_t FE6_zero = {FE2_zero, FE2_zero, FE2_zero};
+  fe12_t FE12_one = {FE6_zero, FE6_one};
+  fe12_t FE12_zero = {FE6_zero, FE6_zero};
 
   jb_point_t g_point = '{x:Gx, y:Gy, z:381'd1};
 
-  // Jacobian coordinates for Fp^2 elements
+  // Jacobian coordinates for Fp^2, Fp^12 elements
   typedef struct packed {
     fe2_t z;
     fe2_t y;
     fe2_t x;
   } fp2_jb_point_t;
+
+  typedef struct packed {
+    fe2_t y;
+    fe2_t x;
+  } fp2_af_point_t;
 
   typedef struct packed {
     fe12_t z;
@@ -477,23 +494,213 @@ package bls12_381_pkg;
      fe12_mul[0] = fe6_add(bb, aa); // 8. fe6_mul[0] = add(add_i0, bb) [0, 1, 7]
    endfunction
 
-   function fp12_jb_point_t untiwst(fp2_jb_point_t P);
 
+   // This performs the miller loop
+   // P is an affine Fp point in G1
+   // Q is an affine Fp^2 point in G2 on the twisted curve
+   // f is a Fp^12 element, the result of the miller loop
+  task miller_loop(input af_point_t P, input fp2_af_point_t Q, output fe12_t f);
+    fp2_jb_point_t R;
+    fe12_t lv_d, lv_a, f_sq;
+    logic found_one = 0;
+    f = FE12_one;
+    R.x = Q.x;
+    R.y = Q.y;
+    R.z = 1;
+
+    for (int i = ATE_X_START; i >= 0; i--) begin
+    
+      if (found_one == 0) begin
+        found_one = ATE_X[i];
+        continue;
+      end
+      
+    
+      miller_double_step(R, P, lv_d);
+
+      if (ATE_X[i] == 1) begin
+        miller_add_step(R, Q, P, lv_a);
+        lv_d = fe12_mul(lv_d, lv_a);  // Very sparse multiplication
+      end
+
+      f_sq = fe12_mul(f, f);    // Full multiplication
+      f = fe12_mul(f_sq, lv_d); // Sparse multiplication
+
+    end
+
+    f[1] = fe6_sub(0, f[1]);
+
+  endtask
+
+   // This performs both the line evaluation and the doubling
+   // Returns a sparse f12 element
+  task automatic miller_double_step(ref fp2_jb_point_t R, input af_point_t P, ref fe12_t f);
+    fe2_t t0, t1, t2, t3, t4, t5, t6, zsquared;
+
+     zsquared = fe2_mul(R.z, R.z); // 0.  [R.val]
+     t0 = fe2_mul(R.x, R.x); // 1. [R.val]
+     t4 = fe2_add(t0, t0); // 2. [1]
+     t4 = fe2_add(t4, t0); // 3. [2]
+
+     t1 = fe2_mul(R.y, R.y); // 4. [R.val]
+     t2 = fe2_mul(t1, t1); // 5. [4]
+     t3 = fe2_add(R.x, t1); // 6. [4]
+     t3 = fe2_mul(t3, t3); // 7. [6]
+     t3 = fe2_sub(t3, t0); // 8. [7, 1]
+
+     t3 = fe2_sub(t3, t2); // 9. [8, 5]
+
+     t3 = fe2_add(t3, t3); // 10. [9]
+
+     t6 = fe2_add(R.x, t4); // 11. [3]
+
+     t5 = fe2_mul(t4, t4); // 12. [3]
+
+     R.x = fe2_sub(t5, t3); // 13. [12, 10]
+     R.x = fe2_sub(R.x, t3); // 14. [13]
+
+     R.z = fe2_add(R.z, R.y); // 15. [R.val ]
+     R.z = fe2_mul(R.z, R.z); // 16. [15]
+     R.z = fe2_sub(R.z, t1); // 17. [15, 4]
+     R.z = fe2_sub(R.z, zsquared); // 18. [17, 0]
+
+     R.y = fe2_sub(t3, R.x); // 19. [14, 10]
+     R.y = fe2_mul(R.y, t4); // 20. [19, 2],
+
+     t2 = fe2_mul(t2, 8); // 21. [9 wait]
+
+     R.y = fe2_sub(R.y, t2); // 22. [20, 21]
+
+     t3 = fe2_mul(t4, zsquared); // 23. [0, 2, wait 14]
+     t3 = fe2_add(t3, t3); // 24. [23]
+     t3 = fe2_sub(0, t3); // 25. [24]
+
+     t6 = fe2_mul(t6, t6); // 26. [11]
+     t6 = fe2_sub(t6, t0); // 27. [26, 1]
+     t6 = fe2_sub(t6, t5); // 28. [27, 12]
+
+     t1 = fe2_mul(4, t1); // 29. [wait 17, 4, wait 5, wait 6]
+
+     t6 = fe2_sub(t6, t1); // 30. [29, 28]
+
+     t0 = fe2_mul(R.z, zsquared); // 31. [0]
+     t0 = fe2_add(t0, t0); // 32. [31]
+
+     t0[0]  = fe_mul(t0[0], P.y); // 33. [P val, 31]
+     t0[1]  = fe_mul(t0[1], P.y); // 34. [P val, 31]
+     t3[0]  = fe_mul(t3[0], P.x); // 35. [P val, 25]
+     t3[1]  = fe_mul(t3[1], P.x); // 36. [P val, 25]
+
+     f = {{FE2_zero, t0, FE2_zero}, {FE2_zero, t3, t6}}; // [33, 34, 35, 36, 30]
+   endtask
+
+   // This performs both the line evaluation and the addition
+   task automatic miller_add_step(ref fp2_jb_point_t R, input fp2_af_point_t Q, input af_point_t P, ref fe12_t f);
+     fe2_t zsquared, ysquared, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10;
+
+     zsquared = fe2_mul(R.z, R.z); // 0. [R.val]
+     ysquared = fe2_mul(Q.y, Q.y); // 1. [Q.val]
+
+     t0 = fe2_mul(zsquared, Q.x); // 2. [0]
+
+     t1 = fe2_add(R.z, Q.y); // 3. [R.val]
+     t1 = fe2_mul(t1, t1); // 4. [3]
+     t1 = fe2_sub(t1, ysquared); // 5. [4, 1]
+     t1 = fe2_sub(t1, zsquared); // 6. [5, 0]
+     t1 = fe2_mul(t1, zsquared); // 7. [6]
+
+     t2 = fe2_sub(t0, R.x); // 8. [2, R.val]
+
+     t3 = fe2_mul(t2, t2); // 9. [8]
+
+     t4 = fe2_mul(t3, 4); // 10. [9]
+
+     t5 = fe2_mul(t4, t2); // 11. [10, 8]
+
+     t6 = fe2_sub(t1, R.y); // 12. [3]
+     t6 = fe2_sub(t6, R.y); // 13. [12]
+
+     t9 = fe2_mul(t6, Q.x); // 14. [13]
+
+     t7 = fe2_mul(t4, R.x); // 15. [10]
+
+     R.x = fe2_mul(t6, t6); // 16. [13]
+     R.x = fe2_sub(R.x, t5); // 17. [11, 16]
+     R.x = fe2_sub(R.x, t7); // 18. [17, 10]
+     R.x = fe2_sub(R.x, t7); // 19. [18, 15]
+
+     R.z = fe2_add(R.z, t2); // 20. [8]
+     R.z = fe2_mul(R.z, R.z); // 21. [20]
+     R.z = fe2_sub(R.z, zsquared); // 22. [21, 0]
+     R.z = fe2_sub(R.z, t3); // 23. [22, 9]
+
+     zsquared = fe2_mul(R.z, R.z);// 24. [23]
+
+     t10 = fe2_add(Q.y, R.z); // 25.[23]
+     t8 = fe2_sub(t7, R.x); // 26. [19, 15]
+     t8 = fe2_mul(t8, t6); // 27. [26, 13]
+
+     t0 = fe2_mul(R.y, t5); // 28. [11]
+     t0 = fe2_add(t0, t0); // 29. [28]
+
+     R.y = fe2_sub(t8, t0); // 30. [29, 27]
+
+     t10 = fe2_mul(t10, t10); // 31. [23]
+     t10 = fe2_sub(t10, ysquared); // 32. [31, 1]
+
+     t10 = fe2_sub(t10, zsquared); // 33. [32, 24]
+
+     t9 = fe2_add(t9, t9); // 34. [14]
+     t9 = fe2_sub(t9, t10); // 35. [34, 33]
+
+     t10 = fe2_add(R.z, R.z); // 36. [wait 35, 23]
+
+     t6 = fe2_sub(0, t6); // 37. [wait 27]
+     t1 = fe2_add(t6, t6); // 38. [37]
+
+     t10[0]  = fe_mul(t10[0], P.y); // 39. [36]
+     t10[1]  = fe_mul(t10[1], P.y); // 40. [36]
+     t1[0]  = fe_mul(t1[0], P.x); // 41. [38]
+     t1[1]  = fe_mul(t1[1], P.x); // 42. [38]
+
+     f = {{FE2_zero, t10, FE2_zero}, {FE2_zero, t1, t9}};
+   endtask
+
+   // Calculates the final exponent used in ate pairing
+   /*task automatic final_exponent(ref fe12_t f);
+     f = fe12_sub(0, f); // TODO can remove this?
+
+
+   endtask*/
+
+   // Sparse multiplication by coefficients 0,1,4
+   function fe12_t f12_sparse_mul_014(fe12_t f, fe2_t c0, c1, c4);
+     fe6_t aa, bb;
+     fe2_t t;
+     aa = fe6_mul(f[0], {FE2_zero, c1, c0});      // TODO implement sparse fp6
+     bb = fe6_mul(f[1], {FE2_zero, c4, FE2_zero});  // TODO implement sparse fp6
+     t = fe2_add(c1, c4);
+     f[1] = fe6_add(f[1], f[0]);
+     f[1] = fe6_mul(f[1], {FE2_zero, t, c0});
+     f[1] = fe6_sub(f[1], aa);
+     f[1] = fe6_sub(f[1], bb);
+     f[0] = fe6_mul_by_nonresidue(bb);
+     f[0] = fe6_add(f[0], aa);
+
+     return f;
    endfunction
 
-   function jb_point_t to_affine(jb_point_t p);
+   function af_point_t to_affine(jb_point_t p);
      fe_t z_;
      z_ = fe_mul(p.z, p.z);
-     to_affine.z = 1;
      to_affine.x = fe_mul(p.x, fe_inv(z_));
      z_ = fe_mul(z_, p.z);
      to_affine.y = fe_mul(p.y, fe_inv(z_));
    endfunction
 
-   function fp2_jb_point_t fp2_to_affine(fp2_jb_point_t p);
+   function fp2_af_point_t fp2_to_affine(fp2_jb_point_t p);
      fe2_t z_;
      z_ = fe2_mul(p.z, p.z);
-     fp2_to_affine.z = FE2_one;
      fp2_to_affine.x = fe2_mul(p.x, fe2_inv(z_));
      z_ = fe2_mul(z_, p.z);
      fp2_to_affine.y = fe2_mul(p.y, fe2_inv(z_));
