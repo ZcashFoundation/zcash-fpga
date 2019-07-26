@@ -217,7 +217,7 @@ always_ff @ (posedge i_clk) begin
     if (i_mul_fe6_if.val && i_mul_fe6_if.rdy) begin
       eq_val[i_mul_fe6_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT]] <= 1;
       case(i_mul_fe6_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT]) inside
-        0: add_if_fe6_o[1].dat[0 +: $bits(FE6_TYPE)]/*aa*/ <= i_mul_fe6_if.dat;
+        0: add_if_fe6_o[1].dat[0 +: $bits(FE6_TYPE)] <= i_mul_fe6_if.dat;
         1: o_mnr_fe6_if.dat <= i_mul_fe6_if.dat;
         4: o_mul_fe12_if.dat[$bits(FE6_TYPE) +: $bits(FE6_TYPE)] <= i_mul_fe6_if.dat;
         default: o_mul_fe12_if.err <= 1;

@@ -67,8 +67,13 @@ FE2_TYPE zsquared, ysquared;
 FE2_TYPE [10:0] t;
 logic o_rdy_l;
 
+
+
 always_comb begin
-  o_res_fe12 = {$bits(FE2_TYPE)'(0), t[10], $bits(FE2_TYPE)'(0), $bits(FE2_TYPE)'(0), t[1], t[9]};
+  o_res_fe12 = 0;
+  o_res_fe12[0][0] = t[9];
+  o_res_fe12[0][1] = t[1];
+  o_res_fe12[1][1] = t[10];
   o_val = eq_val[39] && eq_val[40] && eq_val[41] && eq_val[36] && eq_val[42];
 end
 
@@ -215,7 +220,7 @@ always_ff @ (posedge i_clk) begin
       fe2_multiply(9, t[2], t[2]);
     end else
     if (~eq_wait[10] && eq_val[9]) begin
-      fe2_multiply(10, t[3], 10);
+      fe2_multiply(10, t[3], 4);
     end else
     if (~eq_wait[11] && eq_val[8] && eq_val[10]) begin
       fe2_multiply(11, t[2], t[4]);
@@ -238,10 +243,10 @@ always_ff @ (posedge i_clk) begin
     if (~eq_wait[27] && eq_val[26] && eq_val[13]) begin
       fe2_multiply(27, t[8], t[6]);
     end else
-    if (~eq_wait[28] && eq_val[11]) begin
+    if (~eq_wait[28] && eq_val[11] && eq_wait[8]) begin
       fe2_multiply(28, i_g2_jb.y, t[5]);
     end else
-    if (~eq_wait[31] && eq_val[23]) begin
+    if (~eq_wait[31] && eq_val[25]) begin
       fe2_multiply(31, t[10], t[10]);
     end
 
@@ -278,7 +283,7 @@ always_ff @ (posedge i_clk) begin
     if (~eq_wait[8] && eq_val[2] && i_val) begin
       fe2_subtraction(8, t[0], i_g2_jb.x);
     end else
-    if (~eq_wait[12] && eq_val[3]) begin
+    if (~eq_wait[12] && eq_val[7]) begin
       fe2_subtraction(12, t[1], i_g2_jb.y);
     end else
     if (~eq_wait[13] && eq_val[12]) begin

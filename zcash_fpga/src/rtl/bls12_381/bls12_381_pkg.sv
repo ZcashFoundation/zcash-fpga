@@ -106,7 +106,6 @@ package bls12_381_pkg;
   } fp12_jb_point_t;
 
   fp2_jb_point_t g2_point = '{x:G2x, y:G2y, z:FE2_one};
-
   fp2_jb_point_t g_point_fp2 = '{x:{381'd0, Gx}, y:{381'd0, Gy}, z:FE2_one};  // Fp Generator point used in dual mode point multiplication
 
   // Instruction codes
@@ -485,6 +484,7 @@ package bls12_381_pkg;
 
      fe12_mul[1] = fe6_add(a[1], a[0]); // 2. fe6_mul[1] = add(a[1], a[0])
      fe12_mul[0] = fe6_add(b[0], b[1]);  // 3. fe6_mul[0] = add(b[0], b[1])
+     
      fe12_mul[1] = fe6_mul(fe12_mul[1], fe12_mul[0]); // 4. fe6_mul[1] = mul(fe6_mul[1], fe6_mul[0])  [2, 3]
 
      fe12_mul[1] = fe6_sub(fe12_mul[1], aa); // 5. fe6_mul[1] = sub(fe6_mul[1], add_i0) [4, 0]
@@ -502,33 +502,20 @@ package bls12_381_pkg;
   task miller_loop(input af_point_t P, input fp2_af_point_t Q, output fe12_t f);
     fp2_jb_point_t R;
     fe12_t lv_d, lv_a, f_sq;
-    logic found_one = 0;
     f = FE12_one;
     R.x = Q.x;
     R.y = Q.y;
     R.z = 1;
 
-    for (int i = ATE_X_START; i >= 0; i--) begin
-    
-      if (found_one == 0) begin
-        found_one = ATE_X[i];
-        continue;
-      end
-      
-    
+    for (int i = ATE_X_START-1; i >= 0; i--) begin
+      f_sq = fe12_mul(f, f);    // Full multiplication 
       miller_double_step(R, P, lv_d);
-
+      f = fe12_mul(f_sq, lv_d); // Sparse multiplication   
       if (ATE_X[i] == 1) begin
         miller_add_step(R, Q, P, lv_a);
-        lv_d = fe12_mul(lv_d, lv_a);  // Very sparse multiplication
-      end
-
-      f_sq = fe12_mul(f, f);    // Full multiplication
-      f = fe12_mul(f_sq, lv_d); // Sparse multiplication
-
+        f = fe12_mul(f, lv_a); // Sparse multiplication
+      end            
     end
-
-    f[1] = fe6_sub(0, f[1]);
 
   endtask
 
@@ -559,12 +546,12 @@ package bls12_381_pkg;
      R.x = fe2_sub(t5, t3); // 13. [12, 10]
      R.x = fe2_sub(R.x, t3); // 14. [13]
 
-     R.z = fe2_add(R.z, R.y); // 15. [R.val ]
+     R.z = fe2_add(R.z, R.y); // 15. [R.val, wait 0]
      R.z = fe2_mul(R.z, R.z); // 16. [15]
-     R.z = fe2_sub(R.z, t1); // 17. [15, 4]
+     R.z = fe2_sub(R.z, t1); // 17. [16, 4]
      R.z = fe2_sub(R.z, zsquared); // 18. [17, 0]
 
-     R.y = fe2_sub(t3, R.x); // 19. [14, 10]
+     R.y = fe2_sub(t3, R.x); // 19. [14, 10, wait 15]
      R.y = fe2_mul(R.y, t4); // 20. [19, 2],
 
      t2 = fe2_mul(t2, 8); // 21. [9 wait]
@@ -583,15 +570,16 @@ package bls12_381_pkg;
 
      t6 = fe2_sub(t6, t1); // 30. [29, 28]
 
-     t0 = fe2_mul(R.z, zsquared); // 31. [0]
+     t0 = fe2_mul(R.z, zsquared); // 31. [0, 18]
      t0 = fe2_add(t0, t0); // 32. [31]
 
-     t0[0]  = fe_mul(t0[0], P.y); // 33. [P val, 31]
-     t0[1]  = fe_mul(t0[1], P.y); // 34. [P val, 31]
+     t0[0]  = fe_mul(t0[0], P.y); // 33. [P val, 32]
+     t0[1]  = fe_mul(t0[1], P.y); // 34. [P val, 32]
      t3[0]  = fe_mul(t3[0], P.x); // 35. [P val, 25]
      t3[1]  = fe_mul(t3[1], P.x); // 36. [P val, 25]
-
+    
      f = {{FE2_zero, t0, FE2_zero}, {FE2_zero, t3, t6}}; // [33, 34, 35, 36, 30]
+
    endtask
 
    // This performs both the line evaluation and the addition
@@ -640,7 +628,7 @@ package bls12_381_pkg;
      t8 = fe2_sub(t7, R.x); // 26. [19, 15]
      t8 = fe2_mul(t8, t6); // 27. [26, 13]
 
-     t0 = fe2_mul(R.y, t5); // 28. [11]
+     t0 = fe2_mul(R.y, t5); // 28. [11, 8 wait]
      t0 = fe2_add(t0, t0); // 29. [28]
 
      R.y = fe2_sub(t8, t0); // 30. [29, 27]
@@ -664,6 +652,7 @@ package bls12_381_pkg;
      t1[1]  = fe_mul(t1[1], P.x); // 42. [38]
 
      f = {{FE2_zero, t10, FE2_zero}, {FE2_zero, t1, t9}};
+
    endtask
 
    // Calculates the final exponent used in ate pairing
@@ -730,5 +719,10 @@ package bls12_381_pkg;
      $display("y:(c1:%h, c0:%h)", p.y[1], p.y[0]);
      $display("z:(c1:%h, c0:%h)", p.z[1], p.z[0]);
    endtask
+   
+   task print_fp2_af_point(fp2_af_point_t p);
+     $display("x:(c1:%h, c0:%h)", p.x[1], p.x[0]);
+     $display("y:(c1:%h, c0:%h)", p.y[1], p.y[0]);
+   endtask   
 
 endpackage

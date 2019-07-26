@@ -66,7 +66,10 @@ FE2_TYPE [6:0] t;
 logic o_rdy_l;
 
 always_comb begin
-  o_res_fe12 = {$bits(FE2_TYPE)'(0), t[0], $bits(FE2_TYPE)'(0), $bits(FE2_TYPE)'(0), t[3], t[6]};
+  o_res_fe12 = 0;
+  o_res_fe12[0][0] = t[6];
+  o_res_fe12[0][1] = t[3];
+  o_res_fe12[1][1] = t[0];
   o_val = eq_val[33] && eq_val[34] && eq_val[35] && eq_val[36] && eq_val[30];
 end
 
@@ -162,8 +165,8 @@ always_ff @ (posedge i_clk) begin
     if (i_add_fe2_if.val && i_add_fe2_if.rdy) begin
       eq_val[i_add_fe2_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT]] <= 1;
       case(i_add_fe2_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT]) inside
-        2: t[5] <= i_add_fe2_if.dat;
-        3: t[5] <= i_add_fe2_if.dat;
+        2: t[4] <= i_add_fe2_if.dat;
+        3: t[4] <= i_add_fe2_if.dat;
         6: t[3] <= i_add_fe2_if.dat;
         10: t[3] <= i_add_fe2_if.dat;
         11: t[6] <= i_add_fe2_if.dat;
@@ -203,19 +206,19 @@ always_ff @ (posedge i_clk) begin
       fe2_multiply(7, t[3], t[3]);
     end else
     if (~eq_wait[12] && eq_val[3]) begin
-      fe2_multiply(12, t[5], t[5]);
+      fe2_multiply(12, t[4], t[4]);
     end else
     if (~eq_wait[16] && eq_val[15]) begin
       fe2_multiply(16, o_g2_jb.z, o_g2_jb.z);
     end else
     if (~eq_wait[20] && eq_val[19] && eq_val[2]) begin
-      fe2_multiply(20, o_g2_jb.y, t[5]);
+      fe2_multiply(20, o_g2_jb.y, t[4]);
     end else
     if (~eq_wait[21] && eq_wait[9]) begin
       fe2_multiply(21, 8, t[2]);
     end else
     if (~eq_wait[23] && eq_val[0] && eq_val[2] && eq_wait[14]) begin
-      fe2_multiply(23, t[5], zsquared);
+      fe2_multiply(23, t[4], zsquared);
     end else
     if (~eq_wait[26] && eq_val[11]) begin
       fe2_multiply(26, t[6], t[6]);
@@ -223,7 +226,7 @@ always_ff @ (posedge i_clk) begin
     if (~eq_wait[29] && eq_wait[17] && eq_val[4] && eq_wait[5] && eq_wait[6]) begin
       fe2_multiply(29, 4, t[1]);
     end else
-    if (~eq_wait[31] && eq_val[0]) begin
+    if (~eq_wait[31] && eq_val[0] && eq_val[18]) begin
       fe2_multiply(31, o_g2_jb.z, zsquared);
     end
 
@@ -232,7 +235,7 @@ always_ff @ (posedge i_clk) begin
       fe2_addition(2, t[0], t[0]);
     end else
     if (~eq_wait[3] && eq_val[2]) begin
-      fe2_addition(3, t[5], t[0]);
+      fe2_addition(3, t[4], t[0]);
     end else
     if (~eq_wait[6] && eq_val[4]) begin
       fe2_addition(6, i_g2_jb.x, t[1]);
@@ -241,9 +244,9 @@ always_ff @ (posedge i_clk) begin
       fe2_addition(10, t[3], t[3]);
     end else
     if (~eq_wait[11] && eq_val[3]) begin
-      fe2_addition(11, i_g2_jb.x, t[5]);
+      fe2_addition(11, i_g2_jb.x, t[4]);
     end else
-    if (~eq_wait[15] && i_val) begin
+    if (~eq_wait[15] && i_val && eq_wait[0]) begin
       fe2_addition(15, i_g2_jb.z, i_g2_jb.y);
     end else
     if (~eq_wait[24] && eq_val[23]) begin
@@ -266,13 +269,13 @@ always_ff @ (posedge i_clk) begin
     if (~eq_wait[14] && eq_val[13]) begin
       fe2_subtraction(14, o_g2_jb.x, t[3]);
     end else
-    if (~eq_wait[17] && eq_val[15] && eq_val[4]) begin
+    if (~eq_wait[17] && eq_val[16] && eq_val[4]) begin
       fe2_subtraction(17, o_g2_jb.z, t[1]);
     end else
     if (~eq_wait[18] && eq_val[17] && eq_val[0]) begin
       fe2_subtraction(18, o_g2_jb.z, zsquared);
     end else
-    if (~eq_wait[19] && eq_val[14] && eq_val[10]) begin
+    if (~eq_wait[19] && eq_val[14] && eq_val[10] && eq_wait[15]) begin
       fe2_subtraction(19, t[3], o_g2_jb.x);
     end else
     if (~eq_wait[22] && eq_val[20] && eq_val[21]) begin
@@ -292,10 +295,10 @@ always_ff @ (posedge i_clk) begin
     end
 
     // Issue final fe multiplications
-    if (~eq_wait[33] && eq_val[31]) begin
+    if (~eq_wait[33] && eq_val[32]) begin
       fe_multiply(33, t[0][0], i_g1_af.y);
     end else
-    if (~eq_wait[34] && eq_val[31]) begin
+    if (~eq_wait[34] && eq_val[32]) begin
       fe_multiply(34, t[0][1], i_g1_af.y);
     end else
     if (~eq_wait[35] && eq_val[25]) begin
