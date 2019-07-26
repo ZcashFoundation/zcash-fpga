@@ -121,7 +121,9 @@ package bls12_381_pkg;
 
     POINT_MULT      = 8'h24,
     FP_FPOINT_MULT  = 8'h25,
-    FP2_FPOINT_MULT = 8'h26
+    FP2_FPOINT_MULT = 8'h26,
+    
+    ATE_PAIRING     = 8'h28
   } code_t;
 
   // Instruction format

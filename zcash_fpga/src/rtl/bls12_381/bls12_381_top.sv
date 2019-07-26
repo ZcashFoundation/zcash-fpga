@@ -69,12 +69,13 @@ if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) add_o_if(i_clk)
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) dbl_i_if(i_clk);
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) dbl_o_if(i_clk);
 
-localparam CTL_BITS = 32;
+localparam CTL_BITS = 70;
 // Access to shared 381bit multiplier / adder / subtractor
 // Fp logic uses control bits 7:0
 // Fp2 15:8
 // Fp6 23:16
 // Top level muxes 31:24
+// 67:32 Pairing engine - TODO conslidate the logic used here with the point multiplication 
 if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) mul_in_if [4:0] (i_clk) ;
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   mul_out_if [4:0](i_clk);
 if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) add_in_if [4:0] (i_clk);
@@ -84,6 +85,13 @@ if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   su
 
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_i_if(i_clk);
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_o_if(i_clk);
+
+logic pair_i_val, pair_o_rdy;
+logic pair_o_val, pair_i_rdy;
+bls12_381_pkg::fe12_t pair_o_res;
+bls12_381_pkg::af_point_t pair_i_g1;
+bls12_381_pkg::fp2_af_point_t pair_i_g2;
+
 
 logic [31:0] new_inst_pt;
 logic        new_inst_pt_val, new_inst_pt_val_l;
@@ -129,18 +137,17 @@ always_ff @ (posedge i_clk) begin
     new_inst_pt_val_l <= 0;
 
     mul_in_if[2].reset_source();
-    mul_in_if[3].reset_source();
     add_in_if[2].reset_source();
-    add_in_if[3].reset_source();
     sub_in_if[2].reset_source();
-    sub_in_if[3].reset_source();
 
     mul_out_if[2].rdy <= 0;
-    mul_out_if[3].rdy <= 0;
     add_out_if[2].rdy <= 0;
-    add_out_if[3].rdy <= 0;
     sub_out_if[2].rdy <= 0;
-    sub_out_if[3].rdy <= 0;
+    
+    pair_i_val <= 0;
+    pair_i_rdy <= 0;
+    pair_i_g1 <= 0;
+    pair_i_g2 <= 0;
 
   end else begin
 
@@ -167,6 +174,7 @@ always_ff @ (posedge i_clk) begin
     if (add_in_if[2].val && add_in_if[2].rdy) add_in_if[2].val <= 0;
     if (sub_in_if[2].val && sub_in_if[2].rdy) sub_in_if[2].val <= 0;
     if (mul_in_if[2].val && mul_in_if[2].rdy) mul_in_if[2].val <= 0;
+    if (pair_i_val && pair_o_rdy) pair_i_val <= 0;
 
     fp2_pt_mul_out_if.rdy <= 1;
 
@@ -217,6 +225,10 @@ always_ff @ (posedge i_clk) begin
       FP2_FPOINT_MULT: begin
         if (cnt == 0) last_inst_cnt <= 0;
         task_fp2_fpoint_mult();
+      end
+      ATE_PAIRING: begin
+        if (cnt == 0) last_inst_cnt <= 0;
+        task_pairing();
       end
       default: get_next_inst();
     endcase
@@ -330,6 +342,28 @@ ec_fp2_point_dbl (
   .i_add_if ( add_out_if[1]  ),
   .o_sub_if ( sub_in_if[1]   ),
   .i_sub_if ( sub_out_if[1]  )
+);
+
+bls12_381_pairing_wrapper #(
+  .CTL_BITS    ( CTL_BITS ),
+  .OVR_WRT_BIT ( 32       )
+)
+bls12_381_pairing_wrapper (
+  .i_clk ( i_clk ),
+  .i_rst ( i_rst ),
+  .i_val ( pair_i_val ),
+  .o_rdy ( pair_o_rdy ),
+  .i_g1_af ( pair_i_g1 ),
+  .i_g2_af ( pair_i_g2 ),
+  .o_val  ( pair_o_val ),
+  .i_rdy  ( pair_i_rdy ),
+  .o_fe12 ( pair_o_res ),
+  .o_mul_fe_if ( mul_in_if[3]  ),
+  .i_mul_fe_if ( mul_out_if[3] ),
+  .o_add_fe_if ( add_in_if[3]  ),
+  .i_add_fe_if ( add_out_if[3] ),
+  .o_sub_fe_if ( sub_in_if[3]  ),
+  .i_sub_fe_if ( sub_out_if[3] )
 );
 
 resource_share # (
@@ -980,6 +1014,68 @@ task task_fp2_fpoint_mult();
       end
     end
     8: begin
+      get_next_inst();
+    end
+  endcase
+endtask
+
+task task_pairing();
+  case(cnt) inside
+    0: begin
+      pair_i_val <= 0;
+      pair_i_rdy <= 0;
+      data_ram_sys_if.a <= curr_inst.a;
+      data_ram_read[0] <= 1;
+      cnt <= cnt + 1;
+    end
+    // Load G1 affine point
+    1,2: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+        data_ram_read[0] <= 1;
+        case(cnt)
+          1: pair_i_g1.x <= curr_data.dat;
+          2: pair_i_g1.y <= curr_data.dat;
+        endcase
+        cnt <= cnt + 1;
+        if (cnt == 2) begin
+          data_ram_sys_if.a <= curr_inst.b;
+        end
+      end
+    end
+    // Load G2 affine point
+    3,4,5,6: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+        data_ram_read[0] <= 1;
+        case(cnt)
+          3: pair_i_g2.x[0] <= curr_data.dat;
+          4: pair_i_g2.x[1] <= curr_data.dat;
+          5: pair_i_g2.y[0] <= curr_data.dat;
+          6: pair_i_g2.y[1] <= curr_data.dat;
+        endcase
+        cnt <= cnt + 1;
+        if (cnt == 6) begin
+          data_ram_sys_if.a <= curr_inst.c;
+          pair_i_val <= 1;
+        end
+      end
+    end
+    // Wait for result
+    7,8,9,10,11,12,13,14,15,16,17,18: begin
+      if (pair_o_val) begin
+         new_data.pt <= FE12;
+         new_data.dat <= pair_o_res >> ((cnt-7)*DAT_BITS);
+         data_ram_sys_if.we <= 1;
+         if (cnt > 7) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+         cnt <= cnt + 1;
+         if (cnt == 18) begin
+           pair_i_rdy <= 1;
+         end
+      end
+    end
+    19: begin
+      pair_i_rdy <= 0;
       get_next_inst();
     end
   endcase
