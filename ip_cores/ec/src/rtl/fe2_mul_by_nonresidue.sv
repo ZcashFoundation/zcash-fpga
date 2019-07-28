@@ -43,7 +43,6 @@ always_ff @ (posedge i_clk) begin
     o_mnr_fe2_if.sop <= 1;
     o_mnr_fe2_if.eop <= 1;
     o_mnr_fe2_if.mod <= 0;
-    o_mnr_fe2_if.val <= 0;
     o_mnr_fe2_if.err <= 0;
     o_mnr_fe2_if.ctl <= 0;
     o_add_fe_if.reset_source();
