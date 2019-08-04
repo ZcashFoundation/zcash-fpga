@@ -1,7 +1,8 @@
 /*
-  This provides the interface to perform Fp2 field element mul. Using karabusta algorithm.
+  This provides the interface to perform Fp2 field element mul.
 
   Inputs must be interleaved starting at c0 (i.e. clock 0 = {b.c0, a.c0})
+  _s in the name represents the input is a stream starting at c0.
 
   Copyright (C) 2019  Benjamin Devlin and Zcash Foundation
 
@@ -19,13 +20,13 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-module ec_fe2_mul
+module ec_fe2_mul_s
 #(
   parameter type FE_TYPE,                // Base field element type
   parameter      CTL_BITS    = 12
 )(
   input i_clk, i_rst,
-  // Interface to FE(P)_TYPE adder (mod P) 2*FE_TYPE data width
+  // Interface to FE2_TYPE mul (mod P) 2*FE_TYPE data width
   if_axi_stream.source o_mul_fe2_if,
   if_axi_stream.sink   i_mul_fe2_if,
   // Interface to FE_TYPE mul (mod P) 2*FE_TYPE data width
@@ -46,7 +47,7 @@ logic out_cnt;
 // Point addtions are simple additions on each of the Fp elements
 always_comb begin
   i_mul_fe2_if.rdy = (mul_cnt == 0 || mul_cnt == 1) && (~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy));
-  i_mul_fe_if.rdy = (add_sub_cnt == 0 || add_sub_cnt == 1) ? ~o_sub_fe_if.val || (o_sub_fe_if.val && o_sub_fe_if.rdy) : 
+  i_mul_fe_if.rdy = (add_sub_cnt == 0 || add_sub_cnt == 1) ? ~o_sub_fe_if.val || (o_sub_fe_if.val && o_sub_fe_if.rdy) :
                      ~o_add_fe_if.val || (o_add_fe_if.val && o_add_fe_if.rdy);
   i_add_fe_if.rdy = out_cnt == 1 && (~o_mul_fe2_if.val || (o_mul_fe2_if.val && o_mul_fe2_if.rdy));
   i_sub_fe_if.rdy = out_cnt == 0 && (~o_mul_fe2_if.val || (o_mul_fe2_if.val && o_mul_fe2_if.rdy));
@@ -76,14 +77,14 @@ always_ff @ (posedge i_clk) begin
           o_mul_fe_if.dat <= i_mul_fe2_if.dat;  // a0 * b0
           o_mul_fe_if.val <= i_mul_fe2_if.val;
           o_mul_fe_if.ctl <= i_mul_fe2_if.ctl;
-          {b, a} <= i_mul_fe2_if.dat;        
+          {b, a} <= i_mul_fe2_if.dat;
           if (i_mul_fe2_if.val) mul_cnt <= mul_cnt + 1;
         end
       end
       1: begin
         if (~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy)) begin
           o_mul_fe_if.dat <= i_mul_fe2_if.dat;  // a1 * b1
-          o_mul_fe_if.val <= i_mul_fe2_if.val;                                            
+          o_mul_fe_if.val <= i_mul_fe2_if.val;
           if (i_mul_fe2_if.val) mul_cnt <= mul_cnt + 1;
         end
       end
@@ -108,7 +109,7 @@ always_ff @ (posedge i_clk) begin
     case(add_sub_cnt)
       0: begin
         if (~o_sub_fe_if.val || (o_sub_fe_if.val && o_sub_fe_if.rdy)) begin
-          o_sub_fe_if.dat[0 +: $bits(FE_TYPE)] <= i_mul_fe_if.dat; 
+          o_sub_fe_if.dat[0 +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
           if (i_mul_fe_if.val) add_sub_cnt <= add_sub_cnt + 1;
         end
       end
@@ -126,7 +127,7 @@ always_ff @ (posedge i_clk) begin
           if (i_mul_fe_if.val) add_sub_cnt <= add_sub_cnt + 1;
         end
       end
-      3: begin        
+      3: begin
         o_add_fe_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= i_mul_fe_if.dat;
         o_add_fe_if.ctl <= i_mul_fe_if.ctl; // a1b0 + a0b1
         if (i_mul_fe_if.val) begin
@@ -135,7 +136,7 @@ always_ff @ (posedge i_clk) begin
         end
       end
     endcase
-    
+
     case(out_cnt)
       0: begin
         if (~o_mul_fe2_if.val || (o_mul_fe2_if.val && o_mul_fe2_if.rdy)) begin
