@@ -26,7 +26,8 @@ module ec_fe12_arithmetic
   parameter type FE6_TYPE,
   parameter type FE12_TYPE,
   parameter CTL_BITS    = 12, 
-  parameter OVR_WRT_BIT = 8        // From this bit 4 bits are used for internal control, 2 bits for resource sharing - 6 total
+  parameter OVR_WRT_BIT = 8       // From this bit 4 bits are used for internal control, 
+                                  // 2 bits for resource sharing, 1 bit for square control, 1 bit for sparse mult by c0, c1, c4
 )(
   input i_clk, i_rst,
   // Interface to FE6_TYPE multiplier (mod P)
@@ -53,6 +54,8 @@ module ec_fe12_arithmetic
 );
 
 localparam NUM_OVR_WRT_BIT = 4;
+localparam SQR_BIT = OVR_WRT_BIT + 6;
+
 if_axi_stream #(.DAT_BITS($bits(FE6_TYPE)), .CTL_BITS(CTL_BITS))   add_if_fe6_i [1:0] (i_clk);
 if_axi_stream #(.DAT_BITS(2*$bits(FE6_TYPE)), .CTL_BITS(CTL_BITS)) add_if_fe6_o [1:0] (i_clk);
 
@@ -187,6 +190,7 @@ always_ff @ (posedge i_clk) begin
     eq_val <= 0;
     eq_wait <= 0;
     rdy_l <= 0;
+    
   end else begin
 
     i_mul_fe6_if.rdy <= 1;
@@ -260,7 +264,7 @@ always_ff @ (posedge i_clk) begin
       // Issue new multiplies
       if (~eq_wait[0] && i_mul_fe12_if.val && eq_val[2] && eq_val[3]) begin                 // 0. aa = mul(a[0], b[0])
         fe6_multiply(0, i_mul_fe12_if.dat[0 +: $bits(FE6_TYPE)],
-                        i_mul_fe12_if.dat[$bits(FE12_TYPE) +: $bits(FE6_TYPE)]);
+                        i_mul_fe12_if.dat[$bits(FE12_TYPE) +: $bits(FE6_TYPE)]);              
       end else
       if (~eq_wait[1] && i_mul_fe12_if.val) begin                // 1. bb = mul(a[1], b[1])
         fe6_multiply(1, i_mul_fe12_if.dat[$bits(FE6_TYPE) +: $bits(FE6_TYPE)],
@@ -356,13 +360,11 @@ task fe6_addition(input int unsigned ctl, input FE6_TYPE a, b);
 endtask
 
 // Task for using mult
-task fe6_multiply(input int unsigned ctl, input FE6_TYPE a, b, input logic [1:0] en = 2'b11);
+task fe6_multiply(input int unsigned ctl, input FE6_TYPE a, b);
   if (~o_mul_fe6_if.val || (o_mul_fe6_if.val && o_mul_fe6_if.rdy)) begin
     o_mul_fe6_if.val <= 1;
-    if (en[0])
-      o_mul_fe6_if.dat[0 +: $bits(FE6_TYPE)] <= a;
-    if (en[1])
-      o_mul_fe6_if.dat[$bits(FE6_TYPE) +: $bits(FE6_TYPE)] <= b;
+    o_mul_fe6_if.dat[0 +: $bits(FE6_TYPE)] <= a;
+    o_mul_fe6_if.dat[$bits(FE6_TYPE) +: $bits(FE6_TYPE)] <= b;
     o_mul_fe6_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= ctl;
     eq_wait[ctl] <= 1;
   end
@@ -378,5 +380,6 @@ task fe6_mnr(input int unsigned ctl, input FE6_TYPE a, input logic en = 1'b1);
     eq_wait[ctl] <= 1;
   end
 endtask
+
 
 endmodule

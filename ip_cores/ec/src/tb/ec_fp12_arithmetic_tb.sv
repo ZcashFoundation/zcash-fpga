@@ -71,7 +71,7 @@ end
 
 initial begin
   clk = 0;
-  forever #CLK_PERIOD clk = ~clk;
+  forever #(CLK_PERIOD/2) clk = ~clk;
 end
 
 ec_fe2_arithmetic #(

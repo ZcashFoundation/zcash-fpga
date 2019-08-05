@@ -136,8 +136,12 @@ always_ff @ (posedge i_clk) begin
       a <= {i_mul_fe2_if.dat, {a[2], a[1], a[0][1]}};
     end
 
-    if (i_mul_fe6_if.rdy && i_mul_fe6_if.eop && i_mul_fe6_if.val)
-      start <= 1;
+    if (i_mul_fe6_if.rdy && i_mul_fe6_if.val) begin
+      if(i_mul_fe6_if.eop) start <= 1;
+      if(i_mul_fe6_if.sop) o_mul_fe6_if.ctl <= i_mul_fe6_if.ctl;
+    end
+      
+      
 
     // Multiplier input flow
     case (mul_cnt) inside
@@ -182,7 +186,6 @@ always_ff @ (posedge i_clk) begin
           mul_cnt <= mul_cnt + 1;
         end
       end
-      default: if (start==0) mul_cnt <= 0;
     endcase
 
     // Adder input flow
@@ -196,7 +199,6 @@ always_ff @ (posedge i_clk) begin
       12,13: fe2_add(i_sub_fe_if.val && i_sub_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT] == 2 , i_sub_fe_if.dat, a[1][add_cnt%2], add_cnt);
       14,15: fe2_add(i_mnr_fe2_if.val, i_mnr_fe2_if.dat, a[0][add_cnt%2], add_cnt);
       16,17: fe2_add(i_mnr_fe2_if.val, b[1][add_cnt%2], i_mnr_fe2_if.dat, add_cnt);
-      default: if (start==0) add_cnt <= 0;
     endcase
 
     // Sub input flow
@@ -207,14 +209,12 @@ always_ff @ (posedge i_clk) begin
       6,7: fe2_sub(i_sub_fe_if.val, i_sub_fe_if.dat, a[2][sub_cnt%2], sub_cnt);
       8,9: fe2_sub(i_sub_fe_if.val, i_sub_fe_if.dat, a[0][sub_cnt%2], sub_cnt);
       10,11: fe2_sub(add_cnt >= 18, b[0][sub_cnt%2], a[2][sub_cnt%2], sub_cnt);
-      default: if (start==0) sub_cnt <= 0;
     endcase
 
     // mnr flow
     case (mnr_cnt) inside
       0,1: fe2_mnr(i_sub_fe_if.val && i_sub_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT] == 3, i_sub_fe_if.dat, mnr_cnt);
       2,3: fe2_mnr(1, a[2][mnr_cnt%2], mnr_cnt);
-      default: if (start==0) mnr_cnt <= 0;
     endcase
 
     // Final output flow
@@ -222,8 +222,6 @@ always_ff @ (posedge i_clk) begin
       case (out_cnt) inside
         0,1: begin
           o_mul_fe6_if.dat <= i_add_fe_if.dat;
-          o_mul_fe6_if.ctl <= i_add_fe_if.ctl;
-          o_mul_fe6_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT] <= 0;
           o_mul_fe6_if.sop <= out_cnt == 0;
           o_mul_fe6_if.eop <= 0;
           if (i_add_fe_if.val && i_add_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT] == 7) begin
@@ -251,6 +249,10 @@ always_ff @ (posedge i_clk) begin
         end
         default: begin
           out_cnt <= 0;
+          mnr_cnt <= 0;
+          mul_cnt <= 0;
+          add_cnt <= 0;
+          sub_cnt <= 0;
           start <= 0;
         end
       endcase
