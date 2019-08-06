@@ -171,7 +171,7 @@ begin
   print_fe12(f_exp);
   $display("Was:");
   print_fe12(f_out);
-  
+
   $display("test1 finished in %d clocks", (finish_time-start_time)/(CLK_PERIOD));
 
   if (f_exp != f_out) begin

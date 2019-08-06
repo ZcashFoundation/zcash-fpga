@@ -87,8 +87,7 @@ if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_i_if(i_clk);
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_o_if(i_clk);
 
 logic pair_i_val, pair_o_rdy;
-logic pair_o_val, pair_i_rdy;
-bls12_381_pkg::fe12_t pair_o_res;
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) pair_o_res_if (i_clk); ;
 bls12_381_pkg::af_point_t pair_i_g1;
 bls12_381_pkg::fp2_af_point_t pair_i_g2;
 
@@ -133,6 +132,7 @@ always_ff @ (posedge i_clk) begin
     idx_in_if.reset_source();
     interrupt_in_if.reset_source();
     last_inst_cnt <= 0;
+    pair_o_res_if.rdy <= 0;
 
     new_inst_pt_val_l <= 0;
 
@@ -355,9 +355,7 @@ bls12_381_pairing_wrapper (
   .o_rdy ( pair_o_rdy ),
   .i_g1_af ( pair_i_g1 ),
   .i_g2_af ( pair_i_g2 ),
-  .o_val  ( pair_o_val ),
-  .i_rdy  ( pair_i_rdy ),
-  .o_fe12 ( pair_o_res ),
+  .o_fe12 ( pair_o_res_if ),
   .o_mul_fe_if ( mul_in_if[3]  ),
   .i_mul_fe_if ( mul_out_if[3] ),
   .o_add_fe_if ( add_in_if[3]  ),
@@ -1022,8 +1020,6 @@ endtask
 task task_pairing();
   case(cnt) inside
     0: begin
-      pair_i_val <= 0;
-      pair_i_rdy <= 0;
       data_ram_sys_if.a <= curr_inst.a;
       data_ram_read[0] <= 1;
       cnt <= cnt + 1;
@@ -1058,24 +1054,24 @@ task task_pairing();
         if (cnt == 6) begin
           data_ram_sys_if.a <= curr_inst.c;
           pair_i_val <= 1;
+          pair_o_res_if.rdy <= 1;
         end
       end
     end
     // Wait for result
     7,8,9,10,11,12,13,14,15,16,17,18: begin
-      if (pair_o_val) begin
+      if (pair_o_res_if.val) begin
          new_data.pt <= FE12;
-         new_data.dat <= pair_o_res >> ((cnt-7)*DAT_BITS);
+         new_data.dat <= pair_o_res_if.dat;
          data_ram_sys_if.we <= 1;
          if (cnt > 7) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
          cnt <= cnt + 1;
          if (cnt == 18) begin
-           pair_i_rdy <= 1;
+           pair_o_res_if.rdy <= 0;
          end
       end
     end
     19: begin
-      pair_i_rdy <= 0;
       get_next_inst();
     end
   endcase
