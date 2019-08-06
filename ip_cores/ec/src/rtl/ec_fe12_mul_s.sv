@@ -111,14 +111,14 @@ always_ff @ (posedge i_clk) begin
     if (o_add_fe_if.rdy) o_add_fe_if.val <= 0;
     if (o_mnr_fe6_if.rdy) o_mnr_fe6_if.val <= 0;
 
-    if (i_mul_fe12_if.val && i_mul_fe12_if.rdy) begin
+    if (i_mul_fe12_if.val && i_mul_fe12_if.rdy) begin // TODO change input backpressure
       // Latch input
       {a1, a0} <= {i_mul_fe12_if.dat[0 +: $bits(FE_TYPE)], a1, a0[5:1]};
       {b1, b0} <= {i_mul_fe12_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)], b1, b0[5:1]};
     end
 
     // Latch multiplier results of aa, bb
-    if (i_mul_fe6_if.val && i_mul_fe6_if.rdy && add_cnt >= 12 && i_mul_fe6_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT] == 0) begin
+    if (i_mul_fe6_if.val && i_mul_fe6_if.rdy && i_mul_fe6_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT] == 0) begin
       aa <= {i_mul_fe6_if.dat, aa[5:1]};
     end
 

@@ -30,7 +30,7 @@ parameter P              = bls12_381_pkg::P;
 af_point_t G1 = {Gy, Gx};
 fp2_af_point_t G2 = {G2y, G2x};
 
-localparam CTL_BITS = 36;
+localparam CTL_BITS = 48;
 
 localparam CLK_PERIOD = 100;
 
@@ -43,18 +43,18 @@ end
 
 initial begin
   clk = 0;
-  forever #CLK_PERIOD clk = ~clk;
+  forever #(CLK_PERIOD/2) clk = ~clk;
 end
 
 if_axi_stream #(.DAT_BYTS(($bits(af_point_t) + $bits(fp2_af_point_t)+7)/8), .CTL_BITS(CTL_BITS)) in_if(clk);
-if_axi_stream #(.DAT_BYTS(($bits(FE12_TYPE)+7)/8), .CTL_BITS(CTL_BITS)) out_if(clk);
+if_axi_stream #(.DAT_BYTS(($bits(FE_TYPE)+7)/8), .CTL_BITS(CTL_BITS)) out_if(clk);
 
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe_o_if(clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe_i_if(clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe_i_if(clk);
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) add_fe_o_if (clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) add_fe_i_if (clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   add_fe_i_if (clk);
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) sub_fe_o_if (clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) sub_fe_i_if (clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   sub_fe_i_if (clk);
 
 ec_fp_mult_mod #(
   .P             ( P        ),
@@ -62,8 +62,8 @@ ec_fp_mult_mod #(
   .CTL_BITS      ( CTL_BITS )
 )
 ec_fp_mult_mod (
-  .i_clk( clk         ),
-  .i_rst( rst         ),
+  .i_clk( clk          ),
+  .i_rst( rst          ),
   .i_mul ( mul_fe_o_if ),
   .o_mul ( mul_fe_i_if )
 );
@@ -105,9 +105,7 @@ bls12_381_pairing_wrapper (
   .o_rdy ( in_if.rdy ),
   .i_g1_af ( in_if.dat[0 +: $bits(af_point_t)] ),
   .i_g2_af ( in_if.dat[$bits(af_point_t) +: $bits(fp2_af_point_t)] ),
-  .o_val  ( out_if.val ),
-  .i_rdy  ( out_if.rdy ),
-  .o_fe12 ( out_if.dat ),
+  .o_fe12_if ( out_if ),
   .o_mul_fe_if ( mul_fe_o_if ),
   .i_mul_fe_if ( mul_fe_i_if ),
   .o_add_fe_if ( add_fe_o_if ),
@@ -116,36 +114,34 @@ bls12_381_pairing_wrapper (
   .i_sub_fe_if ( sub_fe_i_if )
 );
 
-always_comb begin
-  out_if.sop = 1;
-  out_if.eop = 1;
-end
 
 // This just tests our software model vs a known good result
 task test0();
   af_point_t P;
   fp2_af_point_t Q;
   fe12_t f, f_exp;
-  
+
   $display("Running test0 ...");
   f = FE12_zero;
-  f_exp =  {381'h049eaeacea5c5e9ad17ab1909cb31c653b0cb7184cc9187f77a934b1189b088d4ca64d0ff60eb0b6be8805757ba3df04,
-            381'h0198faba7d94607ce154e6a711ef859a5c4623722d4136c961a801c2b984aae5838a532aae5c2211660d3b8689b8f015,
-            381'h12b091c5b34124368d2e95a7fd6cfa3b456447e49cd298de506572c5f3afb8727f2a186f0ea14bf5eed2171c4568b5c5,
-            381'h05cfef8c26f3886e502008fc1fd74b86d400c32cb432323f994c060db185e9f8519cf76afcc9969379c2967f2f6ba36a,
-            381'h0465162c766430cf4a98e217e3d765643118598715cc2538c56e933f0528f56dd6ac82507df446545a2fde77349ad37e,
-            381'h1427e91ee8eff7e7187d560c375f5da3a9f0f162192ac4277bff1b14f560355e0b5cf069f452ab4d35ce11b39facc280,
-            381'h087d1320fe5bad5c2d8e12c49e6aff41a0b80e1497bbe85682e22ed853f256041bdf97ef02bdb5d80a5f9bc31d85f25e,
-            381'h159ef660e2d84185f55c0ccae1dd7f8f71b12c0beb7a431fede9e62794d9154e9a0ce4715f64b032492459076224c99b,
-            381'h0cbc592a19a3f60c9938676b257b9c01ed9d708f9428b29e272a811d13d734485970d9d3f1c097b12bfa3d1678096b1d,
-            381'h0751a051e0beb4a0e2351a7527d813b371e189056307d718a446e4016a3df787568a842f3401768dc03b966bd1db90ac,
-            381'h0e760e96f911ae38a6042da82d7b0e30787864e725e9d5462d224c91c4497104d838d566d894564bc19e09d8af706c3f,
-            381'h05194f5785436c8debf0eb2bab4c6ef3de7dc0633c85769173777b782bf897fa45025fd03e7be941123c4ee19910e62e};
-            
-  miller_loop(G1, G2, f);
+  f_exp =  {381'h0f41e58663bf08cf068672cbd01a7ec73baca4d72ca93544deff686bfd6df543d48eaa24afe47e1efde449383b676631,
+            381'h04c581234d086a9902249b64728ffd21a189e87935a954051c7cdba7b3872629a4fafc05066245cb9108f0242d0fe3ef,
+            381'h03350f55a7aefcd3c31b4fcb6ce5771cc6a0e9786ab5973320c806ad360829107ba810c5a09ffdd9be2291a0c25a99a2,
+            381'h11b8b424cd48bf38fcef68083b0b0ec5c81a93b330ee1a677d0d15ff7b984e8978ef48881e32fac91b93b47333e2ba57,
+            381'h06fba23eb7c5af0d9f80940ca771b6ffd5857baaf222eb95a7d2809d61bfe02e1bfd1b68ff02f0b8102ae1c2d5d5ab1a,
+            381'h19f26337d205fb469cd6bd15c3d5a04dc88784fbb3d0b2dbdea54d43b2b73f2cbb12d58386a8703e0f948226e47ee89d,
+            381'h018107154f25a764bd3c79937a45b84546da634b8f6be14a8061e55cceba478b23f7dacaa35c8ca78beae9624045b4b6,
+            381'h01b2f522473d171391125ba84dc4007cfbf2f8da752f7c74185203fcca589ac719c34dffbbaad8431dad1c1fb597aaa5,
+            381'h193502b86edb8857c273fa075a50512937e0794e1e65a7617c90d8bd66065b1fffe51d7a579973b1315021ec3c19934f,
+            381'h1368bb445c7c2d209703f239689ce34c0378a68e72a6b3b216da0e22a5031b54ddff57309396b38c881c4c849ec23e87,
+            381'h089a1c5b46e5110b86750ec6a532348868a84045483c92b7af5af689452eafabf1a8943e50439f1d59882a98eaa0170f,
+            381'h1250ebd871fc0a92a7b2d83168d0d727272d441befa15c503dd8e90ce98db3e7b6d194f60839c508a84305aaca1789b6};
 
+  ate_pairing(G1, G2, f);
+  $display("After ate pairing:");
+  print_fe12(f);
   assert(f == f_exp) else $fatal(1, "Test0 Miller loop did not match known good result");
   $display("test0 PASSED");
+
 endtask
 
 
@@ -156,9 +152,9 @@ begin
   integer start_time, finish_time;
   FE12_TYPE  f_out, f_exp;
   $display("Running test1 ...");
-  
+
   miller_loop(G1_p, G2_p, f_exp);
-  
+
   start_time = $time;
   fork
     in_if.put_stream({G2_p, G1_p}, (($bits(af_point_t) + $bits(fp2_af_point_t))+7)/8);
@@ -166,20 +162,25 @@ begin
   join
   finish_time = $time;
 
-  f_out = get_dat;
+  for (int i = 0; i < 2; i++)
+    for (int j = 0; j < 3; j++)
+      for (int k = 0; k < 2; k++)
+        f_out[i][j][k] = get_dat[(i*6+j*2+k)*384 +: $bits(FE_TYPE)];
 
   $display("Expected:");
   print_fe12(f_exp);
   $display("Was:");
   print_fe12(f_out);
+  
+  $display("test1 finished in %d clocks", (finish_time-start_time)/(CLK_PERIOD));
 
   if (f_exp != f_out) begin
     $fatal(1, "%m %t ERROR: output was wrong", $time);
   end
 
-  $display("test1 PASSED in %d clocks", (finish_time-start_time)/CLK_PERIOD);
+  $display("test1 PASSED");
 end
-endtask; 
+endtask;
 
 initial begin
   in_if.reset_source();

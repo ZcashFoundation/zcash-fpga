@@ -46,7 +46,9 @@ always_ff @ (posedge i_clk) begin
     add_sub_cnt <= 0;
   end else begin
 
-    if (o_mnr_fe2_if.val && o_mnr_fe2_if.rdy) o_mnr_fe2_if.val <= 0;
+    if (o_mnr_fe2_if.rdy) o_mnr_fe2_if.val <= 0;
+    if (o_add_fe_if.rdy) o_add_fe_if.val <= 0;
+    if (o_sub_fe_if.rdy) o_sub_fe_if.val <= 0;
 
     if (i_mnr_fe2_if.rdy) begin
       if (i_mnr_fe2_if.sop) begin
@@ -62,28 +64,30 @@ always_ff @ (posedge i_clk) begin
       o_sub_fe_if.ctl <= i_mnr_fe2_if.ctl;
     end
 
-    if (~o_mnr_fe2_if.val || (o_mnr_fe2_if.val && o_mnr_fe2_if.rdy)) begin
-      case(add_sub_cnt)
+    
+    case(add_sub_cnt)
       0: begin
-        o_mnr_fe2_if.dat <= i_sub_fe_if.dat;
-        o_mnr_fe2_if.ctl <= i_sub_fe_if.ctl;
-        o_mnr_fe2_if.val <= i_sub_fe_if.val;
-        o_mnr_fe2_if.sop <= 1;
-        o_mnr_fe2_if.eop <= 0;
-        if (i_sub_fe_if.val)
-          add_sub_cnt <= add_sub_cnt + 1;
+        if (~o_mnr_fe2_if.val || (o_mnr_fe2_if.val && o_mnr_fe2_if.rdy)) begin
+          o_mnr_fe2_if.dat <= i_sub_fe_if.dat;
+          o_mnr_fe2_if.ctl <= i_sub_fe_if.ctl;
+          o_mnr_fe2_if.val <= i_sub_fe_if.val;
+          o_mnr_fe2_if.sop <= 1;
+          o_mnr_fe2_if.eop <= 0;
+          if (i_sub_fe_if.val) add_sub_cnt <= add_sub_cnt + 1;
+        end
       end
       1: begin
-        o_mnr_fe2_if.dat <= i_add_fe_if.dat;
-        o_mnr_fe2_if.ctl <= i_add_fe_if.ctl;
-        o_mnr_fe2_if.val <= i_add_fe_if.val;
-        o_mnr_fe2_if.sop <= 0;
-        o_mnr_fe2_if.eop <= 1;
-        if (i_add_fe_if.val)
-          add_sub_cnt <= add_sub_cnt + 1;
-      end
-      endcase
-    end
+        if (~o_mnr_fe2_if.val || (o_mnr_fe2_if.val && o_mnr_fe2_if.rdy)) begin
+          o_mnr_fe2_if.dat <= i_add_fe_if.dat;
+          o_mnr_fe2_if.ctl <= i_add_fe_if.ctl;
+          o_mnr_fe2_if.val <= i_add_fe_if.val;
+          o_mnr_fe2_if.sop <= 0;
+          o_mnr_fe2_if.eop <= 1;
+          if (i_add_fe_if.val) add_sub_cnt <= add_sub_cnt + 1;
+        end
+      end  
+    endcase
   end
+  
 end
 endmodule

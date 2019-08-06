@@ -41,22 +41,19 @@ module bls12_381_pairing
   output logic        o_rdy,
   input G1_FP_AF_TYPE i_g1_af,
   input G2_FP_AF_TYPE i_g2_af,
-  // Outputs
-  output logic     o_val,
-  input            i_rdy,
-  output FE12_TYPE o_fe12,
+  if_axi_stream.source o_fe12_if,
   // Interface to FE_TYPE multiplier (mod P)
   if_axi_stream.source o_mul_fe_if,
   if_axi_stream.sink   i_mul_fe_if,
   // Interface to FE2_TYPE multiplier (mod P)
   if_axi_stream.source o_mul_fe2_if,
   if_axi_stream.sink   i_mul_fe2_if,
-  // Interface to FE2_TYPE adder (mod P)
-  if_axi_stream.source o_add_fe2_if,
-  if_axi_stream.sink   i_add_fe2_if,
-  // Interface to FE2_TYPE subtractor (mod P)
-  if_axi_stream.source o_sub_fe2_if,
-  if_axi_stream.sink   i_sub_fe2_if,
+  // Interface to FE_TYPE adder (mod P)
+  if_axi_stream.source o_add_fe_if,
+  if_axi_stream.sink   i_add_fe_if,
+  // Interface to FE_TYPE subtractor (mod P)
+  if_axi_stream.source o_sub_fe_if,
+  if_axi_stream.sink   i_sub_fe_if,
   // Interface to FE12_TYPE multiplier (mod P)
   if_axi_stream.source o_mul_fe12_if,
   if_axi_stream.sink   i_mul_fe12_if
@@ -65,77 +62,83 @@ module bls12_381_pairing
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe_i_if [1:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe_o_if [1:0] (i_clk);
 
-if_axi_stream #(.DAT_BITS(2*$bits(FE2_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe2_i_if [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE2_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe2_o_if [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE2_TYPE)), .CTL_BITS(CTL_BITS)) add_fe2_i_if [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE2_TYPE)), .CTL_BITS(CTL_BITS))   add_fe2_o_if [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE2_TYPE)), .CTL_BITS(CTL_BITS)) sub_fe2_i_if [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE2_TYPE)), .CTL_BITS(CTL_BITS))   sub_fe2_o_if [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe2_i_if [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe2_o_if [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) add_fe_i_if [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   add_fe_o_if [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) sub_fe_i_if [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   sub_fe_o_if [1:0] (i_clk);
 
 
-logic dbl_i_val, dbl_o_rdy, dbl_o_val, dbl_i_rdy, dbl_o_err;
-logic add_i_val, add_o_rdy, add_o_val, add_i_rdy, add_o_err;
+logic dbl_i_val, dbl_o_rdy;
+logic add_i_val, add_o_rdy;
 
-logic wait_dbl, wait_add, mult_done;
+logic wait_dbl, wait_add;
 
 G1_FP_AF_TYPE g1_af_i;
 G2_FP_JB_TYPE g2_r_jb_i, add_g2_o, dbl_g2_o;
 G2_FP_AF_TYPE g2_af_i;
-FE12_TYPE add_f12_o, dbl_f12_o, temp1, temp2;
 
-always_comb begin
-temp1 = o_mul_fe12_if.dat[0 +: $bits(FE12_TYPE)];
-temp2 = o_mul_fe12_if.dat[$bits(FE12_TYPE) +: $bits(FE12_TYPE)];
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   add_f12_o_if (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   dbl_f12_o_if (i_clk);
 
-end
 logic [$clog2(ATE_X_START)-1:0] ate_loop_cnt;
 logic [1:0] miller_mult_cnt;
 
 enum {IDLE, MILLER_LOOP, FINAL_EXP} pair_state;
 
+FE12_TYPE f;
+logic f_val;
+logic [3:0] out_cnt;
+
+always_comb begin
+  dbl_f12_o_if.rdy = f_val && o_mul_fe12_if.rdy && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 5)); // As this is a sparse f12 using full f12_mul
+  add_f12_o_if.rdy = f_val && o_mul_fe12_if.rdy && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 5)); // As this is a sparse f12 using full f12_mul
+end
 
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
-    o_fe12 <= 0;
+    o_fe12_if.reset_source();
     g1_af_i <= 0;
     g2_r_jb_i <= 0;
     i_mul_fe12_if.rdy <= 0;
-    o_mul_fe12_if.copy_if(0, 0, 1, 1, 0, 0, 0);
+    o_mul_fe12_if.reset_source();
     pair_state <= IDLE;
     add_i_val <= 0;
     dbl_i_val <= 0;
-    add_i_rdy <= 0;
-    dbl_i_rdy <= 0;
     o_rdy <= 0;
-    o_val <= 0;
     wait_dbl <= 0;
     wait_add <= 0;
-    mult_done <= 0;
     miller_mult_cnt <= 0;
     ate_loop_cnt <= ATE_X_START-1;
+
+    f <= FE12_one;
+    f_val <= 0;
+    out_cnt <= 0;
   end else begin
 
-    if (i_rdy && o_val) o_val <= 0;
-    if (add_i_val && add_o_rdy) add_i_val <= 0;
-    if (dbl_i_val && dbl_o_rdy) dbl_i_val <= 0;
-    if (o_mul_fe12_if.val && o_mul_fe12_if.rdy) o_mul_fe12_if.val <= 0;
-    
-    if (i_mul_fe12_if.val && i_mul_fe12_if.rdy) o_fe12 <= i_mul_fe12_if.dat;
+    if (o_fe12_if.rdy) o_fe12_if.val <= 0;
+    if (add_o_rdy) add_i_val <= 0;
+    if (dbl_o_rdy) dbl_i_val <= 0;
+    if (o_mul_fe12_if.rdy) o_mul_fe12_if.val <= 0;
 
     i_mul_fe12_if.rdy <= 1;
+    if (i_mul_fe12_if.val && i_mul_fe12_if.rdy) begin
+      f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
+      f_val <= i_mul_fe12_if.eop;
+    end
 
     case(pair_state)
       IDLE: begin
         ate_loop_cnt <= ATE_X_START-1;
-        o_fe12 <= FE12_one;
-        o_rdy <= ~o_val;
+        f <= FE12_one;
         add_i_val <= 0;
         dbl_i_val <= 0;
-        add_i_rdy <= 0;
-        dbl_i_rdy <= 0;
         wait_dbl <= 0;
         wait_add <= 0;
-        mult_done <= 0;
+        out_cnt <= 0;
+        f_val <= 0;
+        o_rdy <= 1;
         miller_mult_cnt <= 0;
         if (i_val && o_rdy) begin
           pair_state <= MILLER_LOOP;
@@ -150,73 +153,83 @@ always_ff @ (posedge i_clk) begin
         end
       end
       MILLER_LOOP: begin
-        add_i_rdy <= 0;
-        dbl_i_rdy <= 0;
-        
+
         if (~wait_dbl) begin
           dbl_i_val <= 1;
           wait_dbl <= 1;
         end
 
-        if (wait_dbl && dbl_o_val) begin
+        if (wait_dbl && dbl_f12_o_if.val && dbl_f12_o_if.sop && dbl_f12_o_if.rdy) begin
           g2_r_jb_i <= dbl_g2_o;
           if (~wait_add && ATE_X[ate_loop_cnt] == 1) begin
             add_i_val <= 1;
             wait_add <= 1;
-          end        
+          end
         end
 
         // Also three multiplications
         case(miller_mult_cnt)
           0: begin // Square first
-            mult_done <= 0;
             if(~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) begin
               o_mul_fe12_if.val <= 1;
-              o_mul_fe12_if.dat <= {o_fe12, o_fe12};
+              o_mul_fe12_if.sop <= out_cnt == 0;
+              o_mul_fe12_if.eop <= out_cnt == 11;
+              o_mul_fe12_if.dat <= {f[0][0][0], f[0][0][0]}; //square
               o_mul_fe12_if.ctl <= miller_mult_cnt;
-              miller_mult_cnt <= 1;
-            end          
+              out_cnt <= out_cnt + 1;
+              f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
+              if (out_cnt == 11) begin
+                out_cnt <= 0;
+                miller_mult_cnt <= 1;
+              end
+            end
           end
           1: begin // Multiply by double result
             if(~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) begin
-              if (i_mul_fe12_if.val) begin
-                o_mul_fe12_if.dat[0 +: $bits(FE12_TYPE)] <= i_mul_fe12_if.dat;
-                mult_done <= 1;
-              end
-              if (dbl_o_val)
-                o_mul_fe12_if.dat[$bits(FE12_TYPE) +: $bits(FE12_TYPE)] <= dbl_f12_o;
-              if (dbl_o_val && mult_done) begin
-                o_mul_fe12_if.val <= 1;
+              if (dbl_f12_o_if.val && f_val) begin
+                o_mul_fe12_if.sop <= out_cnt == 0;
+                o_mul_fe12_if.eop <= out_cnt == 11;
+                o_mul_fe12_if.val <= dbl_f12_o_if.val;
+                case (out_cnt/2) inside
+                  0,1,4: o_mul_fe12_if.dat <= {dbl_f12_o_if.dat, f[0][0][0]};
+                  default: o_mul_fe12_if.dat <= {381'd0, f[0][0][0]};
+                endcase
+                out_cnt <= out_cnt + 1;
+                f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
                 o_mul_fe12_if.ctl <= miller_mult_cnt;
-                miller_mult_cnt <= ATE_X[ate_loop_cnt] == 0 ? 3 : 2;
-                dbl_i_rdy <= 1;
-                mult_done <= 0;
+                if (out_cnt == 11) begin
+                  f_val <= 0;
+                  out_cnt <= 0;
+                  miller_mult_cnt <= ATE_X[ate_loop_cnt] == 0 ? 3 : 2;
+                end
               end
-            end           
+            end
           end
           2: begin  // Multiply by add result
             if(~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) begin
-              if (i_mul_fe12_if.val) begin
-                o_mul_fe12_if.dat[0 +: $bits(FE12_TYPE)] <= i_mul_fe12_if.dat;
-                mult_done <= 1;
-              end
-              if (add_o_val) begin
-                o_mul_fe12_if.dat[$bits(FE12_TYPE) +: $bits(FE12_TYPE)] <= add_f12_o;
+              if (add_f12_o_if.val && f_val) begin
                 g2_r_jb_i <= add_g2_o;
-              end
-              if (add_o_val && mult_done) begin
-                o_mul_fe12_if.val <= 1;
                 o_mul_fe12_if.ctl <= miller_mult_cnt;
-                miller_mult_cnt <= 3;
-                add_i_rdy <= 1;
-                mult_done <= 0;
+                o_mul_fe12_if.sop <= out_cnt == 0;
+                o_mul_fe12_if.eop <= out_cnt == 11;
+                o_mul_fe12_if.val <= 1;
+                out_cnt <= out_cnt + 1;
+                case (out_cnt/2) inside
+                  0,1,4: o_mul_fe12_if.dat <= {add_f12_o_if.dat, f[0][0][0]};
+                  default: o_mul_fe12_if.dat <= {381'd0, f[0][0][0]};
+                endcase                
+                f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
+                if (out_cnt == 11) begin
+                  f_val <= 0;
+                  out_cnt <= 0;
+                  miller_mult_cnt <= 3;
+                end
               end
-            end       
+            end
           end
           3: begin
             // Wait for result and then move counter, start next stage
-            if (i_mul_fe12_if.val) begin
-              mult_done <= 1;
+            if (f_val) begin
               wait_dbl <= 0;
               wait_add <= 0;
               miller_mult_cnt <= 0;
@@ -227,12 +240,20 @@ always_ff @ (posedge i_clk) begin
             end
           end
         endcase
-       
+
       end
       FINAL_EXP: begin
-        o_val <= 1;
-        if (o_val && i_rdy) 
-          pair_state <= IDLE;
+        if (~o_fe12_if.val || (o_fe12_if.val && o_fe12_if.rdy)) begin
+          o_fe12_if.dat <= f[0][0][0];
+          o_fe12_if.val <= 1;
+          o_fe12_if.sop <= out_cnt == 0;
+          o_fe12_if.eop <= out_cnt == 11;
+          out_cnt <= out_cnt + 1;
+          f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
+          if (out_cnt == 11) begin
+            pair_state <= IDLE;
+          end
+        end
       end
     endcase
 
@@ -242,7 +263,6 @@ end
 bls12_381_pairing_miller_dbl #(
   .FE_TYPE       ( FE_TYPE       ),
   .FE2_TYPE      ( FE2_TYPE      ),
-  .FE12_TYPE     ( FE12_TYPE     ),
   .G1_FP_AF_TYPE ( G1_FP_AF_TYPE ),
   .G2_FP_JB_TYPE ( G2_FP_JB_TYPE ),
   .OVR_WRT_BIT   ( OVR_WRT_BIT   )
@@ -254,17 +274,14 @@ bls12_381_pairing_miller_dbl (
   .o_rdy         ( dbl_o_rdy ),
   .i_g1_af       ( g1_af_i   ),
   .i_g2_jb       ( g2_r_jb_i ),
-  .o_val         ( dbl_o_val ),
-  .i_rdy         ( dbl_i_rdy ),
-  .o_err         ( dbl_o_err ),
-  .o_res_fe12    ( dbl_f12_o ),
-  .o_g2_jb       ( dbl_g2_o ),
+  .o_res_fe12_sparse_if    ( dbl_f12_o_if ),
+  .o_g2_jb                 ( dbl_g2_o     ),
   .o_mul_fe2_if ( mul_fe2_i_if[0] ),
   .i_mul_fe2_if ( mul_fe2_o_if[0] ),
-  .o_add_fe2_if ( add_fe2_i_if[0] ),
-  .i_add_fe2_if ( add_fe2_o_if[0] ),
-  .o_sub_fe2_if ( sub_fe2_i_if[0] ),
-  .i_sub_fe2_if ( sub_fe2_o_if[0] ),
+  .o_add_fe_if ( add_fe_i_if[0] ),
+  .i_add_fe_if ( add_fe_o_if[0] ),
+  .o_sub_fe_if ( sub_fe_i_if[0] ),
+  .i_sub_fe_if ( sub_fe_o_if[0] ),
   .o_mul_fe_if ( mul_fe_i_if[0] ),
   .i_mul_fe_if ( mul_fe_o_if[0] )
 );
@@ -272,7 +289,6 @@ bls12_381_pairing_miller_dbl (
 bls12_381_pairing_miller_add #(
   .FE_TYPE       ( FE_TYPE       ),
   .FE2_TYPE      ( FE2_TYPE      ),
-  .FE12_TYPE     ( FE12_TYPE     ),
   .G1_FP_AF_TYPE ( G1_FP_AF_TYPE ),
   .G2_FP_JB_TYPE ( G2_FP_JB_TYPE ),
   .G2_FP_AF_TYPE ( G2_FP_AF_TYPE ),
@@ -286,17 +302,14 @@ bls12_381_pairing_miller_add (
   .i_g1_af       ( g1_af_i   ),
   .i_g2_jb       ( dbl_g2_o  ),
   .i_g2_q_af     ( g2_af_i   ),
-  .o_val         ( add_o_val ),
-  .i_rdy         ( add_i_rdy ),
-  .o_err         ( add_o_err ),
-  .o_res_fe12    ( add_f12_o ),
-  .o_g2_jb       ( add_g2_o ),
+  .o_res_fe12_sparse_if    ( add_f12_o_if ),
+  .o_g2_jb                 ( add_g2_o     ),
   .o_mul_fe2_if ( mul_fe2_i_if[1] ),
   .i_mul_fe2_if ( mul_fe2_o_if[1] ),
-  .o_add_fe2_if ( add_fe2_i_if[1] ),
-  .i_add_fe2_if ( add_fe2_o_if[1] ),
-  .o_sub_fe2_if ( sub_fe2_i_if[1] ),
-  .i_sub_fe2_if ( sub_fe2_o_if[1] ),
+  .o_add_fe_if ( add_fe_i_if[1] ),
+  .i_add_fe_if ( add_fe_o_if[1] ),
+  .o_sub_fe_if ( sub_fe_i_if[1] ),
+  .i_sub_fe_if ( sub_fe_o_if[1] ),
   .o_mul_fe_if ( mul_fe_i_if[1] ),
   .i_mul_fe_if ( mul_fe_o_if[1] )
 );
@@ -320,7 +333,7 @@ resource_share_fe_mul (
 
 resource_share # (
   .NUM_IN       ( 2                ),
-  .DAT_BITS     ( 2*$bits(FE2_TYPE) ),
+  .DAT_BITS     ( 2*$bits(FE_TYPE) ),
   .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( OVR_WRT_BIT + 8  ),
   .PIPELINE_IN  ( 0                ),
@@ -337,7 +350,7 @@ resource_share_fe2_mul (
 
 resource_share # (
   .NUM_IN       ( 2                ),
-  .DAT_BITS     ( 2*$bits(FE2_TYPE) ),
+  .DAT_BITS     ( 2*$bits(FE_TYPE) ),
   .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( OVR_WRT_BIT + 8  ),
   .PIPELINE_IN  ( 0                ),
@@ -346,15 +359,15 @@ resource_share # (
 resource_share_fe2_add (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( add_fe2_i_if[1:0] ),
-  .o_res ( o_add_fe2_if      ),
-  .i_res ( i_add_fe2_if      ),
-  .o_axi ( add_fe2_o_if[1:0] )
+  .i_axi ( add_fe_i_if[1:0] ),
+  .o_res ( o_add_fe_if      ),
+  .i_res ( i_add_fe_if      ),
+  .o_axi ( add_fe_o_if[1:0] )
 );
 
 resource_share # (
   .NUM_IN       ( 2                ),
-  .DAT_BITS     ( 2*$bits(FE2_TYPE) ),
+  .DAT_BITS     ( 2*$bits(FE_TYPE) ),
   .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( OVR_WRT_BIT + 8  ),
   .PIPELINE_IN  ( 0                ),
@@ -363,10 +376,12 @@ resource_share # (
 resource_share_fe2_sub (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( sub_fe2_i_if[1:0] ),
-  .o_res ( o_sub_fe2_if      ),
-  .i_res ( i_sub_fe2_if      ),
-  .o_axi ( sub_fe2_o_if[1:0] )
+  .i_axi ( sub_fe_i_if[1:0] ),
+  .o_res ( o_sub_fe_if      ),
+  .i_res ( i_sub_fe_if      ),
+  .o_axi ( sub_fe_o_if[1:0] )
 );
+
+
 
 endmodule

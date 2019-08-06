@@ -26,7 +26,7 @@ package bls12_381_pkg;
 
   fe_t Gx = 381'h17F1D3A73197D7942695638C4FA9AC0FC3688C4F9774B905A14E3A3F171BAC586C55E83FF97A1AEFFB3AF00ADB22C6BB;
   fe_t Gy = 381'h08B3F481E3AAA0F1A09E30ED741D8AE4FCF5E095D5D00AF600DB18CB2C04B3EDD03CC744A2888AE40CAA232946C5E7E1;
-  
+
   localparam [63:0] ATE_X = 64'hd201000000010000;
   localparam ATE_X_START = 63;
 
@@ -71,11 +71,11 @@ package bls12_381_pkg;
   typedef fe_t  [1:0] fe2_t;
   typedef fe2_t [2:0] fe6_t;
   typedef fe6_t [1:0] fe12_t;
-  
+
   // These are used in the final exponentiation of the pairing.
   // We only list coeff needed for powers of 0,1,2,3
   parameter fe2_t FROBENIUS_COEFF_FQ12_C1 [3:0] = {
-     {381'h06af0e0437ff400b6831e36d6bd17ffe48395dabc2d3435e77f76e17009241c5ee67992f72ec05f4c81084fbede3cc09, 
+     {381'h06af0e0437ff400b6831e36d6bd17ffe48395dabc2d3435e77f76e17009241c5ee67992f72ec05f4c81084fbede3cc09,
       381'h135203e60180a68ee2e9c448d77a2cd91c3dedd930b1cf60ef396489f61eb45e304466cf3e67fa0af1ee7b04121bdea2},
      {381'h0,
       381'h00000000000000005f19672fdf76ce51ba69c6076a0f77eaddb3a93be6f89688de17d813620a00022e01fffffffeffff},
@@ -83,7 +83,7 @@ package bls12_381_pkg;
       381'h1904d3bf02bb0667c231beb4202c0d1f0fd603fd3cbd5f4f7b2443d784bab9c4f67ea53d63e7813d8d0775ed92235fb8},
      {381'h0,
       381'h1}};
-    
+
   parameter fe2_t FROBENIUS_COEFF_FQ6_C1 [3:0] = {
      {381'h1,
       381'h0},
@@ -104,13 +104,13 @@ package bls12_381_pkg;
       381'h1a0111ea397fe699ec02408663d4de85aa0d857d89759ad4897d29650fb85f9b409427eb4f49fffd8bfd00000000aaad},
      {381'h0,
       381'h1}};
-      
+
   parameter fe_t FROBENIUS_COEFF_FQ2_C1 [1:0] = {
       381'h1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaaa,
       381'h000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001};
 
-        
-        
+
+
   // Generator points for G2
   fe2_t G2x = {381'h13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e,
                381'h024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8};
@@ -162,7 +162,7 @@ package bls12_381_pkg;
     POINT_MULT      = 8'h24,
     FP_FPOINT_MULT  = 8'h25,
     FP2_FPOINT_MULT = 8'h26,
-    
+
     ATE_PAIRING     = 8'h28
   } code_t;
 
@@ -465,7 +465,7 @@ package bls12_381_pkg;
      fe6_mul_by_nonresidue[2] = a[1];
      fe6_mul_by_nonresidue[0] = fe2_mul_by_nonresidue(a[2]);
    endfunction
-   
+
    function fe6_t fe6_inv(fe6_t a);
      fe2_t add_i0, add_i1, sub_i0, mul_i0;
      fe6_inv[0] = fe2_mul_by_nonresidue(a[2]);
@@ -473,31 +473,31 @@ package bls12_381_pkg;
      fe6_inv[0] = fe2_sub(0, fe6_inv[0]);
      add_i0 =  fe2_mul(a[0], a[0]);
      fe6_inv[0] = fe2_add(add_i0, fe6_inv[0]);
-     
+
      fe6_inv[1] = fe2_mul(a[2], a[2]);
      fe6_inv[1] = fe2_mul_by_nonresidue(fe6_inv[1]);
      sub_i0 = fe2_mul(a[0], a[1]);
      fe6_inv[1] = fe2_sub(fe6_inv[1], sub_i0);
-     
+
      fe6_inv[2] = fe2_mul(a[1], a[1]);
      sub_i0 = fe2_mul(a[2], a[0]);
      fe6_inv[2] = fe2_sub(fe6_inv[2], sub_i0);
-     
+
      add_i0 = fe2_mul(a[2], fe6_inv[1]);
      add_i1 = fe2_mul(a[1], fe6_inv[2]);
      add_i1 = fe2_add(add_i0, add_i1);
      add_i1 = fe2_mul_by_nonresidue(add_i1);
      add_i0 = fe2_mul(a[0], fe6_inv[0]);
      add_i1 = fe2_add(add_i1, add_i0);
-     
+
      mul_i0 = fe2_inv(add_i1);
-     
+
      fe6_inv[0] = fe2_mul(fe6_inv[0], mul_i0);
      fe6_inv[1] = fe2_mul(fe6_inv[1], mul_i0);
      fe6_inv[2] = fe2_mul(fe6_inv[2], mul_i0);
-     
+
    endfunction
-   
+
    function fe12_t fe12_inv(fe12_t a);
      fe12_t  sub_i0, sub_i1, mul_i0;
      sub_i0 = fe6_mul(a[0], a[0]);
@@ -528,18 +528,21 @@ package bls12_381_pkg;
 
      fe6_mul[0] = fe2_add(a[1], a[2]); // 3. fe6_mul[0] = fe2_add(a[1], a[2])
      t = fe2_add(b[1], b[2]);         // 4. t =  fe2_add(b[1], b[2])
+
      fe6_mul[0] = fe2_mul(fe6_mul[0], t); // 5. fe6_mul[0] = fe2_mul(fe6_mul[0], t)   [3, 4]
      fe6_mul[0] = fe2_sub(fe6_mul[0], b_b); // 6. fe6_mul[0] = fe2_sub(fe6_mul[0], b_b) [5, 1]
      fe6_mul[0] = fe2_sub(fe6_mul[0], c_c); // 7. fe6_mul[0] = fe2_sub(fe6_mul[0], c_c)  [6, 2]
 
      fe6_mul[2] = fe2_add(b[0], b[2]);  // 8. fe6_mul[2] = fe2_add(b[0], b[2])
      t = fe2_add(a[0], a[2]);           // 9. t = fe2_add(a[0], a[2])    [wait 5]
+
      fe6_mul[2] = fe2_mul(fe6_mul[2], t);  // 10. fe6_mul[2] = fe2_mul(fe6_mul[2], t)   [8, 9]
      fe6_mul[2] = fe2_sub(fe6_mul[2], a_a); // 11. fe6_mul[2] = fe2_sub(fe6_mul[2], a_a)  [10, 0]
      fe6_mul[2] = fe2_add(fe6_mul[2], b_b);  // 12. fe6_mul[2] = fe2_add(fe6_mul[2], b_b) [11, 1]
 
      fe6_mul[1] = fe2_add(b[0], b[1]);  // 13. fe6_mul[1] = fe2_add(b[0], b[1])
      t = fe2_add(a[0], a[1]);  // 14. t = fe2_add(a[0], a[1])  [wait 10]   - can release input here
+
      fe6_mul[1] = fe2_mul(fe6_mul[1], t); // 15. fe6_mul[1] = fe2_mul(fe6_mul[1], t)   [13, 14]
      fe6_mul[1] = fe2_sub(fe6_mul[1], a_a);  // 16. fe6_mul[1] = fe2_sub(fe6_mul[1], a_a)   [15, 0]
      fe6_mul[1] = fe2_sub(fe6_mul[1], b_b);  // 17. fe6_mul[1] = fe2_sub(fe6_mul[1], b_b)   [16, 1]
@@ -552,6 +555,7 @@ package bls12_381_pkg;
 
      fe6_mul[1] = fe2_add(c_c, fe6_mul[1]);   // 22. fe6_mul[1] = fe2_add(c_c, fe6_mul[1])   [17, 21]
    endfunction
+
 
    function fe12_t fe12_add(fe12_t a, b);
      for(int i = 0; i < 2; i++)
@@ -567,22 +571,23 @@ package bls12_381_pkg;
      fe6_t aa, bb;
      aa = fe6_mul(a[0], b[0]);  // 0. add_i0 = mul(a[0], b[0])
      bb = fe6_mul(a[1], b[1]);  // 1. bb = mul(a[1], b[1])
-
+     
      fe12_mul[1] = fe6_add(a[1], a[0]); // 2. fe6_mul[1] = add(a[1], a[0])
      fe12_mul[0] = fe6_add(b[0], b[1]);  // 3. fe6_mul[0] = add(b[0], b[1])
      
      fe12_mul[1] = fe6_mul(fe12_mul[1], fe12_mul[0]); // 4. fe6_mul[1] = mul(fe6_mul[1], fe6_mul[0])  [2, 3]
-
+     
      fe12_mul[1] = fe6_sub(fe12_mul[1], aa); // 5. fe6_mul[1] = sub(fe6_mul[1], add_i0) [4, 0]
      fe12_mul[1] = fe6_sub(fe12_mul[1], bb); // 6. fe6_mul[1] = sub(fe6_mul[1], bb) [5, 1]
 
      bb = fe6_mul_by_nonresidue(bb); // 7. bb = mnr(bb) [6]
+     
      fe12_mul[0] = fe6_add(bb, aa); // 8. fe6_mul[0] = add(add_i0, bb) [0, 1, 7]
    endfunction
-   
+
    function fe12_t fe12_sqr(fe12_t a);
      fe6_t sub_i1, mul_i0, mul_i1;
-     sub_i1 = fe6_mul(a[0], a[1]);  // 0. 
+     sub_i1 = fe6_mul(a[0], a[1]);  // 0.
      mul_i0 = fe6_add(a[0], a[1]);  // 1.   (wait eq0)
      mul_i1 = fe6_mul_by_nonresidue(a[1]);
      mul_i1 = fe6_add(mul_i1, mul_i1);
@@ -591,7 +596,7 @@ package bls12_381_pkg;
      fe12_sqr[1] = fe2_add(sub_i1, sub_i1);
      sub_i1 = fe6_mul_by_nonresidue(sub_i1);
      fe12_sqr[0] = fe6_sub(fe12_sqr[0], sub_i1);
- 
+
    endfunction
 
 
@@ -608,22 +613,22 @@ package bls12_381_pkg;
     R.z = 1;
 
     for (int i = ATE_X_START-1; i >= 0; i--) begin
-      f_sq = fe12_mul(f, f);    // Full multiplication 
+      f_sq = fe12_mul(f, f);    // Full multiplication
       miller_double_step(R, P, lv_d);
-      f = fe12_mul(f_sq, lv_d); // Sparse multiplication   
+      f = fe12_mul(f_sq, lv_d); // Sparse multiplication
       if (ATE_X[i] == 1) begin
         miller_add_step(R, Q, P, lv_a);
         f = fe12_mul(f, lv_a); // Sparse multiplication
-      end            
+      end
     end
 
   endtask
-  
+
   task automatic ate_pairing(input af_point_t P, input fp2_af_point_t Q, ref fe12_t f);
-    miller_loop(P, Q, f);    
+    miller_loop(P, Q, f);
     final_exponent(f);
   endtask;
-  
+
    // This performs both the line evaluation and the doubling
    // Returns a sparse f12 element
   task automatic miller_double_step(ref fp2_jb_point_t R, input af_point_t P, ref fe12_t f);
@@ -682,7 +687,7 @@ package bls12_381_pkg;
      t0[1]  = fe_mul(t0[1], P.y); // 34. [P val, 32]
      t3[0]  = fe_mul(t3[0], P.x); // 35. [P val, 25]
      t3[1]  = fe_mul(t3[1], P.x); // 36. [P val, 25]
-    
+
      f = {{FE2_zero, t0, FE2_zero}, {FE2_zero, t3, t6}}; // [33, 34, 35, 36, 30]
 
    endtask
@@ -759,12 +764,12 @@ package bls12_381_pkg;
      f = {{FE2_zero, t10, FE2_zero}, {FE2_zero, t1, t9}};
 
    endtask
- 
+
    function fe2_t fe2_fmap(input fe2_t a, input int pow);
      fe2_fmap[0] = a[0];
      fe2_fmap[1] = fe_mul(a[1], FROBENIUS_COEFF_FQ2_C1[pow % 2]);
    endfunction
-     
+
    function fe6_t fe6_fmap(input fe6_t a, input int pow);
      fe6_fmap[0] = fe2_fmap(a[0], pow);
      fe6_fmap[1] = fe2_fmap(a[1], pow);
@@ -772,8 +777,8 @@ package bls12_381_pkg;
      fe6_fmap[1] = fe2_mul(fe6_fmap[1], FROBENIUS_COEFF_FQ6_C1[pow % 6]);
      fe6_fmap[2] = fe2_mul(fe6_fmap[2], FROBENIUS_COEFF_FQ6_C2[pow % 6]);
    endfunction
-   
-   
+
+
    function fe12_t fe12_fmap(input fe12_t a, input int pow);
      fe12_fmap[0] = fe6_fmap(a[0], pow);
      fe12_fmap[1] = fe6_fmap(a[1], pow);
@@ -781,76 +786,76 @@ package bls12_381_pkg;
      fe12_fmap[1][1] = fe2_mul(fe12_fmap[1][1], FROBENIUS_COEFF_FQ12_C1[pow % 12]);
      fe12_fmap[1][2] = fe2_mul(fe12_fmap[1][2], FROBENIUS_COEFF_FQ12_C1[pow % 12]);
    endfunction
-   
+
    // Max size is 1024 bit number
    function fe12_t fe12_pow(input fe12_t a, input logic [1023:0] pow);
       fe12_pow = FE12_one;
-      
+
       while (pow != 0) begin
         if (pow[0])
-          fe12_pow = fe12_mul(fe12_pow, a);  
+          fe12_pow = fe12_mul(fe12_pow, a);
         a = fe12_mul(a, a);
         pow = pow >> 1;
       end
-     
+
      fe12_pow[1] = fe6_sub(0, fe12_pow[1]);
    endfunction
-   
+
    // Calculates the final exponent used in ate pairing
    task automatic final_exponent(ref fe12_t f);
      fe12_t mul_i1, y0, y1, y2, y3, r, r_inv;
      logic [63:0] bls_x;
      bls_x = ATE_X;
-     
+
      r = f;
      r[1] = fe6_sub(0, r[1]);
-     r_inv = fe12_inv(r); 
+     r_inv = fe12_inv(r);
      r = fe12_mul(f, r_inv);
-     
+
      mul_i1 = fe12_fmap(r, 2);
-     
+
      r = fe12_mul(mul_i1, r);
-     
+
      y0 = fe12_mul(r, r);
-    
-     
+
+
      y1 = fe12_pow(y0, bls_x);
 
-     
+
      bls_x = bls_x >> 1;
      y2 = fe12_pow(y1, bls_x);
      bls_x = bls_x << 1;
- 
+
      y3 = r;
      y3[1] = fe6_sub(0, y3[1]);
      y1 = fe12_mul(y1, y3);
      y1[1] = fe6_sub(0, y1[1]);
      y1 = fe12_mul(y1, y2);
-     
+
      y2 = fe12_pow(y1, bls_x);
      y3 = fe12_pow(y2, bls_x);
 
 
-     
+
      y1[1] = fe6_sub(0, y1[1]);
      y3 = fe12_mul(y3, y1);
-     
+
      y1[1] = fe6_sub(0, y1[1]);
      y1 = fe12_fmap(y1, 3);
-     
+
      y2 = fe12_fmap(y2, 2);
      y1 = fe12_mul(y1, y2);
-     
+
      y2 = fe12_pow(y3, bls_x);
-     
+
      y2 = fe12_mul(y2, y0);
-     
+
      y2 = fe12_mul(y2, r);
      y1 = fe12_mul(y1, y2);
-     
+
      y2 = fe12_fmap(y3, 1);
      y1 = fe12_mul(y1, y2);
-     
+
      f = y1;
    endtask
 
@@ -895,10 +900,10 @@ package bls12_381_pkg;
      $display("y:(c1:%h, c0:%h)", p.y[1], p.y[0]);
      $display("z:(c1:%h, c0:%h)", p.z[1], p.z[0]);
    endtask
-   
+
    task print_fp2_af_point(fp2_af_point_t p);
      $display("x:(c1:%h, c0:%h)", p.x[1], p.x[0]);
      $display("y:(c1:%h, c0:%h)", p.y[1], p.y[0]);
-   endtask   
+   endtask
 
 endpackage
