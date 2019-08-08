@@ -38,6 +38,7 @@ logic [DAT_BITS-1:0] P_;
 logic [LEVEL:0][DAT_BITS:0] result0, result1;
 logic [LEVEL:0][DAT_BITS:0] a, b;
 logic [LEVEL:0][CTL_BITS-1:0] ctl;   // Top ctl bit we use to check if this needs a subtraction in P
+logic [LEVEL:0][1:0] sop_eop;
 logic [LEVEL:0] val, rdy;
 logic [LEVEL:0] carry_neg0, carry_neg1;
 
@@ -49,6 +50,8 @@ always_comb begin
   carry_neg1[0] = 0;
   val[0] = i_sub.val;
   ctl[0] = i_sub.ctl;
+  sop_eop[0][0] = i_sub.sop;
+  sop_eop[0][1] = i_sub.eop;
   a[0] = 0;
   a[0] = i_sub.dat[0 +: BITS];
   b[0] = 0;
@@ -59,6 +62,8 @@ always_comb begin
   i_sub.rdy = rdy[0];
   o_sub.dat = carry_neg1[LEVEL] ? result0[LEVEL] : result1[LEVEL];
   o_sub.copy_if_comb(carry_neg1[LEVEL] ? result0[LEVEL] : result1[LEVEL], val[LEVEL], 1, 1, 0, 0, ctl[LEVEL]);
+  o_sub.sop = sop_eop[LEVEL][0];
+  o_sub.eop = sop_eop[LEVEL][1];
 end
 
 generate
@@ -102,12 +107,15 @@ genvar g;
         a[g+1] <= 0;
         b[g+1] <= 0;
         ctl[g+1] <= 0;
+        sop_eop[g+1] <= 0;
         carry_neg0[g+1] <= 0;
         carry_neg1[g+1] <= 0;
       end else begin
         if (rdy[g]) begin
           val[g+1] <= val[g];
           ctl[g+1] <= ctl[g];
+          sop_eop[g+1] <= sop_eop[g];
+          
           a[g+1] <= a[g];
           b[g+1] <= b[g];
 

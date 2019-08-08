@@ -69,7 +69,7 @@ always_comb begin
   endcase
 
   case (i_sub_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT]) inside
-    0: i_sub_fe_if.rdy = (~o_sub_fe_if.val || (o_sub_fe_if.val && o_sub_fe_if.rdy));
+    0: i_sub_fe_if.rdy = (sub_cnt >= 6) && (~o_sub_fe_if.val || (o_sub_fe_if.val && o_sub_fe_if.rdy));
     1: i_sub_fe_if.rdy = (out_cnt >= 6) && (~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy));
     default: i_sub_fe_if.rdy = 0;
   endcase
@@ -133,7 +133,7 @@ always_ff @ (posedge i_clk) begin
 
     if (i_add_fe_if.val && i_add_fe_if.rdy && i_add_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT] == 1) begin
       b0 <= {i_add_fe_if.dat, b0[5:1]};
-      b0_val <= 1;
+      b0_val <= i_add_fe_if.eop;
     end
 
     if (i_mul_fe12_if.rdy && i_mul_fe12_if.val) begin
@@ -198,9 +198,7 @@ always_ff @ (posedge i_clk) begin
           start <= 0;
         end
       endcase
-  end
-
-
+    end
   end
 end
 

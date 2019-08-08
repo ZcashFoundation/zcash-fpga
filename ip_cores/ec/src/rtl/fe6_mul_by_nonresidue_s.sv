@@ -35,7 +35,7 @@ FE_TYPE [3:0] t;
 always_comb begin
   case (mnr_cnt) inside
     0,1,2,3: i_mnr_fe6_if.rdy = 1;
-    4,5: i_mnr_fe6_if.rdy = ~o_mnr_fe6_if.val || (o_mnr_fe6_if.val && o_mnr_fe6_if.rdy);
+    4,5: i_mnr_fe6_if.rdy = ~o_mnr_fe2_if.val || (o_mnr_fe2_if.val && o_mnr_fe2_if.rdy);
     default: i_mnr_fe6_if.rdy = 0;
   endcase
 
