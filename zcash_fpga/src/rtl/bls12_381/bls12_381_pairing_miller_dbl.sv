@@ -61,7 +61,7 @@ localparam NUM_OVR_WRT_BIT = 6;
 logic [36:0] eq_val, eq_wait;
 logic mul_cnt, add_cnt, sub_cnt;
 logic mul_en, add_en, sub_en;
-logic [5:0] nxt_fe2_mul, nxt_fe_add, nxt_fe_sub; 
+logic [5:0] nxt_fe2_mul, nxt_fe_add, nxt_fe_sub;
 FE2_TYPE zsquared;
 FE2_TYPE [6:0] t;
 logic o_rdy_l;
@@ -89,12 +89,8 @@ always_ff @ (posedge i_clk) begin
     o_rdy_l <= 0;
     o_res_fe12_sparse_if.reset_source();
 
-    out_cnt <= 0;
-    mul_cnt <= 0;
-    add_cnt <= 0;
-    sub_cnt <= 0;
-    
-    {nxt_fe2_mul, nxt_fe_add, nxt_fe_sub} <= 0; 
+    {out_cnt, mul_cnt, add_cnt, sub_cnt} <= 0;
+    {nxt_fe2_mul, nxt_fe_add, nxt_fe_sub} <= 0;
     {mul_en, add_en, sub_en} <= 0;
 
   end else begin
@@ -112,13 +108,13 @@ always_ff @ (posedge i_clk) begin
     if (i_val && o_rdy) o_rdy <= 0;
 
     if (~o_res_fe12_sparse_if.val || (o_res_fe12_sparse_if.val && o_res_fe12_sparse_if.rdy)) begin
-    
+
       if (eq_val[33] && eq_val[34] && eq_val[35] && eq_val[36] && eq_val[30] &&
           eq_val[14] && eq_val[18] && eq_val[22]) begin
         o_res_fe12_sparse_if.val <= 1;
         out_cnt <= out_cnt + 1;
       end
-      
+
       o_res_fe12_sparse_if.sop <= out_cnt == 0;
       o_res_fe12_sparse_if.eop <= out_cnt == 5;
 
@@ -127,7 +123,7 @@ always_ff @ (posedge i_clk) begin
         2,3: o_res_fe12_sparse_if.dat <= t[3][out_cnt%2];
         4,5: o_res_fe12_sparse_if.dat <= t[0][out_cnt%2];
       endcase
-      
+
       if(out_cnt == 5) begin
         eq_val <= 0;
         eq_wait <= 0;
@@ -143,10 +139,10 @@ always_ff @ (posedge i_clk) begin
        o_rdy <= 1;
        o_rdy_l <= 1;
     end
-    
-    if (~o_sub_fe_if.val) get_next_sub();
-    if (~o_add_fe_if.val) get_next_add();
-    if (~o_mul_fe2_if.val) get_next_fe2_mul();  
+
+    if (~sub_en) get_next_sub();
+    if (~add_en) get_next_add();
+    if (~mul_en) get_next_fe2_mul();
 
     // Check any results from multiplier
     if (i_mul_fe2_if.val && i_mul_fe2_if.rdy) begin
@@ -234,7 +230,7 @@ always_ff @ (posedge i_clk) begin
         29: fe2_multiply(29, 4, t[1]);
         31: fe2_multiply(31, o_g2_jb.z, zsquared);
       endcase
-    
+
     if (add_en)
       case (nxt_fe_add)
         2: fe2_addition(2, t[0], t[0]);
@@ -289,8 +285,8 @@ task fe2_subtraction(input int unsigned ctl, input FE2_TYPE a, b);
     o_sub_fe_if.dat[0 +: $bits(FE_TYPE)] <= a[sub_cnt];
     o_sub_fe_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b[sub_cnt];
     o_sub_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= ctl;
+    eq_wait[ctl] <= 1;
     if (sub_cnt == 1) begin
-      eq_wait[ctl] <= 1;
       get_next_sub();
     end
     sub_cnt <= sub_cnt + 1;
@@ -306,8 +302,8 @@ task fe2_addition(input int unsigned ctl, input FE2_TYPE a, b);
     o_add_fe_if.dat[0 +: $bits(FE_TYPE)] <= a[add_cnt];
     o_add_fe_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b[add_cnt];
     o_add_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= ctl;
+    eq_wait[ctl] <= 1;
     if (add_cnt == 1) begin
-      eq_wait[ctl] <= 1;
       get_next_add();
     end
     add_cnt <= add_cnt + 1;
@@ -323,8 +319,8 @@ task fe2_multiply(input int unsigned ctl, input FE2_TYPE a, b);
     o_mul_fe2_if.dat[0 +: $bits(FE_TYPE)] <= a[mul_cnt];
     o_mul_fe2_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b[mul_cnt];
     o_mul_fe2_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= ctl;
+    eq_wait[ctl] <= 1;
     if (mul_cnt == 1) begin
-      eq_wait[ctl] <= 1;
       get_next_fe2_mul();
     end
     mul_cnt <= mul_cnt + 1;
@@ -372,7 +368,7 @@ task get_next_sub();
   else if (~eq_wait[30] && eq_val[29] && eq_val[28])
     nxt_fe_sub <= 30;
   else
-    sub_en <= 0;  
+    sub_en <= 0;
 endtask
 
 task get_next_add();

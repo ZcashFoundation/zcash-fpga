@@ -59,6 +59,12 @@ module bls12_381_pairing
   if_axi_stream.sink   i_mul_fe12_if
 );
 
+FE_TYPE temp_a, temp_b;
+always_comb begin
+  temp_a = o_mul_fe12_if.dat[0 +: $bits(FE_TYPE)];
+  temp_b = o_mul_fe12_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)];
+end
+
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe_i_if [1:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe_o_if [1:0] (i_clk);
 
@@ -92,8 +98,8 @@ logic f_val;
 logic [3:0] out_cnt;
 
 always_comb begin
-  dbl_f12_o_if.rdy = f_val && o_mul_fe12_if.rdy && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 5)); // As this is a sparse f12 using full f12_mul
-  add_f12_o_if.rdy = f_val && o_mul_fe12_if.rdy && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 5)); // As this is a sparse f12 using full f12_mul
+  dbl_f12_o_if.rdy = f_val && o_mul_fe12_if.rdy && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
+  add_f12_o_if.rdy = f_val && o_mul_fe12_if.rdy && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
 end
 
 always_ff @ (posedge i_clk) begin
@@ -186,10 +192,10 @@ always_ff @ (posedge i_clk) begin
           end
           1: begin // Multiply by double result
             if(~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) begin
-              if (dbl_f12_o_if.val && f_val) begin
+              if ((dbl_f12_o_if.val && f_val) || (out_cnt/2 == 5)) begin
                 o_mul_fe12_if.sop <= out_cnt == 0;
                 o_mul_fe12_if.eop <= out_cnt == 11;
-                o_mul_fe12_if.val <= dbl_f12_o_if.val;
+                o_mul_fe12_if.val <= 1;
                 case (out_cnt/2) inside
                   0,1,4: o_mul_fe12_if.dat <= {dbl_f12_o_if.dat, f[0][0][0]};
                   default: o_mul_fe12_if.dat <= {381'd0, f[0][0][0]};
@@ -207,7 +213,7 @@ always_ff @ (posedge i_clk) begin
           end
           2: begin  // Multiply by add result
             if(~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) begin
-              if (add_f12_o_if.val && f_val) begin
+              if ((add_f12_o_if.val && f_val) || (out_cnt/2 == 5)) begin
                 g2_r_jb_i <= add_g2_o;
                 o_mul_fe12_if.ctl <= miller_mult_cnt;
                 o_mul_fe12_if.sop <= out_cnt == 0;
@@ -231,6 +237,7 @@ always_ff @ (posedge i_clk) begin
             // Wait for result and then move counter, start next stage
             if (f_val) begin
               wait_dbl <= 0;
+              f_val <= 0;
               wait_add <= 0;
               miller_mult_cnt <= 0;
               ate_loop_cnt <= ate_loop_cnt - 1;

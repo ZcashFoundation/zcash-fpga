@@ -75,7 +75,7 @@ localparam CTL_BITS = 70;
 // Fp2 15:8
 // Fp6 23:16
 // Top level muxes 31:24
-// 67:32 Pairing engine - TODO conslidate the logic used here with the point multiplication 
+// 67:32 Pairing engine - TODO conslidate the logic used here with the point multiplication
 if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) mul_in_if [4:0] (i_clk) ;
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   mul_out_if [4:0](i_clk);
 if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) add_in_if [4:0] (i_clk);
@@ -143,9 +143,8 @@ always_ff @ (posedge i_clk) begin
     mul_out_if[2].rdy <= 0;
     add_out_if[2].rdy <= 0;
     sub_out_if[2].rdy <= 0;
-    
+
     pair_i_val <= 0;
-    pair_i_rdy <= 0;
     pair_i_g1 <= 0;
     pair_i_g2 <= 0;
 
@@ -355,7 +354,7 @@ bls12_381_pairing_wrapper (
   .o_rdy ( pair_o_rdy ),
   .i_g1_af ( pair_i_g1 ),
   .i_g2_af ( pair_i_g2 ),
-  .o_fe12 ( pair_o_res_if ),
+  .o_fe12_if ( pair_o_res_if ),
   .o_mul_fe_if ( mul_in_if[3]  ),
   .i_mul_fe_if ( mul_out_if[3] ),
   .o_add_fe_if ( add_in_if[3]  ),
