@@ -64,6 +64,7 @@ always_ff @ (posedge i_clk) begin
       4,5: begin
         if (~o_mnr_fe2_if.val || (o_mnr_fe2_if.val && o_mnr_fe2_if.rdy)) begin
           o_mnr_fe2_if.val <= i_mnr_fe6_if.val;
+          o_mnr_fe2_if.ctl <= i_mnr_fe6_if.ctl;
           o_mnr_fe2_if.sop <= mnr_cnt == 4;
           o_mnr_fe2_if.eop <= mnr_cnt == 5;
           o_mnr_fe2_if.dat <= i_mnr_fe6_if.dat;
@@ -79,6 +80,7 @@ always_ff @ (posedge i_clk) begin
       0,1: begin
         if (~o_mnr_fe6_if.val || (o_mnr_fe6_if.val && o_mnr_fe6_if.rdy)) begin
           o_mnr_fe6_if.val <= i_mnr_fe2_if.val;
+          o_mnr_fe6_if.ctl <= i_mnr_fe2_if.ctl;
           o_mnr_fe6_if.sop <= out_cnt == 0;
           o_mnr_fe6_if.eop <= 0;
           o_mnr_fe6_if.dat <= i_mnr_fe2_if.dat;

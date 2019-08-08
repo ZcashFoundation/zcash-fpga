@@ -586,17 +586,21 @@ package bls12_381_pkg;
    endfunction
 
    function fe12_t fe12_sqr(fe12_t a);
-     fe6_t sub_i1, mul_i0, mul_i1;
-     sub_i1 = fe6_mul(a[0], a[1]);  // 0.
-     mul_i0 = fe6_add(a[0], a[1]);  // 1.   (wait eq0)
-     mul_i1 = fe6_mul_by_nonresidue(a[1]);
-     mul_i1 = fe6_add(mul_i1, mul_i1);
-     fe12_sqr[0] = fe6_mul(mul_i1, mul_i0);
-     fe12_sqr[0] = fe6_sub(fe12_sqr[0], sub_i1);
-     fe12_sqr[1] = fe2_add(sub_i1, sub_i1);
-     sub_i1 = fe6_mul_by_nonresidue(sub_i1);
-     fe12_sqr[0] = fe6_sub(fe12_sqr[0], sub_i1);
-
+     fe6_t ab, c0c1;
+     
+     ab = fe6_mul(a[0], a[1]);  // 0.
+     c0c1 = fe6_add(a[0], a[1]);  // 1.   (wait eq0)
+     
+     fe12_sqr[0] = fe6_mul_by_nonresidue(a[1]);
+     
+     fe12_sqr[0] = fe6_add(fe12_sqr[0], a[0]);
+     fe12_sqr[0] = fe6_mul(fe12_sqr[0], c0c1);
+     
+     fe12_sqr[0] = fe6_sub(fe12_sqr[0], ab);
+     fe12_sqr[1] = fe6_add(ab, ab);
+     
+     ab = fe6_mul_by_nonresidue(ab);
+     fe12_sqr[0] = fe6_sub(fe12_sqr[0], ab);
    endfunction
 
 
@@ -613,7 +617,7 @@ package bls12_381_pkg;
     R.z = 1;
 
     for (int i = ATE_X_START-1; i >= 0; i--) begin
-      f_sq = fe12_mul(f, f);    // Full multiplication
+      f_sq = fe12_sqr(f);    // Full multiplication
       miller_double_step(R, P, lv_d);
       f = fe12_mul(f_sq, lv_d); // Sparse multiplication
       if (ATE_X[i] == 1) begin
@@ -689,7 +693,6 @@ package bls12_381_pkg;
      t3[1]  = fe_mul(t3[1], P.x); // 36. [P val, 25]
 
      f = {{FE2_zero, t0, FE2_zero}, {FE2_zero, t3, t6}}; // [33, 34, 35, 36, 30]
-
    endtask
 
    // This performs both the line evaluation and the addition

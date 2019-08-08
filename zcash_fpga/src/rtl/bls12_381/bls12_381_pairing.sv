@@ -33,7 +33,8 @@ module bls12_381_pairing
   parameter type G2_FP_AF_TYPE = fp2_af_point_t,
   parameter type G2_FP_JB_TYPE = fp2_jb_point_t,
   parameter CTL_BITS = 32,
-  parameter OVR_WRT_BIT = 8 // We override 16 bits from here
+  parameter OVR_WRT_BIT = 8, // We override 16 bits from here
+  parameter SQ_BIT = OVR_WRT_BIT + 2 // We can re-use this bit as it is not used by multiplier
 )(
   input i_clk, i_rst,
   // Inputs
@@ -98,8 +99,8 @@ logic f_val;
 logic [3:0] out_cnt;
 
 always_comb begin
-  dbl_f12_o_if.rdy = f_val && o_mul_fe12_if.rdy && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
-  add_f12_o_if.rdy = f_val && o_mul_fe12_if.rdy && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
+  dbl_f12_o_if.rdy = f_val && (~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
+  add_f12_o_if.rdy = f_val && (~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
 end
 
 always_ff @ (posedge i_clk) begin
@@ -182,6 +183,7 @@ always_ff @ (posedge i_clk) begin
               o_mul_fe12_if.eop <= out_cnt == 11;
               o_mul_fe12_if.dat <= {f[0][0][0], f[0][0][0]}; //square
               o_mul_fe12_if.ctl <= miller_mult_cnt;
+              o_mul_fe12_if.ctl[SQ_BIT] <= 1;
               out_cnt <= out_cnt + 1;
               f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
               if (out_cnt == 11) begin
@@ -203,6 +205,7 @@ always_ff @ (posedge i_clk) begin
                 out_cnt <= out_cnt + 1;
                 f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
                 o_mul_fe12_if.ctl <= miller_mult_cnt;
+                o_mul_fe12_if.ctl[SQ_BIT] <= 0;
                 if (out_cnt == 11) begin
                   f_val <= 0;
                   out_cnt <= 0;
@@ -216,6 +219,7 @@ always_ff @ (posedge i_clk) begin
               if ((add_f12_o_if.val && f_val) || (out_cnt/2 == 5)) begin
                 g2_r_jb_i <= add_g2_o;
                 o_mul_fe12_if.ctl <= miller_mult_cnt;
+                o_mul_fe12_if.ctl[SQ_BIT] <= 0;
                 o_mul_fe12_if.sop <= out_cnt == 0;
                 o_mul_fe12_if.eop <= out_cnt == 11;
                 o_mul_fe12_if.val <= 1;

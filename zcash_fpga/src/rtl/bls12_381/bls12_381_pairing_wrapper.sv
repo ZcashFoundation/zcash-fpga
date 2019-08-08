@@ -69,14 +69,13 @@ if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe12_o_if 
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe12_i_if      (i_clk);
 
 
-
-
 bls12_381_pairing #(
   .FE_TYPE     ( FE_TYPE   ),
   .FE2_TYPE    ( FE2_TYPE  ),
   .FE12_TYPE   ( FE12_TYPE ),
   .CTL_BITS    ( CTL_BITS  ),
-  .OVR_WRT_BIT ( OVR_WRT_BIT + 0 ) // 0 to 15
+  .OVR_WRT_BIT ( OVR_WRT_BIT + 0 ),// 0 to 15
+  .SQ_BIT      ( OVR_WRT_BIT + 2 ) 
 )
 bls12_381_pairing (
   .i_clk ( i_clk ),
@@ -165,7 +164,8 @@ fe6_mul_by_nonresidue_s (
 
 ec_fe12_mul_s #(
   .FE_TYPE  ( FE_TYPE  ),
-  .OVR_WRT_BIT ( OVR_WRT_BIT + 20 ) // 20 to 23
+  .OVR_WRT_BIT ( OVR_WRT_BIT + 20 ), // 20 to 23
+  .SQ_BIT      ( OVR_WRT_BIT + 2 )   
 )
 ec_fe12_mul_s (
   .i_clk ( i_clk ),

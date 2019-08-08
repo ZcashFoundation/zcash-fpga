@@ -419,7 +419,7 @@ task get_next_fe2_mul();
     nxt_fe2_mul <= 26;
   else if (~eq_wait[29] && eq_wait[17] && eq_val[4] && eq_wait[5] && eq_wait[6])
     nxt_fe2_mul <= 29;
-  else if (~eq_wait[31] && eq_val[0] && eq_val[18])
+  else if (~eq_wait[31] && eq_val[0] && eq_val[18] && eq_wait[27] && eq_wait[2] && eq_wait[3] && eq_wait[8])
     nxt_fe2_mul <= 31;
   else
     mul_en <= 0;

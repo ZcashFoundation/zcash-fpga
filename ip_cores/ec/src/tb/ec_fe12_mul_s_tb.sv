@@ -29,6 +29,7 @@ parameter P              = bls12_381_pkg::P;
 
 
 localparam CTL_BITS = 32;
+localparam SQ_BIT = 24;
 
 localparam CLK_PERIOD = 100;
 
@@ -171,7 +172,8 @@ fe6_mul_by_nonresidue_s (
 
 ec_fe12_mul_s #(
   .FE_TYPE  ( FE_TYPE  ),
-  .OVR_WRT_BIT ( 16 )
+  .OVR_WRT_BIT ( 16 ),
+  .SQ_BIT(SQ_BIT)
 )
 ec_fe12_mul_s (
   .i_clk ( clk ),
@@ -288,12 +290,67 @@ task test();
 
 endtask
 
+task test_sq();
+  fe12_t a, b, f_exp, f_exp2, f_out;
+  integer signed get_len;
+  integer start_time, finish_time;
+  logic [CTL_BITS-1:0] ctl;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat, dat_in;
+
+  $display("Running test ...");
+  for (int lp = 0; lp < 10; lp++) begin
+    $display("Loop %d", lp);
+    dat_in = 0;
+    for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 3; j++)
+        for (int k = 0; k < 2; k++) begin
+          a[i][j][k] = random_vector(384/8) % P;
+          b[i][j][k] = a[i][j][k];
+          dat_in[(i*6+j*2+k)*768 +: 2*$bits(FE_TYPE)] = {b[i][j][k], a[i][j][k]};
+        end
+
+    ctl = 0;
+    ctl[SQ_BIT] = 1;
+    f_exp = fe12_sqr(a);
+    assert(a == b) else $fatal(1, "Software model did not match");
+    assert(fe12_mul(a, b) == f_exp) else $fatal(1, "Software model did not match");
+    
+    start_time = $time;
+    fork
+      i_mul_fe12_if.put_stream(dat_in, 12*768/8, ctl);
+      o_mul_fe12_if.get_stream(get_dat, get_len);
+    join
+    finish_time = $time;
+
+    for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 3; j++)
+        for (int k = 0; k < 2; k++)
+          f_out[i][j][k] = get_dat[(i*6+j*2+k)*384 +: $bits(FE_TYPE)];
+
+    if (f_exp != f_out) begin
+      $display("Input a was:");
+      print_fe12(a);
+      $display("Input b was:");
+      print_fe12(b);
+      $display("Output  was:");
+      print_fe12(f_out);
+      $display("Output Expected:");
+      print_fe12(f_exp);
+      $fatal(1, "%m %t ERROR: output was wrong", $time);
+    end
+
+    $display("test_sq PASSED in %d clocks", (finish_time-start_time)/CLK_PERIOD);
+  end
+
+endtask
+
 initial begin
   i_mul_fe12_if.reset_source();
   o_mul_fe12_if.rdy = 0;
-  #10ns;
+  #(50*CLK_PERIOD)
 
   test();
+  test_sq();
 
   #50ns $finish();
 end
