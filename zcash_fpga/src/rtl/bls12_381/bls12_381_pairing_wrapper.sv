@@ -39,21 +39,15 @@ module bls12_381_pairing_wrapper
   if_axi_stream.source o_fe12_if,
   // Interface to FE_TYPE multiplier (mod P)
   if_axi_stream.source o_mul_fe_if,
-  if_axi_stream.sink   i_mul_fe_if,
-  // Interface to FE_TYPE adder (mod P)
-  if_axi_stream.source o_add_fe_if,
-  if_axi_stream.sink   i_add_fe_if,
-  // Interface to FE_TYPE subtractor (mod P)
-  if_axi_stream.source o_sub_fe_if,
-  if_axi_stream.sink   i_sub_fe_if
+  if_axi_stream.sink   i_mul_fe_if
 );
 
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe_o_if [1:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe_i_if [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) add_fe_o_if [4:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   add_fe_i_if [4:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) sub_fe_o_if [4:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   sub_fe_i_if [4:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) add_fe_o_if [5:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   add_fe_i_if [5:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) sub_fe_o_if [5:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   sub_fe_i_if [5:0] (i_clk);
 
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe2_o_if [2:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe2_i_if [2:0] (i_clk);
@@ -75,7 +69,7 @@ bls12_381_pairing #(
   .FE12_TYPE   ( FE12_TYPE ),
   .CTL_BITS    ( CTL_BITS  ),
   .OVR_WRT_BIT ( OVR_WRT_BIT + 0 ),// 0 to 15
-  .SQ_BIT      ( OVR_WRT_BIT + 2 ) 
+  .SQ_BIT      ( OVR_WRT_BIT + 2 )
 )
 bls12_381_pairing (
   .i_clk ( i_clk ),
@@ -165,7 +159,7 @@ fe6_mul_by_nonresidue_s (
 ec_fe12_mul_s #(
   .FE_TYPE  ( FE_TYPE  ),
   .OVR_WRT_BIT ( OVR_WRT_BIT + 20 ), // 20 to 23
-  .SQ_BIT      ( OVR_WRT_BIT + 2 )   
+  .SQ_BIT      ( OVR_WRT_BIT + 2 )
 )
 ec_fe12_mul_s (
   .i_clk ( i_clk ),
@@ -182,6 +176,32 @@ ec_fe12_mul_s (
   .i_mul_fe12_if ( mul_fe12_o_if )
 );
 
+adder_pipe # (
+  .BITS     ( bls12_381_pkg::DAT_BITS ),
+  .P        ( bls12_381_pkg::P        ),
+  .CTL_BITS ( CTL_BITS ),
+  .LEVEL    ( 2        )
+)
+adder_pipe (
+  .i_clk ( i_clk        ),
+  .i_rst ( i_rst        ),
+  .i_add ( add_fe_o_if[5] ),
+  .o_add ( add_fe_i_if[5] )
+);
+
+subtractor_pipe # (
+  .BITS     ( bls12_381_pkg::DAT_BITS ),
+  .P        ( bls12_381_pkg::P        ),
+  .CTL_BITS ( CTL_BITS ),
+  .LEVEL    ( 2        )
+)
+subtractor_pipe (
+  .i_clk ( i_clk          ),
+  .i_rst ( i_rst          ),
+  .i_sub ( sub_fe_o_if[5] ),
+  .o_sub ( sub_fe_i_if[5] )
+);
+
 resource_share # (
   .NUM_IN       ( 5                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
@@ -194,8 +214,8 @@ resource_share_fe_add (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
   .i_axi ( add_fe_o_if[4:0] ),
-  .o_res ( o_add_fe_if      ),
-  .i_res ( i_add_fe_if      ),
+  .o_res ( add_fe_o_if[5]   ),
+  .i_res ( add_fe_i_if[5]   ),
   .o_axi ( add_fe_i_if[4:0] )
 );
 
@@ -211,8 +231,8 @@ resource_share_fe_sub (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
   .i_axi ( sub_fe_o_if[4:0] ),
-  .o_res ( o_sub_fe_if      ),
-  .i_res ( i_sub_fe_if      ),
+  .o_res ( sub_fe_o_if[5]   ),
+  .i_res ( sub_fe_i_if[5]   ),
   .o_axi ( sub_fe_i_if[4:0] )
 );
 

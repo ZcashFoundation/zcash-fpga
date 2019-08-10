@@ -92,11 +92,11 @@ subtractor_pipe (
   .o_sub ( sub_fe_i_if )
 );
 
-ec_fe2_mul #(
+ec_fe2_mul_s #(
   .FE_TYPE  ( FE_TYPE  ),
   .CTL_BITS ( CTL_BITS )
 )
-ec_fe2_mul (
+ec_fe2_mul_s (
   .i_clk ( clk ),
   .i_rst ( rst ),
   .o_mul_fe2_if ( mul_fe2_i_if ),

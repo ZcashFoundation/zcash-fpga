@@ -467,47 +467,47 @@ package bls12_381_pkg;
    endfunction
 
    function fe6_t fe6_inv(fe6_t a);
-     fe2_t add_i0, add_i1, sub_i0, mul_i0;
-     fe6_inv[0] = fe2_mul_by_nonresidue(a[2]);
-     fe6_inv[0] = fe2_mul(fe6_inv[0], a[1]);
-     fe6_inv[0] = fe2_sub(0, fe6_inv[0]);
-     add_i0 =  fe2_mul(a[0], a[0]);
-     fe6_inv[0] = fe2_add(add_i0, fe6_inv[0]);
+     fe2_t t0, t1, t2, t3, t4, t5;
 
-     fe6_inv[1] = fe2_mul(a[2], a[2]);
-     fe6_inv[1] = fe2_mul_by_nonresidue(fe6_inv[1]);
-     sub_i0 = fe2_mul(a[0], a[1]);
-     fe6_inv[1] = fe2_sub(fe6_inv[1], sub_i0);
-
-     fe6_inv[2] = fe2_mul(a[1], a[1]);
-     sub_i0 = fe2_mul(a[2], a[0]);
-     fe6_inv[2] = fe2_sub(fe6_inv[2], sub_i0);
-
-     add_i0 = fe2_mul(a[2], fe6_inv[1]);
-     add_i1 = fe2_mul(a[1], fe6_inv[2]);
-     add_i1 = fe2_add(add_i0, add_i1);
-     add_i1 = fe2_mul_by_nonresidue(add_i1);
-     add_i0 = fe2_mul(a[0], fe6_inv[0]);
-     add_i1 = fe2_add(add_i1, add_i0);
-
-     mul_i0 = fe2_inv(add_i1);
-
-     fe6_inv[0] = fe2_mul(fe6_inv[0], mul_i0);
-     fe6_inv[1] = fe2_mul(fe6_inv[1], mul_i0);
-     fe6_inv[2] = fe2_mul(fe6_inv[2], mul_i0);
+     t3 = fe2_mul_by_nonresidue(a[2]);  // 0. [a]
+     t3 = fe2_mul(t3, a[1]); // 1. [0]
+     t3 = fe2_sub(0, t3); // 2. [1]
+     t0 =  fe2_mul(a[0], a[0]); // 3. [a]
+     t3 = fe2_add(t0, t3); // 4. [2,3]
+     t4 = fe2_mul(a[2], a[2]); // 5. [a]
+     t4 = fe2_mul_by_nonresidue(t4); // 6. [5]
+     t2 = fe2_mul(a[0], a[1]); // 7. [a]
+     t4 = fe2_sub(t4, t2); // 8. [6,7]
+     t5 = fe2_mul(a[1], a[1]); // 9. [a]
+     t2 = fe2_mul(a[2], a[0]); // 10. [a, wait 8]
+     t5 = fe2_sub(t5, t2); // 11. [9, 10]
+     t0 = fe2_mul(a[2], t4); // 12. [8, wait 4]
+     t1 = fe2_mul(a[1], t5); // 13. [11]
+     t1 = fe2_add(t0, t1); // 14. [13, 12]
+     t1 = fe2_mul_by_nonresidue(t1); // 15. [14]
+     t0 = fe2_mul(a[0], t3); // 16. [4, wait 14]
+     t1 = fe2_add(t1, t0); // 17. [16, 15]
+     t1 = fe2_inv(t1); // 18. [17]
+     t3 = fe2_mul(t3, t1); // 19. [18, 4]
+     t4 = fe2_mul(t4, t1); // 20. [18, 8]
+     t5 = fe2_mul(t5, t1); // 21. [18, 11]
+     fe6_inv = {t5, t4, t3};
 
    endfunction
 
    function fe12_t fe12_inv(fe12_t a);
-     fe12_t  sub_i0, sub_i1, mul_i0;
-     sub_i0 = fe6_mul(a[0], a[0]);
-     sub_i1 = fe6_mul(a[1], a[1]);
-     sub_i1 = fe6_mul_by_nonresidue(sub_i1);
-     sub_i0 = fe6_sub(sub_i0,sub_i1);
-     sub_i0 = fe6_inv(sub_i0);
-     fe12_inv[0] = fe6_mul(a[0], sub_i0);
-     fe12_inv[1] = fe6_mul(a[1], sub_i0);
-     fe12_inv[1] = fe6_sub(0, fe12_inv[1]);
+     fe6_t  t0, t1;
+     
+     t0 = fe6_mul(a[0], a[0]);    // 0. [a]
+     t1 = fe6_mul(a[1], a[1]); // 1. [a]
+     t1 = fe6_mul_by_nonresidue(t1); // 2. [1]
+     t0 = fe6_sub(t0, t1); // 3. [0, 2]
+     t0 = fe6_inv(t0); // 4. [3]
+     t1 = fe6_mul(a[0], t0); // 5. [4]
+     t0 = fe6_mul(a[1], t0); // 6. [4, wait 5]
+     t0 = fe6_sub(0, t0); // 7. [6]
+     fe12_inv[0] = t1;
+     fe12_inv[1] = t0;
    endfunction
 
    function fe6_t fe6_add(fe6_t a, b);
@@ -571,34 +571,34 @@ package bls12_381_pkg;
      fe6_t aa, bb;
      aa = fe6_mul(a[0], b[0]);  // 0. add_i0 = mul(a[0], b[0])
      bb = fe6_mul(a[1], b[1]);  // 1. bb = mul(a[1], b[1])
-     
+
      fe12_mul[1] = fe6_add(a[1], a[0]); // 2. fe6_mul[1] = add(a[1], a[0])
      fe12_mul[0] = fe6_add(b[0], b[1]);  // 3. fe6_mul[0] = add(b[0], b[1])
-     
+
      fe12_mul[1] = fe6_mul(fe12_mul[1], fe12_mul[0]); // 4. fe6_mul[1] = mul(fe6_mul[1], fe6_mul[0])  [2, 3]
-     
+
      fe12_mul[1] = fe6_sub(fe12_mul[1], aa); // 5. fe6_mul[1] = sub(fe6_mul[1], add_i0) [4, 0]
      fe12_mul[1] = fe6_sub(fe12_mul[1], bb); // 6. fe6_mul[1] = sub(fe6_mul[1], bb) [5, 1]
 
      bb = fe6_mul_by_nonresidue(bb); // 7. bb = mnr(bb) [6]
-     
+
      fe12_mul[0] = fe6_add(bb, aa); // 8. fe6_mul[0] = add(add_i0, bb) [0, 1, 7]
    endfunction
 
    function fe12_t fe12_sqr(fe12_t a);
      fe6_t ab, c0c1;
-     
+
      ab = fe6_mul(a[0], a[1]);  // 0.
      c0c1 = fe6_add(a[0], a[1]);  // 1.   (wait eq0)
-     
+
      fe12_sqr[0] = fe6_mul_by_nonresidue(a[1]);
-     
+
      fe12_sqr[0] = fe6_add(fe12_sqr[0], a[0]);
      fe12_sqr[0] = fe6_mul(fe12_sqr[0], c0c1);
-     
+
      fe12_sqr[0] = fe6_sub(fe12_sqr[0], ab);
      fe12_sqr[1] = fe6_add(ab, ab);
-     
+
      ab = fe6_mul_by_nonresidue(ab);
      fe12_sqr[0] = fe6_sub(fe12_sqr[0], ab);
    endfunction
@@ -821,9 +821,7 @@ package bls12_381_pkg;
 
      y0 = fe12_mul(r, r);
 
-
      y1 = fe12_pow(y0, bls_x);
-
 
      bls_x = bls_x >> 1;
      y2 = fe12_pow(y1, bls_x);
@@ -837,8 +835,6 @@ package bls12_381_pkg;
 
      y2 = fe12_pow(y1, bls_x);
      y3 = fe12_pow(y2, bls_x);
-
-
 
      y1[1] = fe6_sub(0, y1[1]);
      y3 = fe12_mul(y3, y1);

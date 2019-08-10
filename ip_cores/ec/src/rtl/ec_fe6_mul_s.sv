@@ -23,7 +23,6 @@ module ec_fe6_mul_s
   parameter type FE_TYPE,
   parameter type FE2_TYPE,
   parameter type FE6_TYPE,
-  parameter CTL_BITS    = 14,
   parameter OVR_WRT_BIT = 8       // From this bit 4 bits are used for internal control, 2 bits for resource sharing - 6 total
 )(
   input i_clk, i_rst,
