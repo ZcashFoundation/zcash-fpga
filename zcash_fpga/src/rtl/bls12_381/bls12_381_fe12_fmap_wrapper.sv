@@ -25,7 +25,7 @@ module bls12_381_fe12_fmap_wrapper
 #(
   parameter type FE_TYPE = fe_t,     
   parameter      CTL_BITS    = 12,
-  parameter      CTL_BIT_POW = 8         // This is where we encode the power value with 2 bits - only 0,1,2,3 are supported - 1 extra bit required after this for control
+  parameter      CTL_BIT_POW = 8         // This is where we encode the power value with 2 bits - only 0,1,2,3 are supported - 5 extra bits required after this for control
 )(
   input i_clk, i_rst,
   // Input/Output intefaces for fmap result, FE_TYPE data width
@@ -49,9 +49,9 @@ if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) fmap_fe2_if_o (i
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) fmap_fe2_if_i (i_clk);
 
 bls12_381_fe2_fmap #(
-  .FE_TYPE     ( FE_TYPE     ),
-  .CTL_BITS    ( CTL_BITS    ),
-  .CTL_BIT_POW ( CTL_BIT_POW )
+  .FE_TYPE     ( FE_TYPE         ),
+  .OVR_WRT_BIT ( CTL_BIT_POW + 2 ),  // 3 bits control
+  .CTL_BIT_POW ( CTL_BIT_POW     )
 )
 bls12_381_fe2_fmap (
   .i_clk ( i_clk ),
@@ -63,9 +63,9 @@ bls12_381_fe2_fmap (
 );
 
 bls12_381_fe6_fmap #(
-  .FE_TYPE     ( FE_TYPE     ),
-  .CTL_BITS    ( CTL_BITS    ),
-  .CTL_BIT_POW ( CTL_BIT_POW )
+  .FE_TYPE     ( FE_TYPE         ),
+  .OVR_WRT_BIT ( CTL_BIT_POW + 3 ),  // 3 bits control
+  .CTL_BIT_POW ( CTL_BIT_POW     )
 )
 bls12_381_fe6_fmap (
   .i_clk ( i_clk ),
@@ -80,8 +80,8 @@ bls12_381_fe6_fmap (
 
 bls12_381_fe12_fmap #(
   .FE_TYPE     ( FE_TYPE     ),
-  .CTL_BITS    ( CTL_BITS    ),
-  .CTL_BIT_POW ( CTL_BIT_POW )
+  .OVR_WRT_BIT ( CTL_BIT_POW + 6 ),  // 3 bits control
+  .CTL_BIT_POW ( CTL_BIT_POW     )
 )
 bls12_381_fe12_fmap (
   .i_clk ( i_clk ),
@@ -98,7 +98,7 @@ resource_share # (
   .NUM_IN       ( 2                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
   .CTL_BITS     ( CTL_BITS         ),
-  .OVR_WRT_BIT  ( CTL_BIT_POW+2    ),
+  .OVR_WRT_BIT  ( CTL_BIT_POW+9    ),
   .PIPELINE_IN  ( 0                ),
   .PIPELINE_OUT ( 0                )
 )

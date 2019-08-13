@@ -25,6 +25,7 @@ module ec_fe12_pow_s
 #(
   parameter type FE_TYPE,          // Base field element type
   parameter      POW_BITS,         // Number of bits for the power value (in .ctl of input)
+  parameter      CTL_BIT_POW,      // Where does the power config bit start
   parameter      SQ_BIT            // This bit is set when we are doing a square
 )(
   input i_clk, i_rst,
@@ -81,7 +82,7 @@ always_ff @ (posedge i_clk) begin
           end
           if (i_pow_fe12_if.sop) begin
             o_pow_fe12_if.ctl <= i_pow_fe12_if.ctl;
-            pow <= i_pow_fe12_if.ctl;
+            pow <= i_pow_fe12_if.ctl[CTL_BIT_POW +: POW_BITS];
           end
           a <= {i_pow_fe12_if.dat, a[11:1]};
         end

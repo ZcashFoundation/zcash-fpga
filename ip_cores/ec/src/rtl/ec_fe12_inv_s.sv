@@ -129,7 +129,7 @@ always_ff @ (posedge i_clk) begin
       if (i_inv_fe12_if.eop) begin
         i_inv_fe12_if.rdy <= 0;
         rdy_l <= 1;
-        o_inv_fe6_if.ctl <= i_inv_fe12_if.ctl;
+        o_inv_fe12_if.ctl <= i_inv_fe12_if.ctl;
       end
     end
 

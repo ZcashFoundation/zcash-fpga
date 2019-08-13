@@ -20,11 +20,11 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-module bls12_381_fe2_fmap 
+module bls12_381_fe2_fmap
   import bls12_381_pkg::*;
 #(
-  parameter type FE_TYPE = fe_t,         // Base field element type
-  parameter      CTL_BITS    = 12,
+  parameter type FE_TYPE     = fe_t,     // Base field element type
+  parameter      OVR_WRT_BIT = 0,        // Need 1 bit for control
   parameter      CTL_BIT_POW = 8         // This is where we encode the power value with 2 bits - only 0,1,2,3 are supported
 )(
   input i_clk, i_rst,
@@ -36,49 +36,117 @@ module bls12_381_fe2_fmap
   if_axi_stream.sink   i_mul_fe_if
 );
 
+localparam NUM_OVR_WRT_BIT = 1;
 
-always_comb begin
-  i_fmap_fe2_if.rdy = ~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy);
-  i_mul_fe_if.rdy = ~o_fmap_fe2_if.val || (o_fmap_fe2_if.val && o_fmap_fe2_if.rdy);
-end
+FE_TYPE [1:0] t;
 
+logic [1:0] eq_val, eq_wait;
 logic mul_cnt;
+logic out_cnt;
+logic mul_en;
+logic nxt_mul;
 
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
-    o_fmap_fe2_if.reset_source();
     o_mul_fe_if.reset_source();
-    mul_cnt <= 0;
+    o_fmap_fe2_if.reset_source();
+
+    i_mul_fe_if.rdy <= 0;
+    i_fmap_fe2_if.rdy <= 0;
+    
+    eq_val <= 0;
+    eq_wait <= 0;
+    t <= 0;
+    {mul_cnt, out_cnt} <= 0;
+    {nxt_mul} <= 0;
+    {mul_en} <= 0;
   end else begin
 
-    if (o_mul_fe_if.val && o_mul_fe_if.rdy) o_mul_fe_if.val <= 0;
-    if (o_fmap_fe2_if.val && o_fmap_fe2_if.rdy) o_fmap_fe2_if.val <= 0;
+    i_mul_fe_if.rdy <= 1;
 
-    if (~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy)) begin
-      case(mul_cnt) 
-        0: begin
-          o_mul_fe_if.dat[0 +: $bits(FE_TYPE)] <= i_fmap_fe2_if.dat;
-          o_mul_fe_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= 1;
-        end
-        1: begin
-          o_mul_fe_if.dat <= {i_fmap_fe2_if.dat, FROBENIUS_COEFF_FQ2_C1[i_fmap_fe2_if.ctl[CTL_BIT_POW +: 2]]};
-        end
-      endcase
-      o_mul_fe_if.val <= i_fmap_fe2_if.val;
-      o_mul_fe_if.ctl <= i_fmap_fe2_if.ctl;
-      o_mul_fe_if.sop <= 1;
-      o_mul_fe_if.eop <= 1;
-      mul_cnt <= i_fmap_fe2_if.val ? mul_cnt + 1 : mul_cnt;
-    end
+    if (o_mul_fe_if.rdy) o_mul_fe_if.val <= 0;
+    if (o_fmap_fe2_if.rdy) o_fmap_fe2_if.val <= 0;
+
+    if (~mul_en) get_next_mul();
+
+    if (|eq_wait == 0) i_fmap_fe2_if.rdy <= 1;
 
     if (~o_fmap_fe2_if.val || (o_fmap_fe2_if.val && o_fmap_fe2_if.rdy)) begin
-      o_fmap_fe2_if.val <= i_mul_fe_if.val;
-      o_fmap_fe2_if.eop <= i_mul_fe_if.val ? o_fmap_fe2_if.sop : o_fmap_fe2_if.eop;
-      o_fmap_fe2_if.sop <= i_mul_fe_if.val ? ~o_fmap_fe2_if.sop : o_fmap_fe2_if.sop;
-      o_fmap_fe2_if.dat <= i_mul_fe_if.dat;
-      o_fmap_fe2_if.ctl <= i_mul_fe_if.ctl;
+
+      o_fmap_fe2_if.sop <= out_cnt == 0;
+      o_fmap_fe2_if.eop <= out_cnt == 1;
+
+      case (out_cnt) inside
+        0: o_fmap_fe2_if.dat <= t[0];
+        1: o_fmap_fe2_if.dat <= t[1];
+      endcase
+      
+      if (eq_val[0] && eq_val[1]) begin
+        o_fmap_fe2_if.val <= 1;
+        out_cnt <= out_cnt + 1;
+      end
+
+      if (out_cnt == 1) begin
+        eq_val <= 0;
+        eq_wait <= 0;
+        t <= 0;
+       {mul_cnt, out_cnt} <= 0;
+       {nxt_mul} <= 0;
+       {mul_en} <= 0;
+      end
     end
+
+    // Latch input
+    if (i_fmap_fe2_if.rdy && i_fmap_fe2_if.val) begin
+      t <= {i_fmap_fe2_if.dat, t[1]};
+      if (i_fmap_fe2_if.eop) begin
+        i_fmap_fe2_if.rdy <= 0;
+        eq_val[0] <= 1;
+        eq_wait[0] <= 1;
+        o_fmap_fe2_if.ctl <= i_fmap_fe2_if.ctl;
+      end
+    end
+
+    // Check any results from multiplier
+    if (i_mul_fe_if.val && i_mul_fe_if.rdy) begin
+      if (i_mul_fe_if.eop) eq_val[i_mul_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT]] <= 1;
+      case(i_mul_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT]) inside
+        1: t[1] <= i_mul_fe_if.dat;
+        default: o_fmap_fe2_if.err <= 1;
+      endcase
+    end
+
+    // Issue new multiplies
+    if (mul_en)
+      case(nxt_mul)
+        1: fe_multiply(1, t[1], FROBENIUS_COEFF_FQ2_C1[o_fmap_fe2_if.ctl[CTL_BIT_POW +: 1]]);
+      endcase
+
   end
 end
+
+
+// Task for using mult
+task fe_multiply(input int unsigned ctl, input FE_TYPE a, b);
+  if (~o_mul_fe_if.val || (o_mul_fe_if.val && o_mul_fe_if.rdy)) begin
+    o_mul_fe_if.val <= 1;
+    o_mul_fe_if.sop <= 1;
+    o_mul_fe_if.eop <= 1;
+    o_mul_fe_if.dat[0 +: $bits(FE_TYPE)] <= a;
+    o_mul_fe_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)] <= b;
+    o_mul_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT_BIT] <= ctl;
+    eq_wait[ctl] <= 1;
+    mul_en <= 0;
+  end
+endtask
+
+
+task get_next_mul();
+  mul_en <= 1;
+  if(~eq_wait[1] && eq_val[0])
+    nxt_mul <= 1;
+  else
+    mul_en <= 0;
+endtask
 
 endmodule

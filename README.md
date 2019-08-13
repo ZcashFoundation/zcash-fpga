@@ -1,6 +1,8 @@
 The work in this repo is the result of a Zcash foundation grant to develop open-source FPGA code that can be used to accelerate various aspects of the network.
 **An Architecture document is [here](zcash_fpga_design_doc_v1.1.x.pdf)**.
 
+While mainly developed for Equihash and the secp256k1 and bls12-381 curves, the code used in this repo can also be applied with minimum modification to other curves.
+
 ** Currently still a work in progress
 
 # Repo folder structure
@@ -39,9 +41,13 @@ These contain shared IP cores used by the projects in this repo. These include m
   - Both a fully pipelined high performance version and a slower but smaller resource utilization version
 * Addition and subtraction modules
   - Fully parameterized so that they can be used for large bit-width arithmetic
+* Extended Euclidean algorithm for calculating multiplicative inverses
 * Resource arbitrators
-* General purpose elliptical curve point modules
-  - Supports point multiplication, addition, doubling in Fp and Fp^2
+* General purpose elliptical curve point and element modules
+  - Point multiplication, doubling, adding up to Fp^12 (towered over Fp^6 and Fp^2)
+  - Element inversion
+  - Multiplication by non-residue for use in towering
+  - Exponentiation of Fp^12 elements
 
 ## zcash_fpga
 
@@ -55,4 +61,7 @@ It optionally contains the following top-level engines (you can include in a bui
   - Signature verification calculates multiple EC point operations in parallel, using a resource-shared single fully pipelined karabutsa multiplier and quick modulo reduction technique
 * BLS12-381 Coprocessor (zk-SNARK accelerator)
   - General arithmetic over bls12-381 curve
-  - Dual Point multiplication in Fp and Fp^2
+  - Dual Point multiplication in Fp and Fp^2 (G1 and G2)
+  - Frobenius map operations
+  - The ate pairing
+    - Miller loop and final exponentiation stage

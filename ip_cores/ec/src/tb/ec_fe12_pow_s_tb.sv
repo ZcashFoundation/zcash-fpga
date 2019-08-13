@@ -196,6 +196,7 @@ ec_fe12_mul_s (
 
 ec_fe12_pow_s #(
   .FE_TYPE  ( FE_TYPE  ),
+  .CTL_BIT_POW ( 0     ),
   .POW_BITS ( POW_BITS ),
   .SQ_BIT   ( SQ_BIT   )
 )

@@ -113,7 +113,7 @@ resource_share # (
   .NUM_IN       ( 2                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
   .CTL_BITS     ( CTL_BITS         ),
-  .OVR_WRT_BIT  ( 4                ),
+  .OVR_WRT_BIT  ( 16                ),
   .PIPELINE_IN  ( 0                ),
   .PIPELINE_OUT ( 0                )
 )
@@ -180,6 +180,7 @@ task test();
       print_fe12(f_exp);
       $fatal(1, "%m %t ERROR: output was wrong", $time);
     end
+    
     $display("test OK with pow=%d", pow);
   end
   $display("test PASSED");

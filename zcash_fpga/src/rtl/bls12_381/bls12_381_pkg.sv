@@ -497,7 +497,7 @@ package bls12_381_pkg;
 
    function fe12_t fe12_inv(fe12_t a);
      fe6_t  t0, t1;
-     
+
      t0 = fe6_mul(a[0], a[0]);    // 0. [a]
      t1 = fe6_mul(a[1], a[1]); // 1. [a]
      t1 = fe6_mul_by_nonresidue(t1); // 2. [1]
@@ -769,25 +769,37 @@ package bls12_381_pkg;
    endtask
 
    function fe2_t fe2_fmap(input fe2_t a, input int pow);
-     fe2_fmap[0] = a[0];
-     fe2_fmap[1] = fe_mul(a[1], FROBENIUS_COEFF_FQ2_C1[pow % 2]);
+     fe_t t0, t1;
+     t0 = a[0];
+     t1 = a[1]; // 0.
+     t1 = fe_mul(t1, FROBENIUS_COEFF_FQ2_C1[pow % 2]); // 1. [0]
+     fe2_fmap = {t1, t0};
    endfunction
 
    function fe6_t fe6_fmap(input fe6_t a, input int pow);
-     fe6_fmap[0] = fe2_fmap(a[0], pow);
-     fe6_fmap[1] = fe2_fmap(a[1], pow);
-     fe6_fmap[2] = fe2_fmap(a[2], pow);
-     fe6_fmap[1] = fe2_mul(fe6_fmap[1], FROBENIUS_COEFF_FQ6_C1[pow % 6]);
-     fe6_fmap[2] = fe2_mul(fe6_fmap[2], FROBENIUS_COEFF_FQ6_C2[pow % 6]);
+     fe2_t t0, t1, t2;
+     t0 = a[0];
+     t1 = a[1];
+     t2 = a[2]; // 0.
+     t0 = fe2_fmap(t0, pow); // 1. [0]
+     t1 = fe2_fmap(t1, pow); // 2. [0]
+     t2 = fe2_fmap(t2, pow); // 3. [0]
+     t1 = fe2_mul(t1, FROBENIUS_COEFF_FQ6_C1[pow % 6]); // 4. [2]
+     t2 = fe2_mul(t2, FROBENIUS_COEFF_FQ6_C2[pow % 6]); // 5. [3]
+     fe6_fmap = {t2, t1, t0};
    endfunction
 
 
    function fe12_t fe12_fmap(input fe12_t a, input int pow);
-     fe12_fmap[0] = fe6_fmap(a[0], pow);
-     fe12_fmap[1] = fe6_fmap(a[1], pow);
-     fe12_fmap[1][0] = fe2_mul(fe12_fmap[1][0], FROBENIUS_COEFF_FQ12_C1[pow % 12]);
-     fe12_fmap[1][1] = fe2_mul(fe12_fmap[1][1], FROBENIUS_COEFF_FQ12_C1[pow % 12]);
-     fe12_fmap[1][2] = fe2_mul(fe12_fmap[1][2], FROBENIUS_COEFF_FQ12_C1[pow % 12]);
+     fe6_t t0, t1;
+     t0 = a[0];
+     t1 = a[1]; // 0. 
+     t0 = fe6_fmap(t0, pow); // 1. [0]
+     t1 = fe6_fmap(t1, pow); // 2. [0]
+     t1[0] = fe2_mul(t1[0], FROBENIUS_COEFF_FQ12_C1[pow % 12]); // 3. [2]
+     t1[1] = fe2_mul(t1[1], FROBENIUS_COEFF_FQ12_C1[pow % 12]); // 4. [2]
+     t1[2] = fe2_mul(t1[2], FROBENIUS_COEFF_FQ12_C1[pow % 12]); // 5. [2]
+     fe12_fmap = {t1, t0};
    endfunction
 
    // Max size is 1024 bit number
@@ -806,56 +818,51 @@ package bls12_381_pkg;
 
    // Calculates the final exponent used in ate pairing
    task automatic final_exponent(ref fe12_t f);
-     fe12_t mul_i1, y0, y1, y2, y3, r, r_inv;
+     fe12_t t0, t1, t2, t3, t4;
      logic [63:0] bls_x;
+
      bls_x = ATE_X;
 
-     r = f;
-     r[1] = fe6_sub(0, r[1]);
-     r_inv = fe12_inv(r);
-     r = fe12_mul(f, r_inv);
+     t4 = f; // 0. [val]
+     t0 = f; // 1. [val]
+     t4[1] = fe6_sub(0, t4[1]); // 2. [0]
+     t3 = fe12_inv(t4); // 3. [2]
+     t4 = fe12_mul(t0, t3); // 4. [3]
+     t2 = fe12_fmap(t4, 2); // 5. [4]
+     t4 = fe12_mul(t2, t4); // 6. [4,5]
+     t0 = fe12_mul(t4, t4); // 7. [6]
+     t1 = fe12_pow(t0, bls_x); // 8. [7]
 
-     mul_i1 = fe12_fmap(r, 2);
+     t2 = fe12_pow(t1, bls_x >> 1); // 9. [8]
+     t3[1] = fe6_sub(0, t4[1]); // 10. [6]
+     t1 = fe12_mul(t1, {t3[1], t4[0]}); // 11. [wait 9, 6, 10]
+     t1[1] = fe6_sub(0, t1[1]); // 12 . [11]
+     
+     t1 = fe12_mul(t1, t2); // 13. [12, 9]
+     t2 = fe12_pow(t1, bls_x); // 14. [13]
+     t3 = fe12_pow(t2, bls_x); // 15. [14]
+     
+     t1[1] = fe6_sub(0, t1[1]); // 16. [wait 14, 13]
+     t3 = fe12_mul(t3, t1); // 17. [15, 16]
+     
+     t1[1] = fe6_sub(0, t1[1]); // 18. [wait 17]
+     t1 = fe12_fmap(t1, 3); // 19. [18]
+     t2 = fe12_fmap(t2, 2); // 20. [wait 15]
+     
+     
+     t1 = fe12_mul(t1, t2); // 21. [20, 19]
+     t2 = fe12_pow(t3, bls_x); // 22. [17, wait 21]
 
-     r = fe12_mul(mul_i1, r);
 
-     y0 = fe12_mul(r, r);
+     t2 = fe12_mul(t2, t0); // 23. [22, 7]
 
-     y1 = fe12_pow(y0, bls_x);
+     t2 = fe12_mul(t2, t4); // 24. [23, 6]
+     t1 = fe12_mul(t1, t2); // 25. [21, 24]
 
-     bls_x = bls_x >> 1;
-     y2 = fe12_pow(y1, bls_x);
-     bls_x = bls_x << 1;
+     t2 = fe12_fmap(t3, 1); //26. [wait 25, 17]
+     t1 = fe12_mul(t1, t2); // 27. [25, 26]
 
-     y3 = r;
-     y3[1] = fe6_sub(0, y3[1]);
-     y1 = fe12_mul(y1, y3);
-     y1[1] = fe6_sub(0, y1[1]);
-     y1 = fe12_mul(y1, y2);
-
-     y2 = fe12_pow(y1, bls_x);
-     y3 = fe12_pow(y2, bls_x);
-
-     y1[1] = fe6_sub(0, y1[1]);
-     y3 = fe12_mul(y3, y1);
-
-     y1[1] = fe6_sub(0, y1[1]);
-     y1 = fe12_fmap(y1, 3);
-
-     y2 = fe12_fmap(y2, 2);
-     y1 = fe12_mul(y1, y2);
-
-     y2 = fe12_pow(y3, bls_x);
-
-     y2 = fe12_mul(y2, y0);
-
-     y2 = fe12_mul(y2, r);
-     y1 = fe12_mul(y1, y2);
-
-     y2 = fe12_fmap(y3, 1);
-     y1 = fe12_mul(y1, y2);
-
-     f = y1;
+     f = t1;
    endtask
 
 
