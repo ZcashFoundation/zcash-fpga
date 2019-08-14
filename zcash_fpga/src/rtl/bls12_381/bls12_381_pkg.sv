@@ -654,7 +654,6 @@ package bls12_381_pkg;
      t3 = fe2_add(t3, t3); // 10. [9]
 
      t6 = fe2_add(R.x, t4); // 11. [3]
-
      t5 = fe2_mul(t4, t4); // 12. [3]
 
      R.x = fe2_sub(t5, t3); // 13. [12, 10]
@@ -896,20 +895,25 @@ package bls12_381_pkg;
    endtask
 
    task print_jb_point(jb_point_t p);
-     $display("x:%h", p.x);
-     $display("y:%h", p.y);
-     $display("z:%h", p.z);
+     $display("x:0x%h", p.x);
+     $display("y:0x%h", p.y);
+     $display("z:0x%h", p.z);
    endtask
 
    task print_fp2_jb_point(fp2_jb_point_t p);
-     $display("x:(c1:%h, c0:%h)", p.x[1], p.x[0]);
-     $display("y:(c1:%h, c0:%h)", p.y[1], p.y[0]);
-     $display("z:(c1:%h, c0:%h)", p.z[1], p.z[0]);
+     $display("x:(c1:0x%h, c0:0x%h)", p.x[1], p.x[0]);
+     $display("y:(c1:0x%h, c0:0x%h)", p.y[1], p.y[0]);
+     $display("z:(c1:0x%h, c0:0x%h)", p.z[1], p.z[0]);
    endtask
+   
+   task print_af_point(af_point_t p);
+     $display("x:(0x%h)", p.x);
+     $display("y:(0x%h)", p.y);
+   endtask  
 
    task print_fp2_af_point(fp2_af_point_t p);
-     $display("x:(c1:%h, c0:%h)", p.x[1], p.x[0]);
-     $display("y:(c1:%h, c0:%h)", p.y[1], p.y[0]);
+     $display("x:(c1:0x%h, c0:0x%h)", p.x[1], p.x[0]);
+     $display("y:(c1:0x%h, c0:0x%h)", p.y[1], p.y[0]);
    endtask
 
 endpackage

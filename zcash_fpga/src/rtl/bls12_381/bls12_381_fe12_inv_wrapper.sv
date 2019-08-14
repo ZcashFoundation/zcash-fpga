@@ -84,7 +84,7 @@ ec_fe2_inv_s(
   .o_inv_fe2_if ( inv_fe2_i_if   ),
   .i_inv_fe2_if ( inv_fe2_o_if   ),
   .o_inv_fe_if  ( inv_fe_o_if    ),
-  .i_inv_fe_if  ( inv_fe_i_if    ),  //
+  .i_inv_fe_if  ( inv_fe_i_if    ),
   .o_mul_fe_if  ( mul_fe_o_if[0] ),
   .i_mul_fe_if  ( mul_fe_i_if[0] ),
   .o_add_fe_if  ( add_fe_o_if[0] ),

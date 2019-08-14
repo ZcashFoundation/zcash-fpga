@@ -33,8 +33,10 @@ module bls12_381_pairing
   parameter type G2_FP_AF_TYPE = fp2_af_point_t,
   parameter type G2_FP_JB_TYPE = fp2_jb_point_t,
   parameter CTL_BITS = 32,
-  parameter OVR_WRT_BIT = 8, // We override 16 bits from here
-  parameter SQ_BIT = OVR_WRT_BIT + 2 // We can re-use this bit as it is not used by multiplier
+  parameter OVR_WRT_BIT = 8,             // We override 16 bits from here for internal control
+  parameter SQ_BIT = OVR_WRT_BIT + 16,   // We can re-use this bit as it is not used by multiplier
+  parameter FMAP_BIT = OVR_WRT_BIT + 17, // Bit used to store power for fmap operation
+  parameter POW_BIT  = OVR_WRT_BIT + 19  // These bits hold the value for the exponentiation (need $bits(bls12_381_pkg::ATE_X), 64 bits)
 )(
   input i_clk, i_rst,
   // Inputs
@@ -57,24 +59,33 @@ module bls12_381_pairing
   if_axi_stream.sink   i_sub_fe_if,
   // Interface to FE12_TYPE multiplier (mod P)
   if_axi_stream.source o_mul_fe12_if,
-  if_axi_stream.sink   i_mul_fe12_if
+  if_axi_stream.sink   i_mul_fe12_if,
+  // Interface to FE12_TYPE exponentiation (mod P)
+  if_axi_stream.source o_pow_fe12_if,
+  if_axi_stream.sink   i_pow_fe12_if,
+  // Interface to FE12_TYPE frobenius map (mod P)
+  if_axi_stream.source o_fmap_fe12_if,
+  if_axi_stream.sink   i_fmap_fe12_if,
+   // Interface to FE12_TYPE inversion (mod P)
+  if_axi_stream.source o_inv_fe12_if,
+  if_axi_stream.sink   i_inv_fe12_if
 );
 
-FE_TYPE temp_a, temp_b;
-always_comb begin
-  temp_a = o_mul_fe12_if.dat[0 +: $bits(FE_TYPE)];
-  temp_b = o_mul_fe12_if.dat[$bits(FE_TYPE) +: $bits(FE_TYPE)];
-end
 
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe_i_if [1:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe_o_if [1:0] (i_clk);
+
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe12_o_if [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe12_i_if [1:0] (i_clk);
 
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe2_i_if [1:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe2_o_if [1:0] (i_clk);
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) add_fe_i_if [1:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   add_fe_o_if [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) sub_fe_i_if [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   sub_fe_o_if [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) sub_fe_i_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   sub_fe_o_if [2:0] (i_clk);
+
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) final_exp_fe12_o_if (i_clk);
 
 
 logic dbl_i_val, dbl_o_rdy;
@@ -99,17 +110,24 @@ logic f_val;
 logic [3:0] out_cnt;
 
 always_comb begin
-  dbl_f12_o_if.rdy = f_val && (~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
-  add_f12_o_if.rdy = f_val && (~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
+  dbl_f12_o_if.rdy = f_val && (~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
+  add_f12_o_if.rdy = f_val && (~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
+
+  final_exp_fe12_o_if.dat = f[0][0][0];
+  final_exp_fe12_o_if.err = 0;
+  final_exp_fe12_o_if.ctl = 0;
+  final_exp_fe12_o_if.mod = 0;
 end
 
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
-    o_fe12_if.reset_source();
+    final_exp_fe12_o_if.val <= 0;
+    final_exp_fe12_o_if.sop <= 0;
+    final_exp_fe12_o_if.eop <= 0;
     g1_af_i <= 0;
     g2_r_jb_i <= 0;
-    i_mul_fe12_if.rdy <= 0;
-    o_mul_fe12_if.reset_source();
+    mul_fe12_i_if[0].rdy <= 0;
+    mul_fe12_o_if[0].reset_source();
     pair_state <= IDLE;
     add_i_val <= 0;
     dbl_i_val <= 0;
@@ -124,15 +142,15 @@ always_ff @ (posedge i_clk) begin
     out_cnt <= 0;
   end else begin
 
-    if (o_fe12_if.rdy) o_fe12_if.val <= 0;
     if (add_o_rdy) add_i_val <= 0;
     if (dbl_o_rdy) dbl_i_val <= 0;
-    if (o_mul_fe12_if.rdy) o_mul_fe12_if.val <= 0;
+    if (mul_fe12_o_if[0].rdy) mul_fe12_o_if[0].val <= 0;
+    if (final_exp_fe12_o_if.rdy) final_exp_fe12_o_if.val <= 0;
 
-    i_mul_fe12_if.rdy <= 1;
-    if (i_mul_fe12_if.val && i_mul_fe12_if.rdy) begin
-      f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
-      f_val <= i_mul_fe12_if.eop;
+    mul_fe12_i_if[0].rdy <= 1;
+    if (mul_fe12_i_if[0].val && mul_fe12_i_if[0].rdy) begin
+      f <= {mul_fe12_i_if[0].dat, f[1], f[0][2:1], f[0][0][1]};
+      f_val <= mul_fe12_i_if[0].eop;
     end
 
     case(pair_state)
@@ -177,15 +195,15 @@ always_ff @ (posedge i_clk) begin
         // Also three multiplications
         case(miller_mult_cnt)
           0: begin // Square first
-            if(~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) begin
-              o_mul_fe12_if.val <= 1;
-              o_mul_fe12_if.sop <= out_cnt == 0;
-              o_mul_fe12_if.eop <= out_cnt == 11;
-              o_mul_fe12_if.dat <= {f[0][0][0], f[0][0][0]}; //square
-              o_mul_fe12_if.ctl <= miller_mult_cnt;
-              o_mul_fe12_if.ctl[SQ_BIT] <= 1;
+            if(~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) begin
+              mul_fe12_o_if[0].val <= 1;
+              mul_fe12_o_if[0].sop <= out_cnt == 0;
+              mul_fe12_o_if[0].eop <= out_cnt == 11;
+              mul_fe12_o_if[0].dat <= {f[0][0][0], f[0][0][0]}; //square
+              mul_fe12_o_if[0].ctl <= miller_mult_cnt;
+              mul_fe12_o_if[0].ctl[SQ_BIT] <= 1;
               out_cnt <= out_cnt + 1;
-              f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
+              f <= {mul_fe12_i_if[0].dat, f[1], f[0][2:1], f[0][0][1]};
               if (out_cnt == 11) begin
                 out_cnt <= 0;
                 miller_mult_cnt <= 1;
@@ -193,19 +211,19 @@ always_ff @ (posedge i_clk) begin
             end
           end
           1: begin // Multiply by double result
-            if(~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) begin
+            if(~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) begin
               if ((dbl_f12_o_if.val && f_val) || (out_cnt/2 == 5)) begin
-                o_mul_fe12_if.sop <= out_cnt == 0;
-                o_mul_fe12_if.eop <= out_cnt == 11;
-                o_mul_fe12_if.val <= 1;
+                mul_fe12_o_if[0].sop <= out_cnt == 0;
+                mul_fe12_o_if[0].eop <= out_cnt == 11;
+                mul_fe12_o_if[0].val <= 1;
                 case (out_cnt/2) inside
-                  0,1,4: o_mul_fe12_if.dat <= {dbl_f12_o_if.dat, f[0][0][0]};
-                  default: o_mul_fe12_if.dat <= {381'd0, f[0][0][0]};
+                  0,1,4: mul_fe12_o_if[0].dat <= {dbl_f12_o_if.dat, f[0][0][0]};
+                  default: mul_fe12_o_if[0].dat <= {381'd0, f[0][0][0]};
                 endcase
                 out_cnt <= out_cnt + 1;
-                f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
-                o_mul_fe12_if.ctl <= miller_mult_cnt;
-                o_mul_fe12_if.ctl[SQ_BIT] <= 0;
+                f <= {mul_fe12_i_if[0].dat, f[1], f[0][2:1], f[0][0][1]};
+                mul_fe12_o_if[0].ctl <= miller_mult_cnt;
+                mul_fe12_o_if[0].ctl[SQ_BIT] <= 0;
                 if (out_cnt == 11) begin
                   f_val <= 0;
                   out_cnt <= 0;
@@ -215,20 +233,20 @@ always_ff @ (posedge i_clk) begin
             end
           end
           2: begin  // Multiply by add result
-            if(~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy)) begin
+            if(~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) begin
               if ((add_f12_o_if.val && f_val) || (out_cnt/2 == 5)) begin
                 g2_r_jb_i <= add_g2_o;
-                o_mul_fe12_if.ctl <= miller_mult_cnt;
-                o_mul_fe12_if.ctl[SQ_BIT] <= 0;
-                o_mul_fe12_if.sop <= out_cnt == 0;
-                o_mul_fe12_if.eop <= out_cnt == 11;
-                o_mul_fe12_if.val <= 1;
+                mul_fe12_o_if[0].ctl <= miller_mult_cnt;
+                mul_fe12_o_if[0].ctl[SQ_BIT] <= 0;
+                mul_fe12_o_if[0].sop <= out_cnt == 0;
+                mul_fe12_o_if[0].eop <= out_cnt == 11;
+                mul_fe12_o_if[0].val <= 1;
                 out_cnt <= out_cnt + 1;
                 case (out_cnt/2) inside
-                  0,1,4: o_mul_fe12_if.dat <= {add_f12_o_if.dat, f[0][0][0]};
-                  default: o_mul_fe12_if.dat <= {381'd0, f[0][0][0]};
-                endcase                
-                f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
+                  0,1,4: mul_fe12_o_if[0].dat <= {add_f12_o_if.dat, f[0][0][0]};
+                  default: mul_fe12_o_if[0].dat <= {381'd0, f[0][0][0]};
+                endcase
+                f <= {mul_fe12_i_if[0].dat, f[1], f[0][2:1], f[0][0][1]};
                 if (out_cnt == 11) begin
                   f_val <= 0;
                   out_cnt <= 0;
@@ -254,13 +272,12 @@ always_ff @ (posedge i_clk) begin
 
       end
       FINAL_EXP: begin
-        if (~o_fe12_if.val || (o_fe12_if.val && o_fe12_if.rdy)) begin
-          o_fe12_if.dat <= f[0][0][0];
-          o_fe12_if.val <= 1;
-          o_fe12_if.sop <= out_cnt == 0;
-          o_fe12_if.eop <= out_cnt == 11;
+        if (~final_exp_fe12_o_if.val || (final_exp_fe12_o_if.val && final_exp_fe12_o_if.rdy)) begin
+          final_exp_fe12_o_if.val <= 1;
+          final_exp_fe12_o_if.sop <= out_cnt == 0;
+          final_exp_fe12_o_if.eop <= out_cnt == 11;
           out_cnt <= out_cnt + 1;
-          f <= {i_mul_fe12_if.dat, f[1], f[0][2:1], f[0][0][1]};
+          if (final_exp_fe12_o_if.val) f <= {mul_fe12_i_if[0].dat, f[1], f[0][2:1], f[0][0][1]};
           if (out_cnt == 11) begin
             pair_state <= IDLE;
           end
@@ -289,12 +306,12 @@ bls12_381_pairing_miller_dbl (
   .o_g2_jb                 ( dbl_g2_o     ),
   .o_mul_fe2_if ( mul_fe2_i_if[0] ),
   .i_mul_fe2_if ( mul_fe2_o_if[0] ),
-  .o_add_fe_if ( add_fe_i_if[0] ),
-  .i_add_fe_if ( add_fe_o_if[0] ),
-  .o_sub_fe_if ( sub_fe_i_if[0] ),
-  .i_sub_fe_if ( sub_fe_o_if[0] ),
-  .o_mul_fe_if ( mul_fe_i_if[0] ),
-  .i_mul_fe_if ( mul_fe_o_if[0] )
+  .o_add_fe_if  ( add_fe_i_if[0]  ),
+  .i_add_fe_if  ( add_fe_o_if[0]  ),
+  .o_sub_fe_if  ( sub_fe_i_if[0]  ),
+  .i_sub_fe_if  ( sub_fe_o_if[0]  ),
+  .o_mul_fe_if  ( mul_fe_i_if[0]  ),
+  .i_mul_fe_if  ( mul_fe_o_if[0]  )
 );
 
 bls12_381_pairing_miller_add #(
@@ -313,23 +330,63 @@ bls12_381_pairing_miller_add (
   .i_g1_af       ( g1_af_i   ),
   .i_g2_jb       ( dbl_g2_o  ),
   .i_g2_q_af     ( g2_af_i   ),
-  .o_res_fe12_sparse_if    ( add_f12_o_if ),
-  .o_g2_jb                 ( add_g2_o     ),
+  .o_res_fe12_sparse_if ( add_f12_o_if ),
+  .o_g2_jb              ( add_g2_o     ),
   .o_mul_fe2_if ( mul_fe2_i_if[1] ),
   .i_mul_fe2_if ( mul_fe2_o_if[1] ),
-  .o_add_fe_if ( add_fe_i_if[1] ),
-  .i_add_fe_if ( add_fe_o_if[1] ),
-  .o_sub_fe_if ( sub_fe_i_if[1] ),
-  .i_sub_fe_if ( sub_fe_o_if[1] ),
-  .o_mul_fe_if ( mul_fe_i_if[1] ),
-  .i_mul_fe_if ( mul_fe_o_if[1] )
+  .o_add_fe_if  ( add_fe_i_if[1]  ),
+  .i_add_fe_if  ( add_fe_o_if[1]  ),
+  .o_sub_fe_if  ( sub_fe_i_if[1]  ),
+  .i_sub_fe_if  ( sub_fe_o_if[1]  ),
+  .o_mul_fe_if  ( mul_fe_i_if[1]  ),
+  .i_mul_fe_if  ( mul_fe_o_if[1]  )
+);
+
+bls12_381_final_exponent #(
+  .OVR_WRT_BIT ( OVR_WRT_BIT ), // Control can overlap
+  .FMAP_BIT    ( FMAP_BIT    ),
+  .POW_BIT     ( POW_BIT     ),
+  .SQ_BIT      ( SQ_BIT      )
+)
+bls12_381_final_exponent (
+  .i_clk ( i_clk ),
+  .i_rst ( i_rst ),
+  .o_mul_fe12_if       ( mul_fe12_o_if[1]    ),
+  .i_mul_fe12_if       ( mul_fe12_i_if[1]    ),
+  .o_pow_fe12_if       ( o_pow_fe12_if       ),
+  .i_pow_fe12_if       ( i_pow_fe12_if       ),
+  .o_fmap_fe12_if      ( o_fmap_fe12_if      ),
+  .i_fmap_fe12_if      ( i_fmap_fe12_if      ),
+  .o_inv_fe12_if       ( o_inv_fe12_if       ),
+  .i_inv_fe12_if       ( i_inv_fe12_if       ),
+  .o_sub_fe_if         ( sub_fe_i_if[2]      ),
+  .i_sub_fe_if         ( sub_fe_o_if[2]      ),
+  .o_final_exp_fe12_if ( o_fe12_if           ),
+  .i_final_exp_fe12_if ( final_exp_fe12_o_if )
+);
+
+resource_share # (
+  .NUM_IN       ( 2                 ),
+  .DAT_BITS     ( 2*$bits(FE_TYPE)  ),
+  .CTL_BITS     ( CTL_BITS          ),
+  .OVR_WRT_BIT  ( OVR_WRT_BIT + 12  ),
+  .PIPELINE_IN  ( 0                 ),
+  .PIPELINE_OUT ( 0                 )
+)
+resource_share_fe12_mul (
+  .i_clk ( i_clk ),
+  .i_rst ( i_rst ),
+  .i_axi ( mul_fe12_o_if[1:0] ),
+  .o_res ( o_mul_fe12_if      ),
+  .i_res ( i_mul_fe12_if      ),
+  .o_axi ( mul_fe12_i_if[1:0] )
 );
 
 resource_share # (
   .NUM_IN       ( 2                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
   .CTL_BITS     ( CTL_BITS         ),
-  .OVR_WRT_BIT  ( OVR_WRT_BIT + 8  ),
+  .OVR_WRT_BIT  ( OVR_WRT_BIT + 10 ),
   .PIPELINE_IN  ( 0                ),
   .PIPELINE_OUT ( 0                )
 )
@@ -367,7 +424,7 @@ resource_share # (
   .PIPELINE_IN  ( 0                ),
   .PIPELINE_OUT ( 0                )
 )
-resource_share_fe2_add (
+resource_share_fe_add (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
   .i_axi ( add_fe_i_if[1:0] ),
@@ -377,20 +434,20 @@ resource_share_fe2_add (
 );
 
 resource_share # (
-  .NUM_IN       ( 2                ),
+  .NUM_IN       ( 3                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
   .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( OVR_WRT_BIT + 8  ),
   .PIPELINE_IN  ( 0                ),
   .PIPELINE_OUT ( 0                )
 )
-resource_share_fe2_sub (
+resource_share_fe_sub (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( sub_fe_i_if[1:0] ),
+  .i_axi ( sub_fe_i_if[2:0] ),
   .o_res ( o_sub_fe_if      ),
   .i_res ( i_sub_fe_if      ),
-  .o_axi ( sub_fe_o_if[1:0] )
+  .o_axi ( sub_fe_o_if[2:0] )
 );
 
 

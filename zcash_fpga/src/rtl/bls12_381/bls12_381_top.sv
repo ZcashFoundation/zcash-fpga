@@ -78,10 +78,10 @@ localparam CTL_BITS = 70;
 // 67:32 Pairing engine - TODO conslidate the logic used here with the point multiplication
 if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) mul_in_if [4:0] (i_clk) ;
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   mul_out_if [4:0](i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) add_in_if [4:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   add_out_if [4:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) sub_in_if [4:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   sub_out_if [4:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) add_in_if [3:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   add_out_if [3:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) sub_in_if [3:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   sub_out_if [3:0] (i_clk);
 
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_i_if(i_clk);
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_o_if(i_clk);
@@ -356,11 +356,7 @@ bls12_381_pairing_wrapper (
   .i_g2_af ( pair_i_g2 ),
   .o_fe12_if ( pair_o_res_if ),
   .o_mul_fe_if ( mul_in_if[3]  ),
-  .i_mul_fe_if ( mul_out_if[3] ),
-  .o_add_fe_if ( add_in_if[3]  ),
-  .i_add_fe_if ( add_out_if[3] ),
-  .o_sub_fe_if ( sub_in_if[3]  ),
-  .i_sub_fe_if ( sub_out_if[3] )
+  .i_mul_fe_if ( mul_out_if[3] )
 );
 
 resource_share # (
@@ -381,7 +377,7 @@ resource_share_mul (
 );
 
 resource_share # (
-  .NUM_IN       ( 4  ),
+  .NUM_IN       ( 3  ),
   .DAT_BITS     ( 2*$bits(bls12_381_pkg::fe_t) ),
   .CTL_BITS     ( CTL_BITS ),
   .OVR_WRT_BIT  ( 24 ),
@@ -391,14 +387,14 @@ resource_share # (
 resource_share_sub (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( sub_in_if[3:0]  ),
-  .o_res ( sub_in_if[4]    ),
-  .i_res ( sub_out_if[4]   ),
-  .o_axi ( sub_out_if[3:0] )
+  .i_axi ( sub_in_if[2:0]  ),
+  .o_res ( sub_in_if[3]    ),
+  .i_res ( sub_out_if[3]   ),
+  .o_axi ( sub_out_if[2:0] )
 );
 
 resource_share # (
-  .NUM_IN       ( 4  ),
+  .NUM_IN       ( 3  ),
   .DAT_BITS     ( 2*$bits(bls12_381_pkg::fe_t) ),
   .CTL_BITS     ( CTL_BITS ),
   .OVR_WRT_BIT  ( 24 ),
@@ -408,10 +404,10 @@ resource_share # (
 resource_share_add (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( add_in_if[3:0]  ),
-  .o_res ( add_in_if[4]    ),
-  .i_res ( add_out_if[4]   ),
-  .o_axi ( add_out_if[3:0] )
+  .i_axi ( add_in_if[2:0]  ),
+  .o_res ( add_in_if[3]    ),
+  .i_res ( add_out_if[3]   ),
+  .o_axi ( add_out_if[2:0] )
 );
 
 ec_fp_mult_mod #(

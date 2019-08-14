@@ -30,7 +30,7 @@ parameter P              = bls12_381_pkg::P;
 af_point_t G1 = {Gy, Gx};
 fp2_af_point_t G2 = {G2y, G2x};
 
-localparam CTL_BITS = 48;
+localparam CTL_BITS = 84;
 
 localparam CLK_PERIOD = 100;
 
@@ -51,10 +51,6 @@ if_axi_stream #(.DAT_BYTS(($bits(FE_TYPE)+7)/8), .CTL_BITS(CTL_BITS)) out_if(clk
 
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe_o_if(clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe_i_if(clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) add_fe_o_if (clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   add_fe_i_if (clk);
-if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) sub_fe_o_if (clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   sub_fe_i_if (clk);
 
 ec_fp_mult_mod #(
   .P             ( P        ),
@@ -66,32 +62,6 @@ ec_fp_mult_mod (
   .i_rst( rst          ),
   .i_mul ( mul_fe_o_if ),
   .o_mul ( mul_fe_i_if )
-);
-
-adder_pipe # (
-  .BITS     ( bls12_381_pkg::DAT_BITS ),
-  .P        ( P        ),
-  .CTL_BITS ( CTL_BITS ),
-  .LEVEL    ( 2        )
-)
-adder_pipe (
-  .i_clk ( clk        ),
-  .i_rst ( rst        ),
-  .i_add ( add_fe_o_if ),
-  .o_add ( add_fe_i_if )
-);
-
-subtractor_pipe # (
-  .BITS     ( bls12_381_pkg::DAT_BITS ),
-  .P        ( P        ),
-  .CTL_BITS ( CTL_BITS ),
-  .LEVEL    ( 2        )
-)
-subtractor_pipe (
-  .i_clk ( clk        ),
-  .i_rst ( rst        ),
-  .i_sub ( sub_fe_o_if ),
-  .o_sub ( sub_fe_i_if )
 );
 
 bls12_381_pairing_wrapper #(
@@ -107,13 +77,8 @@ bls12_381_pairing_wrapper (
   .i_g2_af ( in_if.dat[$bits(af_point_t) +: $bits(fp2_af_point_t)] ),
   .o_fe12_if ( out_if ),
   .o_mul_fe_if ( mul_fe_o_if ),
-  .i_mul_fe_if ( mul_fe_i_if ),
-  .o_add_fe_if ( add_fe_o_if ),
-  .i_add_fe_if ( add_fe_i_if ),
-  .o_sub_fe_if ( sub_fe_o_if ),
-  .i_sub_fe_if ( sub_fe_i_if )
+  .i_mul_fe_if ( mul_fe_i_if )
 );
-
 
 // This just tests our software model vs a known good result
 task test0();
@@ -144,7 +109,6 @@ task test0();
 
 endtask
 
-
 task test1(input af_point_t G1_p, fp2_af_point_t G2_p);
 begin
   integer signed get_len;
@@ -153,7 +117,7 @@ begin
   FE12_TYPE  f_out, f_exp;
   $display("Running test1 ...");
 
-  miller_loop(G1_p, G2_p, f_exp);
+  ate_pairing(G1_p, G2_p, f_exp);
 
   start_time = $time;
   fork
@@ -182,14 +146,68 @@ begin
 end
 endtask;
 
+task test_linear();
+begin
+  integer signed get_len;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
+  integer start_time, finish_time, n;
+  FE12_TYPE  f_out, f_exp0, f_exp1;
+  af_point_t G1_a, G1_a_n;
+  fp2_af_point_t G1_j, G2_a_n;
+  fp2_af_point_t G2_a;
+  fp2_jb_point_t G2_j;
+  
+  $display("Running test_linear ...");
+  
+  G1_a = {Gy, Gx};
+  G2_a = {G2y, G2x};
+  G1_j = {381'd1, Gy, Gx};
+  G2_j = {381'd1, G2y, G2x};  
+  n = 2;
+  G1_a_n = to_affine(point_mult(n, G1_j));
+  G2_a_n = fp2_to_affine(fp2_point_mult(n, G2_j));
+  
+  ate_pairing(G1_a, G2_a_n, f_exp0);
+  ate_pairing(G1_a_n, G2_a, f_exp1);
+  
+  assert(f_exp0 == f_exp1) else $fatal(1, "Error in test_linear with sw model");
+  
+  start_time = $time;
+  fork
+    in_if.put_stream({G2_a, G1_a_n}, (($bits(af_point_t) + $bits(fp2_af_point_t))+7)/8);
+    out_if.get_stream(get_dat, get_len);
+  join
+  finish_time = $time;
+
+  for (int i = 0; i < 2; i++)
+    for (int j = 0; j < 3; j++)
+      for (int k = 0; k < 2; k++)
+        f_out[i][j][k] = get_dat[(i*6+j*2+k)*384 +: $bits(FE_TYPE)];
+
+  $display("Expected:");
+  print_fe12(f_exp1);
+  $display("Was:");
+  print_fe12(f_out);
+
+  $display("test_linear finished in %d clocks", (finish_time-start_time)/(CLK_PERIOD));
+
+  if (f_exp1 != f_out) begin
+    $fatal(1, "%m %t ERROR: output was wrong", $time);
+  end
+
+  $display("test_linear PASSED");
+end
+endtask;
+
 initial begin
   in_if.reset_source();
   out_if.rdy = 0;
   #100ns;
 
   test0(); // Test SW model
-  test1(G1, G2);
-
+  test1(G1, G2); // Pairing of generators
+  test_linear(); // test linear properties e(n*G1,G2) == e(G1, n*G2), ...
+  
   #1us $finish();
 end
 
