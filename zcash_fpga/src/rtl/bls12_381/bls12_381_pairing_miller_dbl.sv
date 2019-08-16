@@ -36,6 +36,7 @@ module bls12_381_pairing_miller_dbl
   input i_clk, i_rst,
   // Inputs
   input               i_val,
+  input               i_point_mul_mode, // This will only enable the point mult logic
   output logic        o_rdy,
   input G1_FP_AF_TYPE i_g1_af,
   input G2_FP_JB_TYPE i_g2_jb,
@@ -67,6 +68,8 @@ FE2_TYPE [6:0] t;
 logic o_rdy_l;
 logic [2:0] out_cnt;
 
+logic point_mul_mode;
+
 always_ff @ (posedge i_clk) begin
   if (i_rst) begin
     o_mul_fe2_if.reset_source();
@@ -93,7 +96,11 @@ always_ff @ (posedge i_clk) begin
     {nxt_fe2_mul, nxt_fe_add, nxt_fe_sub} <= 0;
     {mul_en, add_en, sub_en} <= 0;
 
+    point_mul_mode <= 0;
+
   end else begin
+
+    point_mul_mode <= i_point_mul_mode;
 
     i_mul_fe2_if.rdy <= 1;
     i_add_fe_if.rdy <= 1;
@@ -108,7 +115,6 @@ always_ff @ (posedge i_clk) begin
     if (i_val && o_rdy) o_rdy <= 0;
 
     if (~o_res_fe12_sparse_if.val || (o_res_fe12_sparse_if.val && o_res_fe12_sparse_if.rdy)) begin
-
       if (eq_val[33] && eq_val[34] && eq_val[35] && eq_val[36] && eq_val[30] &&
           eq_val[14] && eq_val[18] && eq_val[22]) begin
         o_res_fe12_sparse_if.val <= 1;
@@ -132,6 +138,13 @@ always_ff @ (posedge i_clk) begin
         o_rdy_l <= 0;
         out_cnt <= 0;
         {mul_en, add_en, sub_en}  <= 0;
+      end
+
+      if (point_mul_mode == 1 && eq_val[22] && eq_val[18] && eq_val[14] && out_cnt == 0) begin
+        o_res_fe12_sparse_if.val <= 1;
+        o_res_fe12_sparse_if.sop <= 1;
+        o_res_fe12_sparse_if.eop <= 1;
+        out_cnt <= 5;
       end
     end
 
@@ -359,14 +372,17 @@ task get_next_sub();
     nxt_fe_sub <= 19;
   else if (~eq_wait[22] && eq_val[20] && eq_val[21])
     nxt_fe_sub <= 22;
-  else if (~eq_wait[25] && eq_val[24])
-    nxt_fe_sub <= 25;
-  else if (~eq_wait[27] && eq_val[26] && eq_val[1])
-    nxt_fe_sub <= 27;
-  else if (~eq_wait[28] && eq_val[27] && eq_val[12])
-    nxt_fe_sub <= 28;
-  else if (~eq_wait[30] && eq_val[29] && eq_val[28])
-    nxt_fe_sub <= 30;
+  else if (~point_mul_mode)
+    if (~eq_wait[25] && eq_val[24])
+      nxt_fe_sub <= 25;
+    else if (~eq_wait[27] && eq_val[26] && eq_val[1])
+      nxt_fe_sub <= 27;
+    else if (~eq_wait[28] && eq_val[27] && eq_val[12])
+      nxt_fe_sub <= 28;
+    else if (~eq_wait[30] && eq_val[29] && eq_val[28])
+      nxt_fe_sub <= 30;
+    else
+      sub_en <= 0;
   else
     sub_en <= 0;
 endtask
@@ -385,10 +401,13 @@ task get_next_add();
     nxt_fe_add <= 11;
   else if (~eq_wait[15] && i_val && eq_wait[0])
     nxt_fe_add <= 15;
-  else if (~eq_wait[24] && eq_val[23])
-    nxt_fe_add <= 24;
-  else if (~eq_wait[32] && eq_val[31])
-    nxt_fe_add <= 32;
+  else if (~point_mul_mode)
+    if (~eq_wait[24] && eq_val[23])
+      nxt_fe_add <= 24;
+    else if (~eq_wait[32] && eq_val[31])
+      nxt_fe_add <= 32;
+    else
+      add_en <= 0;
   else
     add_en <= 0;
 endtask
@@ -413,14 +432,17 @@ task get_next_fe2_mul();
     nxt_fe2_mul <= 20;
   else if (~eq_wait[21] && eq_wait[9])
     nxt_fe2_mul <= 21;
-  else if (~eq_wait[23] && eq_val[0] && eq_val[2] && eq_wait[14])
-    nxt_fe2_mul <= 23;
-  else if (~eq_wait[26] && eq_val[11])
-    nxt_fe2_mul <= 26;
-  else if (~eq_wait[29] && eq_wait[17] && eq_val[4] && eq_wait[5] && eq_wait[6])
-    nxt_fe2_mul <= 29;
-  else if (~eq_wait[31] && eq_val[0] && eq_val[18] && eq_wait[27] && eq_wait[2] && eq_wait[3] && eq_wait[8])
-    nxt_fe2_mul <= 31;
+  else if (~point_mul_mode)
+    if (~eq_wait[23] && eq_val[0] && eq_val[2] && eq_wait[14])
+      nxt_fe2_mul <= 23;
+    else if (~eq_wait[26] && eq_val[11])
+      nxt_fe2_mul <= 26;
+    else if (~eq_wait[29] && eq_wait[17] && eq_val[4] && eq_wait[5] && eq_wait[6])
+      nxt_fe2_mul <= 29;
+    else if (~eq_wait[31] && eq_val[0] && eq_val[18] && eq_wait[27] && eq_wait[2] && eq_wait[3] && eq_wait[8])
+      nxt_fe2_mul <= 31;
+    else
+      mul_en <= 0;
   else
     mul_en <= 0;
 endtask

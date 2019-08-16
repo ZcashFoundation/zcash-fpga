@@ -83,8 +83,10 @@ if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   ad
 if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) sub_in_if [3:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   sub_out_if [3:0] (i_clk);
 
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_i_if(i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) binv_o_if(i_clk);
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   inv_fe_o_if       (i_clk);
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   inv_fe_i_if       (i_clk);
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   inv_fe2_o_if      (i_clk);
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   inv_fe2_i_if      (i_clk);
 
 logic pair_i_val, pair_o_rdy;
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) pair_o_res_if (i_clk); ;
@@ -122,8 +124,10 @@ always_ff @ (posedge i_clk) begin
     inst_ram_read <= 0;
     data_ram_read <= 0;
     cnt <= 0;
-    binv_i_if.reset_source();
-    binv_o_if.rdy <= 0;
+    inv_fe_o_if.reset_source();
+    inv_fe_i_if.rdy <= 0;
+    inv_fe2_o_if.reset_source();
+    inv_fe2_i_if.rdy <= 0;
     inst_state <= NOOP_WAIT;
     pt_l <= SCALAR;
     new_data <= 0;
@@ -168,12 +172,13 @@ always_ff @ (posedge i_clk) begin
     data_ram_sys_if.we <= 0;
     data_ram_read <= data_ram_read << 1;
 
-    if (fp2_pt_mul_in_if.val && fp2_pt_mul_in_if.rdy) fp2_pt_mul_in_if.val <= 0;
-    if (binv_i_if.val && binv_i_if.rdy) binv_i_if.val <= 0;
-    if (add_in_if[2].val && add_in_if[2].rdy) add_in_if[2].val <= 0;
-    if (sub_in_if[2].val && sub_in_if[2].rdy) sub_in_if[2].val <= 0;
-    if (mul_in_if[2].val && mul_in_if[2].rdy) mul_in_if[2].val <= 0;
-    if (pair_i_val && pair_o_rdy) pair_i_val <= 0;
+    if (fp2_pt_mul_in_if.rdy) fp2_pt_mul_in_if.val <= 0;
+    if (inv_fe_o_if.rdy) inv_fe_o_if.val <= 0;
+    if (inv_fe2_o_if.rdy) inv_fe2_o_if.val <= 0;
+    if (add_in_if[2].rdy) add_in_if[2].val <= 0;
+    if (sub_in_if[2].rdy) sub_in_if[2].val <= 0;
+    if (mul_in_if[2].rdy) mul_in_if[2].val <= 0;
+    if (pair_o_rdy) pair_i_val <= 0;
 
     fp2_pt_mul_out_if.rdy <= 1;
 
@@ -354,9 +359,13 @@ bls12_381_pairing_wrapper (
   .o_rdy ( pair_o_rdy ),
   .i_g1_af ( pair_i_g1 ),
   .i_g2_af ( pair_i_g2 ),
-  .o_fe12_if ( pair_o_res_if ),
-  .o_mul_fe_if ( mul_in_if[3]  ),
-  .i_mul_fe_if ( mul_out_if[3] )
+  .o_fe12_if    ( pair_o_res_if ),
+  .o_mul_fe_if  ( mul_in_if[3]  ),
+  .i_mul_fe_if  ( mul_out_if[3] ),
+  .o_inv_fe2_if ( inv_fe2_i_if  ),
+  .i_inv_fe2_if ( inv_fe2_o_if  ),
+  .o_inv_fe_if  ( inv_fe_i_if   ),
+  .i_inv_fe_if  ( inv_fe_o_if   )
 );
 
 resource_share # (

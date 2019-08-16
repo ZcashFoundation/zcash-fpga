@@ -30,6 +30,8 @@ parameter type FE2_TYPE = bls12_381_pkg::fe2_t;
 parameter KEY_BITS      = bls12_381_pkg::DAT_BITS;
 parameter P             = bls12_381_pkg::P;
 
+parameter CTL_BITS = 64;
+
 `define MULT_FUNC(K, IN_POINT) fp2_point_mult(K, IN_POINT);
 `define PRINT_FUNC(IN_POINT)   print_fp2_jb_point(IN_POINT);
 `define G_POINT                bls12_381_pkg::g2_point
@@ -95,7 +97,8 @@ ec_point_mult (
 ec_fp2_point_add #(
   .FP2_TYPE ( FP_TYPE  ),
   .FE_TYPE  ( FE_TYPE  ),
-  .FE2_TYPE ( FE2_TYPE )
+  .FE2_TYPE ( FE2_TYPE ),
+  .CTL_BITS ( CTL_BITS )
 )
 ec_fp2_point_add (
   .i_clk ( clk ),
@@ -121,7 +124,8 @@ ec_fp2_point_add (
 ec_fp2_point_dbl #(
  .FP2_TYPE ( FP_TYPE  ),
  .FE_TYPE  ( FE_TYPE  ),
- .FE2_TYPE ( FE2_TYPE )
+ .FE2_TYPE ( FE2_TYPE ),
+ .CTL_BITS ( CTL_BITS )
 )
 ec_fp2_point_dbl (
   .i_clk ( clk ),

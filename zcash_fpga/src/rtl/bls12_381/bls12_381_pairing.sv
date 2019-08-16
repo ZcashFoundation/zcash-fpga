@@ -45,6 +45,7 @@ module bls12_381_pairing
   input G1_FP_AF_TYPE i_g1_af,
   input G2_FP_AF_TYPE i_g2_af,
   if_axi_stream.source o_fe12_if,
+  output G2_FP_JB_TYPE o_pt_jb,
   // Interface to FE_TYPE multiplier (mod P)
   if_axi_stream.source o_mul_fe_if,
   if_axi_stream.sink   i_mul_fe_if,
@@ -103,11 +104,15 @@ if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   dbl_f12_o_if (
 logic [$clog2(ATE_X_START)-1:0] ate_loop_cnt;
 logic [1:0] miller_mult_cnt;
 
-enum {IDLE, MILLER_LOOP, FINAL_EXP} pair_state;
+enum {IDLE, POINT_MULT, MILLER_LOOP, FINAL_EXP} pair_state;
 
 FE12_TYPE f;
 logic f_val;
 logic [3:0] out_cnt;
+logic point_mul_mode;
+
+FE_TYPE key;
+logic [$bits(FE_TYPE)/32-1:0] key_zero;
 
 always_comb begin
   dbl_f12_o_if.rdy = f_val && (~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
@@ -117,6 +122,8 @@ always_comb begin
   final_exp_fe12_o_if.err = 0;
   final_exp_fe12_o_if.ctl = 0;
   final_exp_fe12_o_if.mod = 0;
+
+  o_pt_jb = g2_r_jb_i;
 end
 
 always_ff @ (posedge i_clk) begin
@@ -140,6 +147,11 @@ always_ff @ (posedge i_clk) begin
     f <= FE12_one;
     f_val <= 0;
     out_cnt <= 0;
+    point_mul_mode <= 0;
+
+    key <= 0;
+    key_zero <= 0;
+
   end else begin
 
     if (add_o_rdy) add_i_val <= 0;
@@ -156,6 +168,7 @@ always_ff @ (posedge i_clk) begin
     case(pair_state)
       IDLE: begin
         ate_loop_cnt <= ATE_X_START-1;
+        //for (int i = 0key <= ATE_X;
         f <= FE12_one;
         add_i_val <= 0;
         dbl_i_val <= 0;
@@ -167,6 +180,7 @@ always_ff @ (posedge i_clk) begin
         miller_mult_cnt <= 0;
         if (i_val && o_rdy) begin
           pair_state <= MILLER_LOOP;
+          point_mul_mode <= 0;
           o_rdy <= 0;
 
           g1_af_i <= i_g1_af;
@@ -186,6 +200,7 @@ always_ff @ (posedge i_clk) begin
 
         if (wait_dbl && dbl_f12_o_if.val && dbl_f12_o_if.sop && dbl_f12_o_if.rdy) begin
           g2_r_jb_i <= dbl_g2_o;
+          // key[0] == 1?
           if (~wait_add && ATE_X[ate_loop_cnt] == 1) begin
             add_i_val <= 1;
             wait_add <= 1;
@@ -228,6 +243,7 @@ always_ff @ (posedge i_clk) begin
                   f_val <= 0;
                   out_cnt <= 0;
                   miller_mult_cnt <= ATE_X[ate_loop_cnt] == 0 ? 3 : 2;
+                  //key[0] == 0 ?
                 end
               end
             end
@@ -262,6 +278,10 @@ always_ff @ (posedge i_clk) begin
               f_val <= 0;
               wait_add <= 0;
               miller_mult_cnt <= 0;
+              key <= key >> 1;
+              if (&key_zero) begin
+
+              end
               ate_loop_cnt <= ate_loop_cnt - 1;
               if (ate_loop_cnt == 0) begin
                 pair_state <= FINAL_EXP;
@@ -298,10 +318,11 @@ bls12_381_pairing_miller_dbl #(
 bls12_381_pairing_miller_dbl (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_val         ( dbl_i_val ),
-  .o_rdy         ( dbl_o_rdy ),
-  .i_g1_af       ( g1_af_i   ),
-  .i_g2_jb       ( g2_r_jb_i ),
+  .i_val            ( dbl_i_val      ),
+  .i_point_mul_mode ( point_mul_mode ),
+  .o_rdy            ( dbl_o_rdy      ),
+  .i_g1_af          ( g1_af_i        ),
+  .i_g2_jb          ( g2_r_jb_i      ),
   .o_res_fe12_sparse_if    ( dbl_f12_o_if ),
   .o_g2_jb                 ( dbl_g2_o     ),
   .o_mul_fe2_if ( mul_fe2_i_if[0] ),
@@ -325,11 +346,12 @@ bls12_381_pairing_miller_add #(
 bls12_381_pairing_miller_add (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_val         ( add_i_val ),
-  .o_rdy         ( add_o_rdy ),
-  .i_g1_af       ( g1_af_i   ),
-  .i_g2_jb       ( dbl_g2_o  ),
-  .i_g2_q_af     ( g2_af_i   ),
+  .i_val            ( add_i_val     ),
+  .i_point_mul_mode ( point_mul_mode ),
+  .o_rdy            ( add_o_rdy      ),
+  .i_g1_af          ( g1_af_i        ),
+  .i_g2_jb          ( dbl_g2_o       ),
+  .i_g2_q_af        ( g2_af_i        ),
   .o_res_fe12_sparse_if ( add_f12_o_if ),
   .o_g2_jb              ( add_g2_o     ),
   .o_mul_fe2_if ( mul_fe2_i_if[1] ),

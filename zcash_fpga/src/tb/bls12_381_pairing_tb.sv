@@ -52,6 +52,11 @@ if_axi_stream #(.DAT_BYTS(($bits(FE_TYPE)+7)/8), .CTL_BITS(CTL_BITS)) out_if(clk
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe_o_if(clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe_i_if(clk);
 
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe_o_if(clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe_i_if(clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe2_o_if(clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe2_i_if(clk);
+
 ec_fp_mult_mod #(
   .P             ( P        ),
   .KARATSUBA_LVL ( 3        ),
@@ -77,7 +82,11 @@ bls12_381_pairing_wrapper (
   .i_g2_af ( in_if.dat[$bits(af_point_t) +: $bits(fp2_af_point_t)] ),
   .o_fe12_if ( out_if ),
   .o_mul_fe_if ( mul_fe_o_if ),
-  .i_mul_fe_if ( mul_fe_i_if )
+  .i_mul_fe_if ( mul_fe_i_if ),
+  .o_inv_fe2_if ( inv_fe2_i_if  ),
+  .i_inv_fe2_if ( inv_fe2_o_if  ),
+  .o_inv_fe_if  ( inv_fe_i_if   ),
+  .i_inv_fe_if  ( inv_fe_o_if   )  
 );
 
 // This just tests our software model vs a known good result
@@ -201,6 +210,10 @@ endtask;
 
 initial begin
   in_if.reset_source();
+  inv_fe2_o_if.reset_source();
+  inv_fe_o_if.reset_source();
+  inv_fe2_i_if.rdy = 0;
+  inv_fe_i_if.rdy = 0;
   out_if.rdy = 0;
   #100ns;
 

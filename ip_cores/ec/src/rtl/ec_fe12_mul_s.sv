@@ -75,7 +75,7 @@ always_comb begin
 
       case (i_sub_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT]) inside
         0: i_sub_fe_if.rdy = (sub_cnt >= 6) && (~o_sub_fe_if.val || (o_sub_fe_if.val && o_sub_fe_if.rdy));
-        1: i_sub_fe_if.rdy = (out_cnt >= 6) && (~o_mul_fe12_if.val || (o_mul_fe12_if.val && o_mul_fe12_if.rdy));
+        1: i_sub_fe_if.rdy = 1;
         default: i_sub_fe_if.rdy = 0;
       endcase
 
@@ -182,6 +182,11 @@ always_ff @ (posedge i_clk) begin
         if (i_add_fe_if.val && i_add_fe_if.rdy && i_add_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT] == 0) begin
           a0 <= {i_add_fe_if.dat, a0[5:1]};
         end
+        
+        if (i_sub_fe_if.val && i_sub_fe_if.rdy && i_sub_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT] == 0) begin
+          a1 <= {i_sub_fe_if.dat, a1[5:1]};
+          if (i_sub_fe_if.eop) aa_val <= 1;
+        end
 
         if (i_add_fe_if.val && i_add_fe_if.rdy && i_add_fe_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT] == 1) begin
           b0 <= {i_add_fe_if.dat, b0[5:1]};
@@ -251,7 +256,7 @@ always_ff @ (posedge i_clk) begin
         // Sub input flow
         case (sub_cnt) inside
           0,1,2,3,4,5: fe6_sub(i_mul_fe6_if.val && i_mul_fe6_if.ctl[OVR_WRT_BIT +: NUM_OVR_WRT] == 2, i_mul_fe6_if.dat, aa[sub_cnt%6]);
-          6,7,8,9,10,11: fe6_sub(i_sub_fe_if.val, i_sub_fe_if.dat, b1[sub_cnt%6]);
+          6,7,8,9,10,11: fe6_sub(aa_val, a1[sub_cnt%6], b1[sub_cnt%6]);
         endcase
 
         // mnr flow

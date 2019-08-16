@@ -708,12 +708,13 @@ begin
   fe12_t  f_out, f_exp;
   af_point_t G1_p;
   fp2_af_point_t G2_p;
+  fp2_jb_point_t R;
   failed = 0;
 
   G1_p = {Gy, Gx};
   G2_p = {bls12_381_pkg::G2y, bls12_381_pkg::G2x};
 
-  miller_loop(G1_p, G2_p, f_exp);
+  miller_loop(G1_p, G2_p, f_exp, R);
   $display("Running test_pairing...");
 
   // See what current instruction pointer is
