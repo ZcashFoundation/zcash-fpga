@@ -608,9 +608,10 @@ package bls12_381_pkg;
    // P is an affine Fp point in G1
    // Q is an affine Fp^2 point in G2 on the twisted curve
    // f is a Fp^12 element, the result of the miller loop
-  task miller_loop(input af_point_t P, input fp2_af_point_t Q, output fe12_t f);
-    fp2_jb_point_t R;
+  task miller_loop(input af_point_t P, input fp2_af_point_t Q, output fe12_t f, output fp2_jb_point_t R);
     fe12_t lv_d, lv_a, f_sq;
+    fe_t key;
+    key = ATE_X;
     f = FE12_one;
     R.x = Q.x;
     R.y = Q.y;
@@ -620,16 +621,19 @@ package bls12_381_pkg;
       f_sq = fe12_sqr(f);    // Full multiplication
       miller_double_step(R, P, lv_d);
       f = fe12_mul(f_sq, lv_d); // Sparse multiplication
-      if (ATE_X[i] == 1) begin
+      if (key[i] == 1) begin
         miller_add_step(R, Q, P, lv_a);
         f = fe12_mul(f, lv_a); // Sparse multiplication
       end
     end
+    
+    print_fe12(f);
 
   endtask
 
   task automatic ate_pairing(input af_point_t P, input fp2_af_point_t Q, ref fe12_t f);
-    miller_loop(P, Q, f);
+    fp2_jb_point_t R; // This is only used for point multiplication
+    miller_loop(P, Q, f, R);
     final_exponent(f);
   endtask;
 
@@ -836,19 +840,19 @@ package bls12_381_pkg;
      t3[1] = fe6_sub(0, t4[1]); // 10. [6]
      t1 = fe12_mul(t1, {t3[1], t4[0]}); // 11. [wait 9, 6, 10]
      t1[1] = fe6_sub(0, t1[1]); // 12 . [11]
-     
+
      t1 = fe12_mul(t1, t2); // 13. [12, 9]
      t2 = fe12_pow(t1, bls_x); // 14. [13]
      t3 = fe12_pow(t2, bls_x); // 15. [14]
-     
+
      t1[1] = fe6_sub(0, t1[1]); // 16. [wait 14, 13]
      t3 = fe12_mul(t3, t1); // 17. [15, 16]
-     
+
      t1[1] = fe6_sub(0, t1[1]); // 18. [wait 17]
      t1 = fe12_fmap(t1, 3); // 19. [18]
      t2 = fe12_fmap(t2, 2); // 20. [wait 15]
-     
-     
+
+
      t1 = fe12_mul(t1, t2); // 21. [20, 19]
      t2 = fe12_pow(t3, bls_x); // 22. [17, wait 21]
 
