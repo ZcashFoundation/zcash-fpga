@@ -714,7 +714,7 @@ begin
   G1_p = {Gy, Gx};
   G2_p = {bls12_381_pkg::G2y, bls12_381_pkg::G2x};
 
-  miller_loop(G1_p, G2_p, f_exp, R);
+  ate_pairing(G1_p, G2_p, f_exp);
   $display("Running test_pairing...");
 
   // See what current instruction pointer is
@@ -771,7 +771,7 @@ begin
       end
     end
     begin
-      repeat(100000) @(posedge out_if.i_clk);
+      repeat(1000000) @(posedge out_if.i_clk);
       $fatal("ERROR: Timeout while waiting for result");
     end
   join_any
@@ -805,11 +805,11 @@ initial begin
   out_if.rdy = 0;
   #100ns;
 
-  test_fp_fpoint_mult();
-  test_fp2_fpoint_mult();
+  //test_fp_fpoint_mult();
+  //test_fp2_fpoint_mult();
   test_inv_element();
   test_mul_add_sub_element();
-  test_point_mult();
+  //test_point_mult();
   test_pairing();
 
 

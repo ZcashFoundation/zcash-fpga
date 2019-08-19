@@ -67,12 +67,50 @@ if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) sub_fe_o_if [2
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   sub_fe_i_if [2:0] (i_clk);
 
 
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe_o_if    [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe_i_if    [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe2_o_if   [1:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe2_i_if   [1:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe_o_if    [2:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe_i_if    [2:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe2_o_if   [2:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe2_i_if   [2:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe6_o_if         (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe6_i_if         (i_clk);
+
+
+always_comb begin
+  i_inv_fe_if.rdy = inv_fe_o_if[1].rdy;
+  inv_fe_o_if[1].copy_if_comb(i_inv_fe_if.dat,
+                              i_inv_fe_if.val,
+                              i_inv_fe_if.sop,
+                              i_inv_fe_if.eop,
+                              i_inv_fe_if.err,
+                              i_inv_fe_if.mod,
+                              i_inv_fe_if.ctl);
+  inv_fe_i_if[1].rdy = o_inv_fe_if.rdy;
+  o_inv_fe_if.copy_if_comb(inv_fe_i_if[1].dat,
+                           inv_fe_i_if[1].val,
+                           inv_fe_i_if[1].sop,
+                           inv_fe_i_if[1].eop,
+                           inv_fe_i_if[1].err,
+                           inv_fe_i_if[1].mod,
+                           inv_fe_i_if[1].ctl);
+
+  i_inv_fe2_if.rdy = inv_fe2_o_if[1].rdy;
+  inv_fe2_o_if[1].copy_if_comb(i_inv_fe2_if.dat,
+                               i_inv_fe2_if.val,
+                               i_inv_fe2_if.sop,
+                               i_inv_fe2_if.eop,
+                               i_inv_fe2_if.err,
+                               i_inv_fe2_if.mod,
+                               i_inv_fe2_if.ctl);
+  inv_fe2_i_if[1].rdy = o_inv_fe2_if.rdy;
+  o_inv_fe2_if.copy_if_comb(inv_fe2_i_if[1].dat,
+                            inv_fe2_i_if[1].val,
+                            inv_fe2_i_if[1].sop,
+                            inv_fe2_i_if[1].eop,
+                            inv_fe2_i_if[1].err,
+                            inv_fe2_i_if[1].mod,
+                            inv_fe2_i_if[1].ctl);
+
+end
 
 bin_inv_s #(
   .P     ( bls12_381_pkg::P ),
@@ -81,8 +119,8 @@ bin_inv_s #(
 bin_inv_s (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .o_dat_if ( inv_fe_i_if[1] ),
-  .i_dat_if ( inv_fe_o_if[1] )
+  .o_dat_if ( inv_fe_i_if[2] ),
+  .i_dat_if ( inv_fe_o_if[2] )
 );
 
 ec_fe2_inv_s #(
@@ -92,8 +130,8 @@ ec_fe2_inv_s #(
 ec_fe2_inv_s(
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .o_inv_fe2_if ( inv_fe2_i_if[1] ) ,
-  .i_inv_fe2_if ( inv_fe2_o_if[1] ),
+  .o_inv_fe2_if ( inv_fe2_i_if[2] ) ,
+  .i_inv_fe2_if ( inv_fe2_o_if[2] ),
   .o_inv_fe_if  ( inv_fe_o_if[0]  ),
   .i_inv_fe_if  ( inv_fe_i_if[0]  ),
   .o_mul_fe_if  ( o_mul_fe_if     ),
@@ -191,10 +229,10 @@ resource_share # (
 resource_share_fe_inv (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( {i_inv_fe_if, inv_fe_o_if[0]} ),
-  .o_res ( inv_fe_o_if[1]                ),
-  .i_res ( inv_fe_i_if[1]                ),
-  .o_axi ( {o_inv_fe_if, inv_fe_i_if[0]} )
+  .i_axi ( inv_fe_o_if[1:0] ),
+  .o_res ( inv_fe_o_if[2]   ),
+  .i_res ( inv_fe_i_if[2]   ),
+  .o_axi ( inv_fe_i_if[1:0] )
 );
 
 resource_share # (
@@ -208,10 +246,10 @@ resource_share # (
 resource_share_fe2_inv (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( {i_inv_fe2_if, inv_fe2_o_if[0]} ),
-  .o_res ( inv_fe2_o_if[1]                 ),
-  .i_res ( inv_fe2_i_if[1]                 ),
-  .o_axi ( {o_inv_fe2_if, inv_fe2_i_if[0]} )
+  .i_axi ( inv_fe2_o_if[1:0] ),
+  .o_res ( inv_fe2_o_if[2]   ),
+  .i_res ( inv_fe2_i_if[2]   ),
+  .o_axi ( inv_fe2_i_if[1:0] )
 );
 
 endmodule

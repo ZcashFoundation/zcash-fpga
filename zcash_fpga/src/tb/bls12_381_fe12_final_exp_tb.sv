@@ -475,7 +475,7 @@ initial begin
   final_exp_fe12_i_if.rdy = 0;
   #100ns;
 
-  //test_sw();
+  test_sw();
   test_hw();
 
   #1us $finish();

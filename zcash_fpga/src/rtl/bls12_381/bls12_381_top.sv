@@ -32,6 +32,12 @@ module bls12_381_top
 localparam DAT_BITS = bls12_381_pkg::DAT_BITS;
 localparam AXI_STREAM_BYTS = 8;
 
+parameter type FE_TYPE   = bls12_381_pkg::fe_t;
+parameter type FE2_TYPE  = bls12_381_pkg::fe2_t;
+parameter type FE6_TYPE  = bls12_381_pkg::fe6_t;
+parameter type FE12_TYPE = bls12_381_pkg::fe12_t;
+parameter P              = bls12_381_pkg::P;
+
 // Used for sending interrupts back to SW
 import zcash_fpga_pkg::bls12_381_interrupt_rpl_t;
 import zcash_fpga_pkg::bls12_381_interrupt_rpl;
@@ -69,27 +75,27 @@ if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) add_o_if(i_clk)
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) dbl_i_if(i_clk);
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) dbl_o_if(i_clk);
 
-localparam CTL_BITS = 70;
+localparam CTL_BITS = 128;
 // Access to shared 381bit multiplier / adder / subtractor
 // Fp logic uses control bits 7:0
 // Fp2 15:8
 // Fp6 23:16
 // Top level muxes 31:24
 // 67:32 Pairing engine - TODO conslidate the logic used here with the point multiplication
-if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) mul_in_if [4:0] (i_clk) ;
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   mul_out_if [4:0](i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) add_in_if [3:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   add_out_if [3:0] (i_clk);
-if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS)) sub_in_if [3:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   sub_out_if [3:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_in_if  [2:0] (i_clk) ;
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_out_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) add_in_if        (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   add_out_if       (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) sub_in_if        (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   sub_out_if       (i_clk);
 
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   inv_fe_o_if       (i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   inv_fe_i_if       (i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   inv_fe2_o_if      (i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t)), .CTL_BITS(CTL_BITS))   inv_fe2_i_if      (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   inv_fe_o_if      (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   inv_fe_i_if      (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   inv_fe2_o_if     (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   inv_fe2_i_if     (i_clk);
 
 logic pair_i_val, pair_o_rdy;
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fe_t))) pair_o_res_if (i_clk); ;
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE))) pair_o_res_if (i_clk); ;
 bls12_381_pkg::af_point_t pair_i_g1;
 bls12_381_pkg::fp2_af_point_t pair_i_g2;
 
@@ -140,13 +146,13 @@ always_ff @ (posedge i_clk) begin
 
     new_inst_pt_val_l <= 0;
 
-    mul_in_if[2].reset_source();
-    add_in_if[2].reset_source();
-    sub_in_if[2].reset_source();
+    mul_in_if[1].reset_source();
+    add_in_if.reset_source();
+    sub_in_if.reset_source();
 
-    mul_out_if[2].rdy <= 0;
-    add_out_if[2].rdy <= 0;
-    sub_out_if[2].rdy <= 0;
+    mul_out_if[1].rdy <= 0;
+    add_out_if.rdy <= 0;
+    sub_out_if.rdy <= 0;
 
     pair_i_val <= 0;
     pair_i_g1 <= 0;
@@ -154,12 +160,12 @@ always_ff @ (posedge i_clk) begin
 
   end else begin
 
-    mul_in_if[2].sop <= 1;
-    mul_in_if[2].eop <= 1;
-    add_in_if[2].sop <= 1;
-    add_in_if[2].eop <= 1;
-    sub_in_if[2].sop <= 1;
-    sub_in_if[2].eop <= 1;
+    mul_in_if[1].sop <= 1;
+    mul_in_if[1].eop <= 1;
+    add_in_if.sop <= 1;
+    add_in_if.eop <= 1;
+    sub_in_if.sop <= 1;
+    sub_in_if.eop <= 1;
 
     new_inst_pt_val_l <= new_inst_pt_val || new_inst_pt_val_l; // Latch this pulse if we want to update instruction pointer
 
@@ -175,9 +181,9 @@ always_ff @ (posedge i_clk) begin
     if (fp2_pt_mul_in_if.rdy) fp2_pt_mul_in_if.val <= 0;
     if (inv_fe_o_if.rdy) inv_fe_o_if.val <= 0;
     if (inv_fe2_o_if.rdy) inv_fe2_o_if.val <= 0;
-    if (add_in_if[2].rdy) add_in_if[2].val <= 0;
-    if (sub_in_if[2].rdy) sub_in_if[2].val <= 0;
-    if (mul_in_if[2].rdy) mul_in_if[2].val <= 0;
+    if (add_in_if.rdy) add_in_if.val <= 0;
+    if (sub_in_if.rdy) sub_in_if.val <= 0;
+    if (mul_in_if[1].rdy) mul_in_if[1].val <= 0;
     if (pair_o_rdy) pair_i_val <= 0;
 
     fp2_pt_mul_out_if.rdy <= 1;
@@ -282,75 +288,9 @@ data_uram_reset (
   .o_reset_done ( reset_done_data )
 );
 
-ec_point_mult #(
-  .P       ( bls12_381_pkg::P              ),
-  .FP_TYPE ( bls12_381_pkg::fp2_jb_point_t )
-)
-ec_point_mult (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_pt_mult ( fp2_pt_mul_in_if  ),
-  .o_pt_mult ( fp2_pt_mul_out_if ),
-  .o_dbl ( dbl_i_if ),
-  .i_dbl ( dbl_o_if ),
-  .o_add ( add_i_if ),
-  .i_add ( add_o_if )
-);
-
-ec_fp2_point_add #(
-  .FP2_TYPE ( bls12_381_pkg::fp2_jb_point_t ),
-  .FE_TYPE  ( bls12_381_pkg::fe_t           ),
-  .FE2_TYPE ( bls12_381_pkg::fe2_t          ),
-  .CTL_BITS ( CTL_BITS                      )
-)
-ec_fp2_point_add (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_fp_mode ( fp_pt_mult_mode ),
-  .i_p1  ( add_i_if.dat[0 +: $bits(bls12_381_pkg::fp2_jb_point_t)] ),
-  .i_p2  ( add_i_if.dat[$bits(bls12_381_pkg::fp2_jb_point_t) +: $bits(bls12_381_pkg::fp2_jb_point_t)] ),
-  .i_val ( add_i_if.val ),
-  .o_rdy ( add_i_if.rdy ),
-  .o_p   ( add_o_if.dat ),
-  .o_err ( add_o_if.err ),
-  .i_rdy ( add_o_if.rdy ),
-  .o_val ( add_o_if.val ) ,
-  .o_mul_if ( mul_in_if[0]  ),
-  .i_mul_if ( mul_out_if[0] ),
-  .o_add_if ( add_in_if[0]   ),
-  .i_add_if ( add_out_if[0]  ),
-  .o_sub_if ( sub_in_if[0]   ),
-  .i_sub_if ( sub_out_if[0]  )
-);
-
-ec_fp2_point_dbl #(
- .FP2_TYPE ( bls12_381_pkg::fp2_jb_point_t  ),
- .FE_TYPE  ( bls12_381_pkg::fe_t            ),
- .FE2_TYPE ( bls12_381_pkg::fe2_t           ),
- .CTL_BITS ( CTL_BITS                       )
-)
-ec_fp2_point_dbl (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_fp_mode ( fp_pt_mult_mode ),
-  .i_p   ( dbl_i_if.dat ),
-  .i_val ( dbl_i_if.val ),
-  .o_rdy ( dbl_i_if.rdy ),
-  .o_p   ( dbl_o_if.dat ),
-  .o_err ( dbl_o_if.err ),
-  .i_rdy ( dbl_o_if.rdy ),
-  .o_val ( dbl_o_if.val ) ,
-  .o_mul_if ( mul_in_if[1]  ),
-  .i_mul_if ( mul_out_if[1] ),
-  .o_add_if ( add_in_if[1]   ),
-  .i_add_if ( add_out_if[1]  ),
-  .o_sub_if ( sub_in_if[1]   ),
-  .i_sub_if ( sub_out_if[1]  )
-);
-
 bls12_381_pairing_wrapper #(
   .CTL_BITS    ( CTL_BITS ),
-  .OVR_WRT_BIT ( 32       )
+  .OVR_WRT_BIT ( 0        )
 )
 bls12_381_pairing_wrapper (
   .i_clk ( i_clk ),
@@ -360,8 +300,8 @@ bls12_381_pairing_wrapper (
   .i_g1_af ( pair_i_g1 ),
   .i_g2_af ( pair_i_g2 ),
   .o_fe12_if    ( pair_o_res_if ),
-  .o_mul_fe_if  ( mul_in_if[3]  ),
-  .i_mul_fe_if  ( mul_out_if[3] ),
+  .o_mul_fe_if  ( mul_in_if[0]  ),
+  .i_mul_fe_if  ( mul_out_if[0] ),
   .o_inv_fe2_if ( inv_fe2_i_if  ),
   .i_inv_fe2_if ( inv_fe2_o_if  ),
   .o_inv_fe_if  ( inv_fe_i_if   ),
@@ -369,108 +309,57 @@ bls12_381_pairing_wrapper (
 );
 
 resource_share # (
-  .NUM_IN       ( 4  ),
-  .DAT_BITS     ( 2*$bits(bls12_381_pkg::fe_t) ),
-  .CTL_BITS     ( CTL_BITS ),
-  .OVR_WRT_BIT  ( 24 ),
-  .PIPELINE_IN  ( 1  ),
-  .PIPELINE_OUT ( 0  )
+  .NUM_IN       ( 2                ),
+  .DAT_BITS     ( 2*$bits(FE_TYPE) ),
+  .CTL_BITS     ( CTL_BITS         ),
+  .OVR_WRT_BIT  ( 120              ),
+  .PIPELINE_IN  ( 1                ),
+  .PIPELINE_OUT ( 0                )
 )
 resource_share_mul (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( mul_in_if[3:0]  ),
-  .o_res ( mul_in_if[4]    ),
-  .i_res ( mul_out_if[4]   ),
-  .o_axi ( mul_out_if[3:0] )
-);
-
-resource_share # (
-  .NUM_IN       ( 3  ),
-  .DAT_BITS     ( 2*$bits(bls12_381_pkg::fe_t) ),
-  .CTL_BITS     ( CTL_BITS ),
-  .OVR_WRT_BIT  ( 24 ),
-  .PIPELINE_IN  ( 1  ),
-  .PIPELINE_OUT ( 0  )
-)
-resource_share_sub (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_axi ( sub_in_if[2:0]  ),
-  .o_res ( sub_in_if[3]    ),
-  .i_res ( sub_out_if[3]   ),
-  .o_axi ( sub_out_if[2:0] )
-);
-
-resource_share # (
-  .NUM_IN       ( 3  ),
-  .DAT_BITS     ( 2*$bits(bls12_381_pkg::fe_t) ),
-  .CTL_BITS     ( CTL_BITS ),
-  .OVR_WRT_BIT  ( 24 ),
-  .PIPELINE_IN  ( 1  ),
-  .PIPELINE_OUT ( 0  )
-)
-resource_share_add (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_axi ( add_in_if[2:0]  ),
-  .o_res ( add_in_if[3]    ),
-  .i_res ( add_out_if[3]   ),
-  .o_axi ( add_out_if[2:0] )
+  .i_axi ( mul_in_if[1:0]  ),
+  .o_res ( mul_in_if[2]    ),
+  .i_res ( mul_out_if[2]   ),
+  .o_axi ( mul_out_if[1:0] )
 );
 
 ec_fp_mult_mod #(
-  .P             ( bls12_381_pkg::P ),
-  .KARATSUBA_LVL ( 3                ),
-  .CTL_BITS      ( CTL_BITS         )
+  .P             ( P        ),
+  .KARATSUBA_LVL ( 3        ),
+  .CTL_BITS      ( CTL_BITS )
 )
 ec_fp_mult_mod (
   .i_clk( i_clk ),
   .i_rst( i_rst ),
-  .i_mul ( mul_in_if[4]  ),
-  .o_mul ( mul_out_if[4] )
+  .i_mul ( mul_in_if[2]  ),
+  .o_mul ( mul_out_if[2] )
 );
 
 adder_pipe # (
-  .P        ( bls12_381_pkg::P ),
-  .CTL_BITS ( CTL_BITS         ),
-  .LEVEL    ( 2                )
+  .P        ( P        ),
+  .CTL_BITS ( CTL_BITS ),
+  .LEVEL    ( 2        )
 )
 adder_pipe (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_add ( add_in_if[4]  ),
-  .o_add ( add_out_if[4] )
+  .i_add ( add_in_if  ),
+  .o_add ( add_out_if )
 );
 
 subtractor_pipe # (
-  .P        ( bls12_381_pkg::P ),
-  .CTL_BITS ( CTL_BITS         ),
-  .LEVEL    ( 2                )
+  .P        ( P        ),
+  .CTL_BITS ( CTL_BITS ),
+  .LEVEL    ( 2        )
 )
 subtractor_pipe (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_sub ( sub_in_if[4]  ),
-  .o_sub ( sub_out_if[4] )
+  .i_sub ( sub_in_if  ),
+  .o_sub ( sub_out_if )
 );
-
-bin_inv #(
-  .BITS ( DAT_BITS )
-)
-bin_inv (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_dat ( binv_i_if.dat    ),
-  .i_val ( binv_i_if.val    ),
-  .i_p   ( bls12_381_pkg::P ),
-  .o_rdy ( binv_i_if.rdy    ),
-  .o_dat ( binv_o_if.dat    ),
-  .o_val ( binv_o_if.val    ),
-  .i_rdy ( binv_o_if.rdy    )
-);
-
-// While cnt != 0, take output and assign it to current memory pointer, and then increase pointer and shift the output
 
 // Tasks for each of the different instructions
 
@@ -489,14 +378,14 @@ endtask
 task task_sub_element();
   case(cnt)
     0: begin
-      sub_out_if[2].rdy <= 1;
+      sub_out_if.rdy <= 1;
       data_ram_sys_if.a <= curr_inst.a;
       data_ram_read[0] <= 1;
       cnt <= 1;
     end
     1: begin
       if (data_ram_read[READ_CYCLE]) begin
-        sub_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+        sub_in_if.dat[0 +: $bits(fe_t)] <= curr_data.dat;
         pt_l <= curr_data.pt;
         data_ram_sys_if.a <=  curr_inst.b;
         data_ram_read[0] <= 1;
@@ -505,12 +394,12 @@ task task_sub_element();
     end
     2: begin
       if (data_ram_read[READ_CYCLE]) begin
-        sub_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
-        sub_in_if[2].val <= 1;
+        sub_in_if.dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+        sub_in_if.val <= 1;
       end
-      if (sub_out_if[2].val && sub_out_if[2].rdy) begin
+      if (sub_out_if.val && sub_out_if.rdy) begin
         data_ram_sys_if.a <=  curr_inst.c;
-        new_data.dat <= sub_out_if[2].dat;
+        new_data.dat <= sub_out_if.dat;
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
         cnt <= 5;
@@ -526,7 +415,7 @@ task task_sub_element();
         data_ram_read[0] <= 1;
       end
       if (data_ram_read[READ_CYCLE]) begin
-        sub_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+        sub_in_if.dat[0 +: $bits(fe_t)] <= curr_data.dat;
         pt_l <= curr_data.pt;
         data_ram_sys_if.a <=  curr_inst.b + 1;
         data_ram_read[0] <= 1;
@@ -535,12 +424,12 @@ task task_sub_element();
     end
     4: begin
       if (data_ram_read[READ_CYCLE]) begin
-        sub_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
-        sub_in_if[2].val <= 1;
+        sub_in_if.dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+        sub_in_if.val <= 1;
       end
-      if (sub_out_if[2].val && sub_out_if[2].rdy) begin
+      if (sub_out_if.val && sub_out_if.rdy) begin
         data_ram_sys_if.a <=  curr_inst.c + 1;
-        new_data.dat <= sub_out_if[2].dat;
+        new_data.dat <= sub_out_if.dat;
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
         cnt <= 5;
@@ -555,14 +444,14 @@ endtask;
 task task_add_element();
   case(cnt)
     0: begin
-      add_out_if[2].rdy <= 1;
+      add_out_if.rdy <= 1;
       data_ram_sys_if.a <= curr_inst.a;
       data_ram_read[0] <= 1;
       cnt <= cnt + 1;
     end
     1: begin
       if (data_ram_read[READ_CYCLE]) begin
-        add_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+        add_in_if.dat[0 +: $bits(fe_t)] <= curr_data.dat;
         pt_l <= curr_data.pt;
         data_ram_sys_if.a <=  curr_inst.b;
         data_ram_read[0] <= 1;
@@ -571,12 +460,12 @@ task task_add_element();
     end
     2: begin
       if (data_ram_read[READ_CYCLE]) begin
-        add_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
-        add_in_if[2].val <= 1;
+        add_in_if.dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+        add_in_if.val <= 1;
       end
-      if (add_out_if[2].val && add_out_if[2].rdy) begin
+      if (add_out_if.val && add_out_if.rdy) begin
         data_ram_sys_if.a <=  curr_inst.c;
-        new_data.dat <= add_out_if[2].dat;
+        new_data.dat <= add_out_if.dat;
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
         cnt <= 5;
@@ -592,7 +481,7 @@ task task_add_element();
         data_ram_read[0] <= 1;
       end
       if (data_ram_read[READ_CYCLE]) begin
-        add_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+        add_in_if.dat[0 +: $bits(fe_t)] <= curr_data.dat;
         pt_l <= curr_data.pt;
         data_ram_sys_if.a <=  curr_inst.b + 1;
         data_ram_read[0] <= 1;
@@ -601,12 +490,12 @@ task task_add_element();
     end
     4: begin
       if (data_ram_read[READ_CYCLE]) begin
-        add_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
-        add_in_if[2].val <= 1;
+        add_in_if.dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+        add_in_if.val <= 1;
       end
-      if (add_out_if[2].val && add_out_if[2].rdy) begin
+      if (add_out_if.val && add_out_if.rdy) begin
         data_ram_sys_if.a <=  curr_inst.c + 1;
-        new_data.dat <= add_out_if[2].dat;
+        new_data.dat <= add_out_if.dat;
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
         cnt <= 5;
@@ -621,14 +510,14 @@ endtask;
 task task_mul_element();
   case(cnt)
     0: begin
-      mul_out_if[2].rdy <= 1;
+      mul_out_if[1].rdy <= 1;
       data_ram_sys_if.a <= curr_inst.a;
       data_ram_read[0] <= 1;
       cnt <= cnt + 1;
     end
     1: begin
       if (data_ram_read[READ_CYCLE]) begin
-        mul_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+        mul_in_if[1].dat[0 +: $bits(fe_t)] <= curr_data.dat;
         pt_l <= curr_data.pt;
         data_ram_sys_if.a <=  curr_inst.b;
         data_ram_read[0] <= 1;
@@ -637,20 +526,20 @@ task task_mul_element();
     end
     2: begin
       if (data_ram_read[READ_CYCLE]) begin
-        mul_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
-        mul_in_if[2].val <= 1;
-        mul_in_if[2].ctl <= 0;
+        mul_in_if[1].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+        mul_in_if[1].val <= 1;
+        mul_in_if[1].ctl <= 0;
         if (pt_l == FE2) begin
           data_ram_sys_if.a <= curr_inst.a + 1;
           data_ram_read[0] <= 1;
-          mul_out_if[2].rdy <= 0;
+          mul_out_if[1].rdy <= 0;
           // FE2 requires extra logic
           cnt <= 3;
         end
       end
-      if (mul_out_if[2].val && mul_out_if[2].rdy) begin
+      if (mul_out_if[1].val && mul_out_if[1].rdy) begin
         data_ram_sys_if.a <=  curr_inst.c;
-        new_data.dat <= mul_out_if[2].dat;
+        new_data.dat <= mul_out_if[1].dat;
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
         cnt <= 8;
@@ -658,9 +547,9 @@ task task_mul_element();
     end
     3: begin
       if (data_ram_read[READ_CYCLE]) begin
-         mul_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
-         mul_in_if[2].val <= 1;
-         mul_in_if[2].ctl <= 3;
+         mul_in_if[1].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+         mul_in_if[1].val <= 1;
+         mul_in_if[1].ctl <= 3;
          data_ram_sys_if.a <= curr_inst.b + 1;
          data_ram_read[0] <= 1;
          cnt <= 4;
@@ -668,9 +557,9 @@ task task_mul_element();
     end
     4: begin
       if (data_ram_read[READ_CYCLE]) begin
-         mul_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
-         mul_in_if[2].val <= 1;
-         mul_in_if[2].ctl <= 1;
+         mul_in_if[1].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+         mul_in_if[1].val <= 1;
+         mul_in_if[1].ctl <= 1;
          data_ram_sys_if.a <= curr_inst.a;
          data_ram_read[0] <= 1;
          cnt <= 5;
@@ -678,43 +567,43 @@ task task_mul_element();
     end
     5: begin
       if (data_ram_read[READ_CYCLE]) begin
-         mul_in_if[2].dat[0 +: $bits(fe_t)] <= curr_data.dat;
-         mul_in_if[2].val <= 1;
-         mul_in_if[2].ctl <= 2;
-         mul_out_if[2].rdy <= 1;
+         mul_in_if[1].dat[0 +: $bits(fe_t)] <= curr_data.dat;
+         mul_in_if[1].val <= 1;
+         mul_in_if[1].ctl <= 2;
+         mul_out_if[1].rdy <= 1;
          cnt <= 6;
       end
     end
     6: begin
-      sub_out_if[2].rdy <= 1;
-      if (mul_out_if[2].val && mul_out_if[2].rdy) begin
-        case(mul_out_if[2].ctl)
+      sub_out_if.rdy <= 1;
+      if (mul_out_if[1].val && mul_out_if[1].rdy) begin
+        case(mul_out_if[1].ctl)
           0: begin
-            sub_in_if[2].dat[0 +: $bits(fe_t)] <= mul_out_if[2].dat;
+            sub_in_if.dat[0 +: $bits(fe_t)] <= mul_out_if[1].dat;
           end
           1: begin
-            sub_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= mul_out_if[2].dat;
-            sub_in_if[2].val <= 1;
+            sub_in_if.dat[$bits(fe_t) +: $bits(fe_t)] <= mul_out_if[1].dat;
+            sub_in_if.val <= 1;
           end
           2: begin
-            add_in_if[2].dat[0 +: $bits(fe_t)] <= mul_out_if[2].dat;
-            add_in_if[2].val <= 1;
+            add_in_if.dat[0 +: $bits(fe_t)] <= mul_out_if[1].dat;
+            add_in_if.val <= 1;
           end
           3: begin
-            add_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= mul_out_if[2].dat;
+            add_in_if.dat[$bits(fe_t) +: $bits(fe_t)] <= mul_out_if[1].dat;
           end
         endcase
       end
 
-      if (sub_out_if[2].val && sub_out_if[2].rdy) begin
-        new_data.dat <= sub_out_if[2].dat;
+      if (sub_out_if.val && sub_out_if.rdy) begin
+        new_data.dat <= sub_out_if.dat;
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
         data_ram_sys_if.a <=  curr_inst.c;
-        add_out_if[2].rdy <= 1;
+        add_out_if.rdy <= 1;
       end
-      if (add_out_if[2].val && add_out_if[2].rdy) begin
-        new_data.dat <= add_out_if[2].dat;
+      if (add_out_if.val && add_out_if.rdy) begin
+        new_data.dat <= add_out_if.dat;
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
         data_ram_sys_if.a <=  curr_inst.c + 1;
@@ -751,7 +640,10 @@ endtask
 task task_inv_element();
   case(cnt)
     0: begin
-      binv_o_if.rdy <= 0;
+      inv_fe_o_if.reset_source();
+      inv_fe2_o_if.reset_source();
+      inv_fe_i_if.rdy <= 0;
+      inv_fe2_i_if.rdy <= 0;
       data_ram_sys_if.a <= curr_inst.a;
       data_ram_read[0] <= 1;
       cnt <= cnt + 1;
@@ -760,111 +652,57 @@ task task_inv_element();
       if (data_ram_read[READ_CYCLE]) begin
         // Depending on type of data
         if (curr_data.pt == FE) begin
-          binv_i_if.val <= 1;
-          binv_i_if.dat <= curr_data.dat;
+          inv_fe_o_if.val <= 1;
+          inv_fe_o_if.dat <= curr_data.dat;
+          inv_fe_o_if.sop <= 1;
+          inv_fe_o_if.eop <= 1;
           pt_l <= curr_data.pt;
-          cnt <= 2;
         end else begin
-          mul_in_if[2].dat <= {curr_data.dat, curr_data.dat}; //t0 = fe_mul(a[0], a[0]);
-          mul_in_if[2].ctl <= 0;
-          mul_in_if[2].val <= 1;
-          mul_out_if[2].rdy <= 0;
-          cnt <= 3;
+          inv_fe2_o_if.dat <= curr_data.dat;
+          data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+          data_ram_read[0] <= 1;
+          inv_fe2_o_if.ctl <= 0;
+          inv_fe2_o_if.val <= 1;
+          inv_fe2_o_if.sop <= 1;
+          inv_fe2_o_if.eop <= 0;
         end
       end
+      if (inv_fe_o_if.val && inv_fe_o_if.rdy) cnt <= 2;
+      if (inv_fe2_o_if.val && inv_fe2_o_if.rdy) cnt <= 3;
     end
     2: begin
-      binv_o_if.rdy <= 1;
-      // FE is just simple inversion
-      if (binv_o_if.val && binv_o_if.rdy) begin
+      inv_fe_i_if.rdy <= 1;
+      // FE element
+      if (inv_fe_i_if.val && inv_fe_i_if.rdy) begin
         data_ram_sys_if.a <= curr_inst.b;
         new_data.pt <= pt_l;
-        new_data.dat <= binv_o_if.dat;
+        new_data.dat <= inv_fe_i_if.dat;
         data_ram_sys_if.we <= 1;
-        cnt <= 7;
-      end
-    end
-    //FE2 elements are more complicated
-    3: begin
-      binv_o_if.rdy <= 0;
-      add_out_if[2].rdy <= 1;
-      sub_out_if[2].rdy <= 0;
-      mul_out_if[2].rdy <= 0;
-
-      // Make sure previous multiply was accepted before starting next
-      if (mul_in_if[2].rdy && mul_in_if[2].val) begin
-        data_ram_read[0] <= 1;
-        data_ram_sys_if.a <= data_ram_sys_if.a + 1;
-      end
-
-      if (data_ram_read[READ_CYCLE]) begin
-        mul_in_if[2].dat <= {curr_data.dat, curr_data.dat}; //t1 = fe_mul(a[1], a[1]);
-        mul_in_if[2].val <= 1;
-        mul_in_if[2].ctl <= 1;
-        sub_in_if[2].dat <= {curr_data.dat, P};
-        sub_in_if[2].val <= 1;
-        cnt <= 4;
-      end
-    end
-    4: begin
-      mul_out_if[2].rdy <= 1;
-      // Wait for result of two multiplys
-      if (mul_out_if[2].val && mul_out_if[2].ctl == 0) //fe_add(t0, t1)
-        add_in_if[2].dat[0 +: $bits(fe_t)] <= mul_out_if[2].dat;
-      if (mul_out_if[2].val && mul_out_if[2].ctl == 1) begin
-        add_in_if[2].dat[$bits(fe_t) +: $bits(fe_t)] <= mul_out_if[2].dat;
-        add_in_if[2].val <= 1;
-      end
-
-      if (add_out_if[2].val && add_out_if[2].rdy) begin
-        binv_i_if.val <= 1;
-        binv_i_if.dat <= add_out_if[2].dat;
-      end
-
-      if (sub_out_if[2].val && sub_out_if[2].rdy) begin
-        mul_in_if[2].dat[0 +: $bits(fe_t)] <= sub_out_if[2].dat;
-      end
-
-      if (binv_o_if.val && sub_out_if[2].val) begin
-        mul_in_if[2].dat <= {sub_out_if[2].dat, binv_o_if.dat};
-        sub_out_if[2].rdy <= 1;
-        mul_in_if[2].val <= 1;
-        mul_in_if[2].ctl <= 1;
         cnt <= 5;
       end
     end
-    5: begin
-      if (mul_in_if[2].val && mul_in_if[2].rdy) begin
-        data_ram_read[0] <= 1;
-        data_ram_sys_if.a <= data_ram_sys_if.a - 1;
-      end
-
+    //FE2 element
+    3: begin
       if (data_ram_read[READ_CYCLE]) begin
-        mul_in_if[2].dat <= {curr_data.dat, binv_o_if.dat};
-        binv_o_if.rdy <= 1;
-        mul_in_if[2].val <= 1;
-        mul_in_if[2].ctl <= 0;
-        cnt <= 6;
+        inv_fe2_o_if.val <= 1;
+        inv_fe2_o_if.dat <= curr_data.dat;
+        inv_fe2_o_if.sop <= 0;
+        inv_fe2_o_if.eop <= 1;
+        pt_l <= curr_data.pt;
+      end
+      if (inv_fe2_o_if.eop && inv_fe2_o_if.val && inv_fe2_o_if.rdy) cnt <= 4;
+    end
+    4: begin
+      inv_fe2_i_if.rdy <= 1;
+      if (inv_fe2_i_if.val && inv_fe2_i_if.rdy) begin
+        data_ram_sys_if.a <= inv_fe2_i_if.sop ? curr_inst.b : data_ram_sys_if.a + 1;
+        new_data.pt <= pt_l;
+        new_data.dat <= inv_fe2_i_if.dat;
+        data_ram_sys_if.we <= 1;
+        if (inv_fe2_i_if.eop) cnt <= 5;
       end
     end
-    6: begin
-      if (mul_out_if[2].val && mul_out_if[2].rdy) begin
-        if (mul_out_if[2].ctl == 0) begin
-          new_data.pt <= FE2;
-          new_data.dat <= mul_out_if[2].dat;
-          data_ram_sys_if.we <= 1;
-          data_ram_sys_if.a <= curr_inst.b;
-          cnt <= 7;
-        end
-        if (mul_out_if[2].ctl == 1) begin
-          new_data.pt <= FE2;
-          new_data.dat <= mul_out_if[2].dat;
-          data_ram_sys_if.we <= 1;
-          data_ram_sys_if.a <= curr_inst.b + 1;
-        end
-      end
-    end
-    7: begin
+    5: begin
       get_next_inst();
     end
   endcase
