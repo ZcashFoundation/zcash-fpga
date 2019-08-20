@@ -36,7 +36,10 @@ module bls12_381_pairing_wrapper
   output logic        o_rdy,
   input G1_FP_AF_TYPE i_g1_af,    // G1 input point
   input G2_FP_AF_TYPE i_g2_af,    // G2 input point
-  if_axi_stream.source o_fe12_if, // Result fe12 of ate pairing
+  input                i_mode,    // 0 == ate pairing, 1 == only point multiplication
+  input FE_TYPE        i_key,     // Input key when in mode == 1
+  if_axi_stream.source o_fe12_if, // Result fe12 of ate pairing (or point mult)
+  if_axi_stream.source o_p_jb_if, // Result of point multiplication
   // Interface to FE_TYPE multiplier (mod P)
   if_axi_stream.source o_mul_fe_if,
   if_axi_stream.sink   i_mul_fe_if,
@@ -94,7 +97,10 @@ bls12_381_pairing (
   .o_rdy ( o_rdy ),
   .i_g1_af ( i_g1_af ),
   .i_g2_af ( i_g2_af ),
+  .i_mode  ( i_mode  ),
+  .i_key   ( i_key   ),
   .o_fe12_if      ( o_fe12_if        ),
+  .o_p_jb_if      ( o_p_jb_if        ),
   .o_mul_fe2_if   ( mul_fe2_o_if[1]  ),
   .i_mul_fe2_if   ( mul_fe2_i_if[1]  ),
   .o_add_fe_if    ( add_fe_o_if[4]   ),

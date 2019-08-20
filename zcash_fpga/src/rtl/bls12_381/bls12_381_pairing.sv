@@ -40,12 +40,14 @@ module bls12_381_pairing
 )(
   input i_clk, i_rst,
   // Inputs
-  input               i_val,
-  output logic        o_rdy,
-  input G1_FP_AF_TYPE i_g1_af,
-  input G2_FP_AF_TYPE i_g2_af,
+  input                i_val,
+  input                i_mode,  // 0 == ate pairing, 1 == only point multiplication
+  input FE_TYPE        i_key,   // Input key when in mode == 1
+  output logic         o_rdy,
+  input G1_FP_AF_TYPE  i_g1_af,
+  input G2_FP_AF_TYPE  i_g2_af,
   if_axi_stream.source o_fe12_if,
-  output G2_FP_JB_TYPE o_pt_jb,
+  if_axi_stream.source o_p_jb_if,     // Output point if we did a point multiplication
   // Interface to FE_TYPE multiplier (mod P)
   if_axi_stream.source o_mul_fe_if,
   if_axi_stream.sink   i_mul_fe_if,
@@ -92,7 +94,7 @@ if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) final_exp_fe12_o
 logic dbl_i_val, dbl_o_rdy;
 logic add_i_val, add_o_rdy;
 
-logic wait_dbl, wait_add;
+logic wait_dbl, wait_add, stage_done;
 
 G1_FP_AF_TYPE g1_af_i;
 G2_FP_JB_TYPE g2_r_jb_i, add_g2_o, dbl_g2_o;
@@ -101,29 +103,26 @@ G2_FP_AF_TYPE g2_af_i;
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   add_f12_o_if (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   dbl_f12_o_if (i_clk);
 
-logic [$clog2(ATE_X_START)-1:0] ate_loop_cnt;
+logic [$clog2($bits(FE_TYPE))-1:0] ate_loop_cnt;
 logic [1:0] miller_mult_cnt;
 
-enum {IDLE, POINT_MULT, MILLER_LOOP, FINAL_EXP} pair_state;
+enum {IDLE, POINT_MULT_DBL, POINT_MULT_ADD, POINT_MULT_DONE, MILLER_LOOP, FINAL_EXP} pair_state;
 
 FE12_TYPE f;
 logic f_val;
 logic [3:0] out_cnt;
-logic point_mul_mode;
+logic point_mul_mode, found_one;
 
 FE_TYPE key;
-logic [$bits(FE_TYPE)/32-1:0] key_zero;
 
 always_comb begin
-  dbl_f12_o_if.rdy = f_val && (~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
-  add_f12_o_if.rdy = f_val && (~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4)); // As this is a sparse f12 using full f12_mul
+  dbl_f12_o_if.rdy = pair_state == POINT_MULT_DBL || (f_val && (~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4))); // As this is a sparse f12 using full f12_mul
+  add_f12_o_if.rdy = pair_state == POINT_MULT_ADD || (f_val && (~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4))); // As this is a sparse f12 using full f12_mul
 
   final_exp_fe12_o_if.dat = f[0][0][0];
   final_exp_fe12_o_if.err = 0;
   final_exp_fe12_o_if.ctl = 0;
   final_exp_fe12_o_if.mod = 0;
-
-  o_pt_jb = g2_r_jb_i;
 end
 
 always_ff @ (posedge i_clk) begin
@@ -150,7 +149,10 @@ always_ff @ (posedge i_clk) begin
     point_mul_mode <= 0;
 
     key <= 0;
-    key_zero <= 0;
+    found_one <= 0;
+    stage_done <= 0;
+    
+    o_p_jb_if.reset_source();
 
   end else begin
 
@@ -167,8 +169,7 @@ always_ff @ (posedge i_clk) begin
 
     case(pair_state)
       IDLE: begin
-        ate_loop_cnt <= ATE_X_START-1;
-        //for (int i = 0key <= ATE_X;
+        ate_loop_cnt <= i_mode == 0 ? ATE_X_START-1 : $bits(FE_TYPE)-1;
         f <= FE12_one;
         add_i_val <= 0;
         dbl_i_val <= 0;
@@ -178,9 +179,12 @@ always_ff @ (posedge i_clk) begin
         f_val <= 0;
         o_rdy <= 1;
         miller_mult_cnt <= 0;
+        found_one <= 0;
+        stage_done <= 0;
         if (i_val && o_rdy) begin
-          pair_state <= MILLER_LOOP;
-          point_mul_mode <= 0;
+          pair_state <= i_mode == 0 ? MILLER_LOOP : POINT_MULT_DBL;
+          key <= i_key;
+          point_mul_mode <= i_mode;
           o_rdy <= 0;
 
           g1_af_i <= i_g1_af;
@@ -200,7 +204,6 @@ always_ff @ (posedge i_clk) begin
 
         if (wait_dbl && dbl_f12_o_if.val && dbl_f12_o_if.sop && dbl_f12_o_if.rdy) begin
           g2_r_jb_i <= dbl_g2_o;
-          // key[0] == 1?
           if (~wait_add && ATE_X[ate_loop_cnt] == 1) begin
             add_i_val <= 1;
             wait_add <= 1;
@@ -243,7 +246,6 @@ always_ff @ (posedge i_clk) begin
                   f_val <= 0;
                   out_cnt <= 0;
                   miller_mult_cnt <= ATE_X[ate_loop_cnt] == 0 ? 3 : 2;
-                  //key[0] == 0 ?
                 end
               end
             end
@@ -278,10 +280,6 @@ always_ff @ (posedge i_clk) begin
               f_val <= 0;
               wait_add <= 0;
               miller_mult_cnt <= 0;
-              key <= key >> 1;
-              if (&key_zero) begin
-
-              end
               ate_loop_cnt <= ate_loop_cnt - 1;
               if (ate_loop_cnt == 0) begin
                 pair_state <= FINAL_EXP;
@@ -300,6 +298,65 @@ always_ff @ (posedge i_clk) begin
           if (final_exp_fe12_o_if.val) f <= {mul_fe12_i_if[0].dat, f[1], f[0][2:1], f[0][0][1]};
           if (out_cnt == 11) begin
             pair_state <= IDLE;
+          end
+        end
+      end
+      POINT_MULT_DBL: begin
+        if(found_one == 0) begin
+          key <= key << 1;
+          ate_loop_cnt <= ate_loop_cnt - 1;
+          found_one = key[$bits(FE_TYPE)-1];
+        end else begin
+          if (~wait_dbl) begin
+            wait_dbl <= 1;
+            dbl_i_val <= 1;
+          end
+          if (dbl_f12_o_if.val) begin
+            wait_dbl <= 0;
+            dbl_i_val <= 0;
+            g2_r_jb_i <= dbl_g2_o;
+            if (key[$bits(FE_TYPE)-1] == 1) begin
+              pair_state <= POINT_MULT_ADD;
+            end else if (ate_loop_cnt == 0) begin
+              pair_state <= POINT_MULT_DONE;
+            end else begin
+              ate_loop_cnt <= ate_loop_cnt - 1;
+              key <= key << 1;
+            end
+          end
+        end
+      end
+      POINT_MULT_ADD: begin
+        if (~wait_add) begin
+          wait_add <= 1;
+          add_i_val <= 1;
+        end
+        if (add_f12_o_if.val) begin
+          wait_add <= 0;
+          add_i_val <= 0;
+          g2_r_jb_i <= add_g2_o;
+          if (ate_loop_cnt == 0) begin
+            pair_state <= POINT_MULT_DONE;
+          end else begin
+            ate_loop_cnt <= ate_loop_cnt - 1;
+            key <= key << 1;
+            pair_state <= POINT_MULT_DBL;
+          end
+        end      
+      end
+      POINT_MULT_DONE: begin
+        if (~o_p_jb_if.val || (o_p_jb_if.val && o_p_jb_if.rdy)) begin
+          o_p_jb_if.val <= 1;
+          o_p_jb_if.sop <= out_cnt == 0;
+          o_p_jb_if.eop <= out_cnt == 5;
+          o_p_jb_if.dat <= g2_r_jb_i;
+          
+          out_cnt <= out_cnt + 1;
+          g2_r_jb_i <= g2_r_jb_i >> $bits(FE_TYPE);
+          if (o_p_jb_if.val && o_p_jb_if.rdy && o_p_jb_if.eop) begin
+            pair_state <= IDLE;
+            out_cnt <= 0;
+            o_p_jb_if.val <= 0;
           end
         end
       end

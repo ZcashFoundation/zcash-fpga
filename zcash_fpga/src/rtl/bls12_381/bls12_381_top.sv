@@ -65,15 +65,15 @@ if_axi_stream #(.DAT_BYTS(8)) interrupt_out_if(i_clk);
 if_axi_stream #(.DAT_BYTS(3)) idx_in_if(i_clk);
 if_axi_stream #(.DAT_BYTS(3)) idx_out_if(i_clk);
 
-// Fp2 point multiplication
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t)), .CTL_BITS(DAT_BITS)) fp2_pt_mul_in_if(i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) fp2_pt_mul_out_if(i_clk);
-logic fp_pt_mult_mode;
+// Point multiplication
+logic pair_mode;
+fe_t  pair_key;
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mult_pt_if (i_clk);
 
 if_axi_stream #(.DAT_BITS(2*$bits(bls12_381_pkg::fp2_jb_point_t))) add_i_if(i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) add_o_if(i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) dbl_i_if(i_clk);
-if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t))) dbl_o_if(i_clk);
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t)))   add_o_if(i_clk);
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t)))   dbl_i_if(i_clk);
+if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t)))   dbl_o_if(i_clk);
 
 localparam CTL_BITS = 128;
 // Access to shared 381bit multiplier / adder / subtractor
@@ -82,7 +82,7 @@ localparam CTL_BITS = 128;
 // Fp6 23:16
 // Top level muxes 31:24
 // 67:32 Pairing engine - TODO conslidate the logic used here with the point multiplication
-if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_in_if  [2:0] (i_clk) ;
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_in_if  [2:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_out_if [2:0] (i_clk);
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) add_in_if        (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   add_out_if       (i_clk);
@@ -125,8 +125,6 @@ always_ff @ (posedge i_clk) begin
     data_ram_sys_if.a <= 0;
     data_ram_sys_if.re <= 1;
     data_ram_sys_if.en <= 1;
-    fp2_pt_mul_out_if.rdy <= 0;
-    fp2_pt_mul_in_if.reset_source();
     inst_ram_read <= 0;
     data_ram_read <= 0;
     cnt <= 0;
@@ -137,7 +135,6 @@ always_ff @ (posedge i_clk) begin
     inst_state <= NOOP_WAIT;
     pt_l <= SCALAR;
     new_data <= 0;
-    fp_pt_mult_mode <= 0;
     pt_size <= 0;
     idx_in_if.reset_source();
     interrupt_in_if.reset_source();
@@ -157,6 +154,10 @@ always_ff @ (posedge i_clk) begin
     pair_i_val <= 0;
     pair_i_g1 <= 0;
     pair_i_g2 <= 0;
+    
+    pair_mode <= 0;
+    pair_key <= 0;
+    mult_pt_if.rdy <= 0;
 
   end else begin
 
@@ -178,7 +179,6 @@ always_ff @ (posedge i_clk) begin
     data_ram_sys_if.we <= 0;
     data_ram_read <= data_ram_read << 1;
 
-    if (fp2_pt_mul_in_if.rdy) fp2_pt_mul_in_if.val <= 0;
     if (inv_fe_o_if.rdy) inv_fe_o_if.val <= 0;
     if (inv_fe2_o_if.rdy) inv_fe2_o_if.val <= 0;
     if (add_in_if.rdy) add_in_if.val <= 0;
@@ -186,7 +186,7 @@ always_ff @ (posedge i_clk) begin
     if (mul_in_if[1].rdy) mul_in_if[1].val <= 0;
     if (pair_o_rdy) pair_i_val <= 0;
 
-    fp2_pt_mul_out_if.rdy <= 1;
+    mult_pt_if.rdy <= 1;
 
     if (idx_in_if.val && idx_in_if.rdy) idx_in_if.val <= 0;
     if (interrupt_in_if.val && interrupt_in_if.rdy) interrupt_in_if.val <= 0;
@@ -299,7 +299,10 @@ bls12_381_pairing_wrapper (
   .o_rdy ( pair_o_rdy ),
   .i_g1_af ( pair_i_g1 ),
   .i_g2_af ( pair_i_g2 ),
+  .i_mode  ( pair_mode ),
+  .i_key   ( pair_key  ),
   .o_fe12_if    ( pair_o_res_if ),
+  .o_p_jb_if    ( mult_pt_if    ),  
   .o_mul_fe_if  ( mul_in_if[0]  ),
   .i_mul_fe_if  ( mul_out_if[0] ),
   .o_inv_fe2_if ( inv_fe2_i_if  ),
@@ -314,7 +317,7 @@ resource_share # (
   .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( 120              ),
   .PIPELINE_IN  ( 1                ),
-  .PIPELINE_OUT ( 1                )
+  .PIPELINE_OUT ( 0                )
 )
 resource_share_mul (
   .i_clk ( i_clk ),
@@ -709,85 +712,61 @@ task task_inv_element();
 endtask
 
 task task_point_mult();
-  fp2_pt_mul_out_if.rdy <= 0;
+  pair_mode <= 1;
   case(cnt) inside
     0: begin
       data_ram_sys_if.a <= curr_inst.a;
-      data_ram_read[0] <= 1;
-      cnt <= cnt + 1;
-    end
-    1: begin
+      if (|data_ram_read == 0) data_ram_read[0] <= 1;
       if (data_ram_read[READ_CYCLE]) begin
+        cnt <= cnt + 1;
+        pair_key <= curr_data.dat;
         data_ram_sys_if.a <= curr_inst.b;
         data_ram_read[0] <= 1;
-        pt_size <= 0;
-        fp2_pt_mul_in_if.ctl <= curr_data.dat;
-        fp2_pt_mul_in_if.dat <= {FE2_one, {DAT_BITS*4{1'd0}}}; // This is in case we use affine coordinates
-        cnt <= cnt + 1;
       end
     end
-    2: begin
+    1,2,3,4: begin
       if (data_ram_read[READ_CYCLE]) begin
-        fp_pt_mult_mode <= (curr_data.pt == FP_AF) || (curr_data.pt == FP_JB);
-
-        if (curr_data.pt == FP2_JB || curr_data.pt == FP2_AF) begin
-          fp2_pt_mul_in_if.dat[DAT_BITS*pt_size +: DAT_BITS] <= curr_data.dat;
-        end else begin
-          fp2_pt_mul_in_if.dat[2*DAT_BITS*pt_size +: 2*DAT_BITS] <= {(DAT_BITS)'(0), curr_data.dat};
-        end
-
-        if (pt_size == get_point_type_size(curr_data.pt)-1) begin
+        data_ram_read[0] <= 1;
+        data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+        if (curr_data.pt == FP_AF && cnt % 2 == 0) data_ram_sys_if.a <= data_ram_sys_if.a;
+        case(cnt)
+          1: pair_i_g2.x[0] <= curr_data.dat;
+          2: pair_i_g2.x[1] <= curr_data.pt == FP_AF ? 0 : curr_data.dat;
+          3: pair_i_g2.y[0] <= curr_data.dat;
+          4: pair_i_g2.y[1] <= curr_data.pt == FP_AF ? 0 : curr_data.dat;
+        endcase
+        cnt <= cnt + 1;
+        if (cnt == 1) pt_l <= curr_data.pt;
+        if (cnt == 4) begin
+          pair_i_val <= 1;
           data_ram_sys_if.a <= curr_inst.c;
-          if (curr_data.pt == FP2_AF || curr_data.pt == FP2_JB)
-            cnt <= 6;
-          else
-            cnt <= 3;
-          fp2_pt_mul_in_if.val <= 1;
-        end else begin
-          pt_size <= pt_size + 1;
-          data_ram_sys_if.a <= data_ram_sys_if.a + 1;
-          data_ram_read[0] <= 1;
         end
-
       end
     end
-    // Wait for result of FP_JB
-    3,4,5: begin
-      if (fp2_pt_mul_out_if.val) begin
-         new_data.pt <= FP_JB;
-         new_data.dat <= fp2_pt_mul_out_if.dat >> ((cnt-3)*2*DAT_BITS);
+    // Wait for result
+    5,6,7,8,9,10: begin
+      mult_pt_if.rdy <= 1;
+      if (mult_pt_if.val) begin
+         new_data.pt <= pt_l == FP_AF ? FP_JB : FP2_JB;
+         new_data.dat <= mult_pt_if.dat;
          data_ram_sys_if.we <= 1;
-         if (cnt > 3) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
-         cnt <= cnt + 1;
-         if (cnt == 5) begin
-           fp2_pt_mul_out_if.rdy <= 1;
-           cnt <= 12;
+         if (cnt > 5) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+         if (pt_l == FP_AF && cnt % 2 == 0) begin // Even elements will be 0 for FP points
+           data_ram_sys_if.a <= data_ram_sys_if.a;
+           data_ram_sys_if.we <= 0;
          end
-       end
-    end
-    // Wait for result of FP2_JB
-    6,7,8,9,10,11: begin
-      if (fp2_pt_mul_out_if.val) begin
-         new_data.pt <= FP2_JB;
-         new_data.dat <= fp2_pt_mul_out_if.dat >> ((cnt-6)*DAT_BITS);
-         data_ram_sys_if.we <= 1;
-         if (cnt > 6) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
          cnt <= cnt + 1;
-         if (cnt == 11) begin
-           fp2_pt_mul_out_if.rdy <= 1;
-           cnt <= 12;
-         end
       end
     end
-    12: begin
+    11: begin
+      pair_mode <= 0;
       get_next_inst();
     end
-  endcase
+  endcase  
 endtask
 
 task task_fp_fpoint_mult();
-  fp2_pt_mul_out_if.rdy <= 0;
-  fp_pt_mult_mode <= 1;
+  pair_mode <= 1;
   case(cnt) inside
     0: begin
       data_ram_sys_if.a <= curr_inst.a;
@@ -797,34 +776,36 @@ task task_fp_fpoint_mult();
     1: begin
       if (data_ram_read[READ_CYCLE]) begin
         data_ram_sys_if.a <= curr_inst.b;
-        fp2_pt_mul_in_if.ctl <= curr_data.dat;
-        fp2_pt_mul_in_if.dat <= g_point_fp2;
-        fp2_pt_mul_in_if.val <= 1;
+        pair_key <= curr_data.dat;
+        pair_i_g2 <= bls12_381_pkg::g_af_point_fp2;
+        pair_i_val <= 1;
         cnt <= cnt + 1;
       end
     end
     // Wait for result
-    2,3,4: begin
-      if (fp2_pt_mul_out_if.val) begin
+    2,3,4,5,6,7: begin
+      mult_pt_if.rdy <= 1;
+      if (mult_pt_if.val) begin
          new_data.pt <= FP_JB;
-         new_data.dat <= fp2_pt_mul_out_if.dat >> ((cnt-2)*2*DAT_BITS);
+         new_data.dat <= mult_pt_if.dat;
          data_ram_sys_if.we <= 1;
          if (cnt > 2) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
-         cnt <= cnt + 1;
-         if (cnt == 4) begin
-           fp2_pt_mul_out_if.rdy <= 1;
+         if (cnt % 2 == 1) begin // Odd elements will be 0
+           data_ram_sys_if.a <= data_ram_sys_if.a;
+           data_ram_sys_if.we <= 0;
          end
+         cnt <= cnt + 1;
       end
     end
-    5: begin
+    8: begin
+      pair_mode <= 0;
       get_next_inst();
     end
   endcase
 endtask
 
 task task_fp2_fpoint_mult();
-  fp2_pt_mul_out_if.rdy <= 0;
-  fp_pt_mult_mode <= 0;
+  pair_mode <= 1;
   case(cnt) inside
     0: begin
       data_ram_sys_if.a <= curr_inst.a;
@@ -834,32 +815,32 @@ task task_fp2_fpoint_mult();
     1: begin
       if (data_ram_read[READ_CYCLE]) begin
         data_ram_sys_if.a <= curr_inst.b;
-        fp2_pt_mul_in_if.ctl <= curr_data.dat;
-        fp2_pt_mul_in_if.dat <= bls12_381_pkg::g2_point;
-        fp2_pt_mul_in_if.val <= 1;
+        pair_key <= curr_data.dat;
+        pair_i_g2 <= bls12_381_pkg::g2_af_point_fp2;
+        pair_i_val <= 1;
         cnt <= cnt + 1;
       end
     end
     // Wait for result
     2,3,4,5,6,7: begin
-      if (fp2_pt_mul_out_if.val) begin
+      mult_pt_if.rdy <= 1;
+      if (mult_pt_if.val) begin
          new_data.pt <= FP2_JB;
-         new_data.dat <= fp2_pt_mul_out_if.dat >> ((cnt-2)*DAT_BITS);
+         new_data.dat <= mult_pt_if.dat;
          data_ram_sys_if.we <= 1;
          if (cnt > 2) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
          cnt <= cnt + 1;
-         if (cnt == 7) begin
-           fp2_pt_mul_out_if.rdy <= 1;
-         end
       end
     end
     8: begin
+      pair_mode <= 0;
       get_next_inst();
     end
   endcase
 endtask
 
 task task_pairing();
+  pair_mode <= 0;
   case(cnt) inside
     0: begin
       data_ram_sys_if.a <= curr_inst.a;

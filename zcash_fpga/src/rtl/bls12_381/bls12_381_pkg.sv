@@ -147,6 +147,9 @@ package bls12_381_pkg;
 
   fp2_jb_point_t g2_point = '{x:G2x, y:G2y, z:FE2_one};
   fp2_jb_point_t g_point_fp2 = '{x:{381'd0, Gx}, y:{381'd0, Gy}, z:FE2_one};  // Fp Generator point used in dual mode point multiplication
+  fp2_af_point_t g2_af_point_fp2 = '{x:G2x, y:G2y};
+  fp2_af_point_t g_af_point_fp2  = '{x:{381'd0, Gx}, y:{381'd0, Gy}};
+
 
   // Instruction codes
   typedef enum logic [7:0] {
@@ -608,32 +611,57 @@ package bls12_381_pkg;
    // P is an affine Fp point in G1
    // Q is an affine Fp^2 point in G2 on the twisted curve
    // f is a Fp^12 element, the result of the miller loop
-  task miller_loop(input af_point_t P, input fp2_af_point_t Q, output fe12_t f, output fp2_jb_point_t R);
+  task miller_loop(input af_point_t P, input fp2_af_point_t Q, output fe12_t f);
     fe12_t lv_d, lv_a, f_sq;
-    fe_t key;
-    key = ATE_X;
+    fp2_jb_point_t R;
     f = FE12_one;
     R.x = Q.x;
     R.y = Q.y;
     R.z = 1;
-
+    
     for (int i = ATE_X_START-1; i >= 0; i--) begin
       f_sq = fe12_sqr(f);    // Full multiplication
       miller_double_step(R, P, lv_d);
       f = fe12_mul(f_sq, lv_d); // Sparse multiplication
-      if (key[i] == 1) begin
+      if (ATE_X[i] == 1) begin
         miller_add_step(R, Q, P, lv_a);
         f = fe12_mul(f, lv_a); // Sparse multiplication
       end
     end
+
+  endtask
+  
+  // This uses the miller loop functions to do a point multiplication
+  task miller_loop_point_mult(input fp2_af_point_t Q, input fe_t k, output fp2_jb_point_t R);
+    fe12_t f;
+    af_point_t P;
+    logic found_one;
+    P.x = 0;
+    P.y = 0;
+    found_one = 0;
+    R.x = FE2_zero;
+    R.y = FE2_zero;
+    R.z = FE2_one;
     
-    print_fe12(f);
+    for (int i = $bits(fe_t)-1; i >= 0; i--) begin
+      if (~found_one) begin
+        found_one |= k[i];
+        R.x = Q.x;
+        R.y = Q.y;
+        R.z = FE2_one;
+      end else begin
+        miller_double_step(R, P, f);
+        if (k[i] == 1)  begin
+          miller_add_step(R, Q, P, f);
+        end
+      end
+    end
 
   endtask
 
   task automatic ate_pairing(input af_point_t P, input fp2_af_point_t Q, ref fe12_t f);
     fp2_jb_point_t R; // This is only used for point multiplication
-    miller_loop(P, Q, f, R);
+    miller_loop(P, Q, f);
     final_exponent(f);
   endtask;
 

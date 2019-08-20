@@ -63,10 +63,11 @@ begin
   jb_point_t out_p, exp_p;
   logic [DAT_BITS-1:0] in_k;
   bls12_381_interrupt_rpl_t interrupt_rpl;
-
+  
   failed = 0;
-  in_k = 381'h10;//381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+  in_k = 381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
   exp_p =  point_mult(in_k, g_point);
+
   $display("Running test_fp_fpoint_mult...");
 
   axi_lite_if.peek(.addr(0), .data(rdata));
@@ -95,10 +96,6 @@ begin
   fork
     begin
       out_if.get_stream(get_dat, get_len, 50);
-      /*while(1) begin
-        out_if.rdy = ~out_if.rdy;
-        @(posedge clk);
-      end*/
       interrupt_rpl = get_dat;
 
       assert(interrupt_rpl.hdr.cmd == BLS12_381_INTERRUPT_RPL) else $fatal(1, "ERROR: Received non-interrupt message");
@@ -110,7 +107,7 @@ begin
       for (int i = 0; i < 3; i++)
         out_p[i*381 +: 381] = get_dat[i*(48*8) +: 381];
 
-      if (out_p == exp_p) begin
+      if (to_affine(out_p) == to_affine(exp_p)) begin
         $display("INFO: Output point matched expected:");
         print_jb_point(out_p);
       end else begin
@@ -122,7 +119,7 @@ begin
       end
     end
     begin
-      repeat(80000) @(posedge out_if.i_clk);
+      repeat(1000000) @(posedge out_if.i_clk);
       $fatal("ERROR: Timeout while waiting for result");
     end
   join_any
@@ -182,7 +179,7 @@ begin
       for (int i = 0; i < 6; i++)
         out_p[i*381 +: 381] = get_dat[i*(48*8) +: 381];
 
-      if (out_p == exp_p) begin
+      if (fp2_to_affine(out_p) == fp2_to_affine(exp_p)) begin
         $display("INFO: Output point matched expected:");
         print_fp2_jb_point(out_p);
       end else begin
@@ -194,7 +191,7 @@ begin
       end
     end
     begin
-      repeat(100000) @(posedge out_if.i_clk);
+      repeat(1000000) @(posedge out_if.i_clk);
       $fatal("ERROR: Timeout while waiting for result");
     end
   join_any
@@ -524,7 +521,7 @@ task test_point_mult();
   axi_lite_if.poke(.addr(32'h0), .data(2'b11));
   axi_lite_if.poke(.addr(32'h10), .data(0));
 
-  for (int i = 0; i < 4; i++) begin
+  for (int i = 0; i < 2; i++) begin
     in_k = random_vector(384/8) % P;
     p_in = 0;
     p2_in = 0;
@@ -559,25 +556,8 @@ task test_point_mult();
         p_exp = point_mult(in_k, p_in);
 
       end
-      // FP_JB
-      1: begin
-
-        p_in.z = random_vector(384/8) % P;
-
-        data = '{dat:p_in.x, pt:FP_JB};
-        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 1*64), .len(48));
-
-        data = '{dat:p_in.y, pt:FP_JB};
-        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 2*64), .len(48));
-
-        data = '{dat:p_in.z, pt:FP_JB};
-        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 3*64), .len(48));
-
-        p_exp = point_mult(in_k, p_in);
-
-      end
       // FP2_AF
-      2: begin
+      1: begin
 
         p2_in.z = FE2_one;
 
@@ -592,33 +572,6 @@ task test_point_mult();
 
         data = '{dat:p2_in.y[1], pt:FP2_AF};
         axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 4*64), .len(48));
-
-        p2_exp = fp2_point_mult(in_k, p2_in);
-
-      end
-      // FP2_JB
-      3: begin
-
-        p2_in.z[0] = random_vector(384/8) % P;
-        p2_in.z[1] = random_vector(384/8) % P;
-
-        data = '{dat:p2_in.x[0], pt:FP2_JB};
-        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 1*64), .len(48));
-
-        data = '{dat:p2_in.x[1], pt:FP2_JB};
-        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 2*64), .len(48));
-
-        data = '{dat:p2_in.y[0], pt:FP2_JB};
-        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 3*64), .len(48));
-
-        data = '{dat:p2_in.y[1], pt:FP2_JB};
-        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 4*64), .len(48));
-
-        data = '{dat:p2_in.z[0], pt:FP2_JB};
-        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 5*64), .len(48));
-
-        data = '{dat:p2_in.z[1], pt:FP2_JB};
-        axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 6*64), .len(48));
 
         p2_exp = fp2_point_mult(in_k, p2_in);
 
@@ -639,13 +592,13 @@ task test_point_mult();
 
         assert(interrupt_rpl.hdr.cmd == BLS12_381_INTERRUPT_RPL) else $fatal(1, "ERROR: Received non-interrupt message");
         assert(interrupt_rpl.index == i) else $fatal(1, "ERROR: Received wrong index value in message");
-        if (i == 0 || i == 1) begin
+        if (i == 0) begin
           assert(interrupt_rpl.data_type == FP_JB) else $fatal(1, "ERROR: Received wrong data type value in message");
 
           p_out = 0;
           for (int i = 0; i < 3; i++) p_out[i*381 +: 381] = get_dat[i*(48*8) +: 381];
 
-          if (p_out == p_exp) begin
+          if (to_affine(p_out) == to_affine(p_exp)) begin
             $display("INFO: Output element matched expected:");
             print_jb_point(p_out);
           end else begin
@@ -662,7 +615,7 @@ task test_point_mult();
           p2_out = 0;
           for (int i = 0; i < 6; i++) p2_out[i*381 +: 381] = get_dat[i*(48*8) +: 381];
 
-          if (p2_out == p2_exp) begin
+          if (fp2_to_affine(p2_out) == fp2_to_affine(p2_exp)) begin
             $display("INFO: Output element matched expected:");
             print_fp2_jb_point(p2_out);
           end else begin
@@ -675,7 +628,7 @@ task test_point_mult();
         end
       end
       begin
-        repeat(100000) @(posedge out_if.i_clk);
+        repeat(1000000) @(posedge out_if.i_clk);
         $fatal("ERROR: Timeout while waiting for result");
       end
     join_any
@@ -805,11 +758,11 @@ initial begin
   out_if.rdy = 0;
   #100ns;
 
-  //test_fp_fpoint_mult();
-  //test_fp2_fpoint_mult();
+  test_fp_fpoint_mult();
+  test_fp2_fpoint_mult();
   test_inv_element();
   test_mul_add_sub_element();
-  //test_point_mult();
+  test_point_mult();
   test_pairing();
 
 
