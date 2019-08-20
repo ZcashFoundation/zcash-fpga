@@ -151,7 +151,7 @@ ec_fe12_arithmetic (
 fe2_mul_by_nonresidue #(
   .FE_TYPE ( FE_TYPE )
 )
-fe2_mul_by_nonresidue (
+fe2_mul_by_nonresidue_i (
   .i_clk ( clk ),
   .i_rst ( rst ),
   .o_mnr_fe2_if ( mnr_fe2_o_if[2] ),
@@ -165,7 +165,7 @@ fe2_mul_by_nonresidue (
 fe6_mul_by_nonresidue #(
   .FE2_TYPE ( FE2_TYPE )
 )
-fe6_mul_by_nonresidue (
+fe6_mul_by_nonresidue_i (
   .i_clk ( clk ),
   .i_rst ( rst ),
   .o_mnr_fe6_if ( mnr_fe6_i_if ),
