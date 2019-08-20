@@ -189,8 +189,8 @@ resource_share # (
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
   .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( OVR_WRT_BIT + 8  ),
-  .PIPELINE_IN  ( 1                ),
-  .PIPELINE_OUT ( 1                )
+  .PIPELINE_IN  ( 0                ),
+  .PIPELINE_OUT ( 0                )
 )
 resource_share_fe_add (
   .i_clk ( i_clk ),
@@ -206,8 +206,8 @@ resource_share # (
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
   .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( OVR_WRT_BIT + 10 ),
-  .PIPELINE_IN  ( 1                ),
-  .PIPELINE_OUT ( 1                )
+  .PIPELINE_IN  ( 0                ),
+  .PIPELINE_OUT ( 0                )
 )
 resource_share_fe_sub (
   .i_clk ( i_clk ),
@@ -223,8 +223,8 @@ resource_share # (
   .DAT_BITS     ( $bits(FE_TYPE)   ),
   .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( OVR_WRT_BIT + 11 ),
-  .PIPELINE_IN  ( 1                ),
-  .PIPELINE_OUT ( 1                )
+  .PIPELINE_IN  ( 0                ),
+  .PIPELINE_OUT ( 0                )
 )
 resource_share_fe_inv (
   .i_clk ( i_clk ),
@@ -240,8 +240,8 @@ resource_share # (
   .DAT_BITS     ( $bits(FE_TYPE)   ),
   .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( OVR_WRT_BIT + 12 ),
-  .PIPELINE_IN  ( 1                ),
-  .PIPELINE_OUT ( 1                )
+  .PIPELINE_IN  ( 0                ),
+  .PIPELINE_OUT ( 0                )
 )
 resource_share_fe2_inv (
   .i_clk ( i_clk ),

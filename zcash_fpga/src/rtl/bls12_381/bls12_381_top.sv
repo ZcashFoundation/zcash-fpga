@@ -314,7 +314,7 @@ resource_share # (
   .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( 120              ),
   .PIPELINE_IN  ( 1                ),
-  .PIPELINE_OUT ( 0                )
+  .PIPELINE_OUT ( 1                )
 )
 resource_share_mul (
   .i_clk ( i_clk ),
