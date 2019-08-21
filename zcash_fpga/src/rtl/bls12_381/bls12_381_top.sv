@@ -154,7 +154,7 @@ always_ff @ (posedge i_clk) begin
     pair_i_val <= 0;
     pair_i_g1 <= 0;
     pair_i_g2 <= 0;
-    
+
     pair_mode <= 0;
     pair_key <= 0;
     mult_pt_if.rdy <= 0;
@@ -198,6 +198,18 @@ always_ff @ (posedge i_clk) begin
         last_inst_cnt <= last_inst_cnt;
         // Wait in this state
         get_next_inst();
+      end
+      JUMP: begin
+        last_inst_cnt <= last_inst_cnt;
+        task_jump();
+      end
+      JUMP_IF_EQ: begin
+        last_inst_cnt <= last_inst_cnt;
+        task_jump_if_eq();
+      end
+      JUMP_NONZERO_SUB: begin
+        last_inst_cnt <= last_inst_cnt;
+        task_jump_nonzero_sub();
       end
       COPY_REG: begin
         last_inst_cnt <= last_inst_cnt;
@@ -302,7 +314,7 @@ bls12_381_pairing_wrapper (
   .i_mode  ( pair_mode ),
   .i_key   ( pair_key  ),
   .o_fe12_if    ( pair_o_res_if ),
-  .o_p_jb_if    ( mult_pt_if    ),  
+  .o_p_jb_if    ( mult_pt_if    ),
   .o_mul_fe_if  ( mul_in_if[0]  ),
   .i_mul_fe_if  ( mul_out_if[0] ),
   .o_inv_fe2_if ( inv_fe2_i_if  ),
@@ -640,6 +652,77 @@ task task_copy_reg();
   endcase
 endtask
 
+task task_jump();
+  case(cnt)
+    0: begin
+      inst_ram_sys_if.a <= curr_inst.a;
+      inst_ram_read[0] <= 1;
+      cnt <= cnt + 1;
+    end
+    1: begin
+      get_next_inst();
+    end
+  endcase
+endtask
+
+task task_jump_if_eq();
+  case(cnt)
+    0: begin
+      data_ram_sys_if.a <= curr_inst.b;
+      data_ram_read[0] <= 1;
+      cnt <= cnt + 1;
+    end
+    1: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        data_ram_sys_if.a <= curr_inst.c;
+        new_data <= curr_data;
+        data_ram_read[0] <= 1;
+        cnt <= cnt + 1;
+      end
+    end
+    2: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        if (new_data.dat[63:0] == curr_data.dat[63:0])
+          inst_ram_sys_if.a <= curr_inst.a;
+        else
+          inst_ram_sys_if.a <= inst_ram_sys_if.a + 1;
+        inst_ram_read[0] <= 1;
+        cnt <= cnt + 1;
+      end
+    end
+    3: begin
+      get_next_inst();
+    end
+  endcase
+endtask
+
+task task_jump_nonzero_sub();
+  case(cnt)
+    0: begin
+      data_ram_sys_if.a <= curr_inst.b;
+      data_ram_read[0] <= 1;
+      cnt <= cnt + 1;
+    end
+    1: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        if (curr_data.dat[63:0] != 0) begin
+          inst_ram_sys_if.a <= curr_inst.a;
+          new_data.pt <= curr_data.pt;
+          new_data.dat[63:0] <= curr_data.dat[63:0] - 1;
+          data_ram_sys_if.we <= 1;
+        end else begin
+          inst_ram_sys_if.a <= inst_ram_sys_if.a + 1;
+        end
+        inst_ram_read[0] <= 1;
+        cnt <= cnt + 1;
+      end
+    end
+    2: begin
+      get_next_inst();
+    end
+  endcase
+endtask
+
 task task_inv_element();
   case(cnt)
     0: begin
@@ -762,7 +845,7 @@ task task_point_mult();
       pair_mode <= 0;
       get_next_inst();
     end
-  endcase  
+  endcase
 endtask
 
 task task_fp_fpoint_mult();

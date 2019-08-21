@@ -155,6 +155,9 @@ package bls12_381_pkg;
   typedef enum logic [7:0] {
     NOOP_WAIT       = 8'h0,
     COPY_REG        = 8'h1,
+    JUMP            = 8'h2,
+    JUMP_IF_EQ      = 8'h4,
+    JUMP_NONZERO_SUB= 8'h5,
     SEND_INTERRUPT  = 8'h6,
 
     SUB_ELEMENT     = 8'h10,
@@ -618,7 +621,7 @@ package bls12_381_pkg;
     R.x = Q.x;
     R.y = Q.y;
     R.z = 1;
-    
+
     for (int i = ATE_X_START-1; i >= 0; i--) begin
       f_sq = fe12_sqr(f);    // Full multiplication
       miller_double_step(R, P, lv_d);
@@ -630,7 +633,7 @@ package bls12_381_pkg;
     end
 
   endtask
-  
+
   // This uses the miller loop functions to do a point multiplication
   task miller_loop_point_mult(input fp2_af_point_t Q, input fe_t k, output fp2_jb_point_t R);
     fe12_t f;
@@ -642,7 +645,7 @@ package bls12_381_pkg;
     R.x = FE2_zero;
     R.y = FE2_zero;
     R.z = FE2_one;
-    
+
     for (int i = $bits(fe_t)-1; i >= 0; i--) begin
       if (~found_one) begin
         found_one |= k[i];
@@ -824,7 +827,7 @@ package bls12_381_pkg;
    function fe12_t fe12_fmap(input fe12_t a, input int pow);
      fe6_t t0, t1;
      t0 = a[0];
-     t1 = a[1]; // 0. 
+     t1 = a[1]; // 0.
      t0 = fe6_fmap(t0, pow); // 1. [0]
      t1 = fe6_fmap(t1, pow); // 2. [0]
      t1[0] = fe2_mul(t1[0], FROBENIUS_COEFF_FQ12_C1[pow % 12]); // 3. [2]
@@ -937,11 +940,11 @@ package bls12_381_pkg;
      $display("y:(c1:0x%h, c0:0x%h)", p.y[1], p.y[0]);
      $display("z:(c1:0x%h, c0:0x%h)", p.z[1], p.z[0]);
    endtask
-   
+
    task print_af_point(af_point_t p);
      $display("x:(0x%h)", p.x);
      $display("y:(0x%h)", p.y);
-   endtask  
+   endtask
 
    task print_fp2_af_point(fp2_af_point_t p);
      $display("x:(c1:0x%h, c0:0x%h)", p.x[1], p.x[0]);
