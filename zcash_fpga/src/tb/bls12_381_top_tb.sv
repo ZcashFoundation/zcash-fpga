@@ -753,6 +753,92 @@ begin
 end
 endtask;
 
+task test_control_logic();
+  integer signed get_len;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
+  inst_t inst;
+  logic failed;
+  data_t data;
+  logic [31:0] rdata;
+  integer unsigned in, out;
+  bls12_381_interrupt_rpl_t interrupt_rpl;
+
+  failed = 0;
+  in = 0;
+  in[7:0] = $random();
+  
+  $display("Running test_control_logic...");
+  
+  //Reset the RAM
+  axi_lite_if.poke(.addr(32'h0), .data(2'b11));
+
+  axi_lite_if.poke(.addr(32'h10), .data(0));
+
+  data = '{dat:in, pt:SCALAR};
+  axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 0*64), .len(48));
+  data = '{dat:381'd0, pt:SCALAR};
+  axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 1*64), .len(48));
+  data = '{dat:381'd1, pt:SCALAR};
+  axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + 2*64), .len(48));
+  
+  inst = '{code:SEND_INTERRUPT, a:16'd3, b:16'h8888, c:16'd0};
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 7*8), .len(8));
+
+  inst = '{code:ADD_ELEMENT, a:16'd2, b:16'd3, c:16'd3};
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 1*8), .len(8));
+
+  inst = '{code:JUMP_NONZERO_SUB, a:16'd1, b:16'd0, c:16'd0};
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 2*8), .len(8));
+
+  inst = '{code:JUMP_IF_EQ, a:16'd10, b:16'd0, c:16'd2};
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 3*8), .len(8));
+
+  inst = '{code:JUMP, a:16'd7, b:16'd0, c:16'd0};
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + 4*8), .len(8));
+
+  axi_lite_if.poke(.addr(32'h10), .data(1));
+  
+  fork
+    begin
+      out_if.get_stream(get_dat, get_len, 0);
+      interrupt_rpl = get_dat;
+
+      assert(interrupt_rpl.hdr.cmd == BLS12_381_INTERRUPT_RPL) else $fatal(1, "ERROR: Received non-interrupt message");
+      assert(interrupt_rpl.index == 16'h8888) else $fatal(1, "ERROR: Received wrong index value in message");
+      assert(interrupt_rpl.data_type == SCALAR) else $fatal(1, "ERROR: Received wrong data type value in message");
+
+      get_dat = get_dat >> $bits(bls12_381_interrupt_rpl_t);
+      out = get_dat;
+
+      if (out == in+1) begin
+        $display("INFO: Output element matched expected:");
+        $display("0x%x", out);
+      end else begin
+        $display("ERROR: Output element did NOT match expected:");
+        $display("0x%x", out);
+        $display("Expected:");
+        $display("0x%x", in);
+        failed = 1;
+      end
+    end
+    begin
+      repeat(100000) @(posedge out_if.i_clk);
+      $fatal("ERROR: Timeout while waiting for result");
+    end
+  join_any
+  disable fork;
+
+  axi_lite_if.peek(.addr(32'h14), .data(rdata));
+  $display("INFO: Last cycle count was %d", rdata);
+
+  if(failed)
+   $fatal(1, "ERROR: test_control_logic FAILED");
+
+
+  $display("INFO: test_control_logic PASSED!");
+
+endtask;
+
 initial begin
   axi_lite_if.reset_source();
   out_if.rdy = 0;
@@ -764,6 +850,7 @@ initial begin
   test_mul_add_sub_element();
   test_point_mult();
   test_pairing();
+  test_control_logic();
 
 
   #1us $finish();
