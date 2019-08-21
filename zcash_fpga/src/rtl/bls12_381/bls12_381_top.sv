@@ -76,12 +76,7 @@ if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t)))   dbl_i_if(i_cl
 if_axi_stream #(.DAT_BITS($bits(bls12_381_pkg::fp2_jb_point_t)))   dbl_o_if(i_clk);
 
 localparam CTL_BITS = 128;
-// Access to shared 381bit multiplier / adder / subtractor
-// Fp logic uses control bits 7:0
-// Fp2 15:8
-// Fp6 23:16
-// Top level muxes 31:24
-// 67:32 Pairing engine - TODO conslidate the logic used here with the point multiplication
+
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_in_if  [2:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_out_if [2:0] (i_clk);
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) add_in_if        (i_clk);
@@ -418,7 +413,7 @@ task task_sub_element();
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
         cnt <= 5;
-        if (pt_l == FE2) begin
+        if (pt_l == FE2 || pt_l == FP2_JB || pt_l == FP2_AF) begin
           // FE2 requires extra logic
           cnt <= 3;
         end
@@ -484,7 +479,7 @@ task task_add_element();
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
         cnt <= 5;
-        if (pt_l == FE2) begin
+        if (pt_l == FE2 || pt_l == FP2_JB || pt_l == FP2_AF) begin
           // FE2 requires extra logic
           cnt <= 3;
         end
@@ -544,7 +539,7 @@ task task_mul_element();
         mul_in_if[1].dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
         mul_in_if[1].val <= 1;
         mul_in_if[1].ctl <= 0;
-        if (pt_l == FE2) begin
+        if (pt_l == FE2 || pt_l == FP2_JB || pt_l == FP2_AF) begin
           data_ram_sys_if.a <= curr_inst.a + 1;
           data_ram_read[0] <= 1;
           mul_out_if[1].rdy <= 0;
