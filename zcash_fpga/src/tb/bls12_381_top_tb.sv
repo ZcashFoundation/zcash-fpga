@@ -34,7 +34,7 @@ end
 
 initial begin
   clk = 0;
-  forever #CLK_PERIOD clk = ~clk;
+  forever #(CLK_PERIOD/2) clk = ~clk;
 end
 
 if_axi_stream #(.DAT_BYTS(8)) out_if(clk);
@@ -65,7 +65,7 @@ begin
   bls12_381_interrupt_rpl_t interrupt_rpl;
   
   failed = 0;
-  in_k = 381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+  in_k = 1 << 379;
   exp_p =  point_mult(in_k, g_point);
 
   $display("Running test_fp_fpoint_mult...");

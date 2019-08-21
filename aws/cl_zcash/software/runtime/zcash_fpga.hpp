@@ -47,15 +47,15 @@ class zcash_fpga {
       RESET_FPGA            = 0x00000000,
       FPGA_STATUS           = 0x00000001,
       VERIFY_EQUIHASH       = 0x00000100,
-      VERIFY_SECP256K1_SIG  = 0x00000101,
+      VERIFY_SECP256K1_SIG  = 0x00000200,
 
       // Replies from the FPGA
       RESET_FPGA_RPL            = 0x80000000,
       FPGA_STATUS_RPL           = 0x80000001,
       FPGA_IGNORE_RPL           = 0x80000002,
       VERIFY_EQUIHASH_RPL       = 0x80000100,
-      VERIFY_SECP256K1_SIG_RPL  = 0x80000101,
-      BLS12_381_INTERRUPT_RPL   = 0x80000200
+      VERIFY_SECP256K1_SIG_RPL  = 0x80000200,
+      BLS12_381_INTERRUPT_RPL   = 0x80000300
     } command_t;
 
     typedef enum : uint8_t {
@@ -78,6 +78,9 @@ class zcash_fpga {
     typedef enum : uint8_t {
       NOOP_WAIT       = 0x0,
       COPY_REG        = 0x1,
+      JUMP            = 0x2,
+      JUMP_IF_EQ      = 0x4,
+      JUMP_NONZERO_SUB= 0x5,
       SEND_INTERRUPT  = 0x6,
 
       SUB_ELEMENT     = 0x10,
@@ -87,7 +90,9 @@ class zcash_fpga {
 
       POINT_MULT      = 0x24,
       FP_FPOINT_MULT  = 0x25,
-      FP2_FPOINT_MULT = 0x26
+      FP2_FPOINT_MULT = 0x26,
+
+      ATE_PAIRING     = 0x28
     } bls12_381_code_t;
 
     // Instruction format
