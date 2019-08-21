@@ -45,6 +45,7 @@ ${ZCASH_DIR}/ip_cores/sha256/src/rtl/sha256d_top.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/accum_mult.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/barret_mod.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/bin_inv.sv
+${ZCASH_DIR}/ip_cores/util/src/rtl/bin_inv_s.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/dup_check.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/karatsuba_ofman_mult.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/packet_arb.sv
@@ -53,7 +54,6 @@ ${ZCASH_DIR}/ip_cores/util/src/rtl/barret_mod_pipe.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/adder_pipe.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/subtracter_pipe.sv
 
-
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp_mult_mod.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_arithmetic.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_point_add.sv
@@ -61,8 +61,30 @@ ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_point_dbl.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_point_add.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_point_dbl.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_point_mult.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fe12_inv_s.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fe12_mul_s.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fe12_pow_s.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fe2_inv_s.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fe2_mul_s.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fe6_inv_s.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fe6_mul_s.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/fe2_mul_by_nonresidue_s.sv
+${ZCASH_DIR}/ip_cores/ec/src/rtl/fe6_mul_by_nonresidue_s.sv
+
 
 ${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_axi_bridge.sv
 ${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_top.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_pairing.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_pairing_wrapper.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_pairing_miller_dbl.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_pairing_miller_add.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_final_exponent.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_fe6_fmap.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_fe2_fmap.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_fe12_inv_wrapper.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_fe12_fmap.sv
+${ZCASH_DIR}/zcash_fpga/src/rtl/bls12_381/bls12_381_fe12_fmap_wrapper.sv
+
+
 
 ${ZCASH_DIR}/zcash_fpga/src/rtl/top/zcash_fpga_top.sv

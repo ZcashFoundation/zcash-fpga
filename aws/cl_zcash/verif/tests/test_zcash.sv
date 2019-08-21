@@ -307,7 +307,7 @@ task test_bls12_381();
       for (int i = 0; i < 6; i++)
         out_p[i*381 +: 381] = stream_data[i*(48*8) +: 381];
 
-      if (out_p == exp_p) begin
+      if (fp2_to_affine(out_p) == fp2_to_affine(exp_p)) begin
         $display("INFO: Output point matched expected:");
         print_fp2_jb_point(out_p);
       end else begin

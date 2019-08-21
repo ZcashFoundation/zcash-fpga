@@ -21,4 +21,4 @@ add_wave /tb/card/fpga/CL/zcash_if_tx/*
 add_wave /tb/card/fpga/CL/zcash_if_rx/*
 add_wave /tb/card/fpga/CL/cl_zcash_aws_wrapper/*
 
-run 110 us
+run all
