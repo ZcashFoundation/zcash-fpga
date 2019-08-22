@@ -154,7 +154,7 @@ end
 
 // Fifo to store inputs (as we need to do final subtraction)
 axi_stream_fifo #(
-  .SIZE     ( 32      ),
+  .SIZE     ( 16      ),
   .DAT_BITS ( 2*K + 2 ),
   .CTL_BITS ( CTL_BITS )
 )

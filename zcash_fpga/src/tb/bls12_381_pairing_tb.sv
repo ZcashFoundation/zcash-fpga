@@ -30,7 +30,7 @@ parameter P              = bls12_381_pkg::P;
 af_point_t G1 = {Gy, Gx};
 fp2_af_point_t G2 = {G2y, G2x};
 
-localparam CTL_BITS = 84;
+localparam CTL_BITS = 128;
 
 localparam CLK_PERIOD = 100;
 
@@ -51,6 +51,8 @@ if_axi_stream #(.DAT_BYTS(($bits(FE_TYPE)+7)/8), .CTL_BITS(CTL_BITS)) out_if(clk
 
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe_o_if(clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe_i_if(clk);
+
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   o_p_jb_if(clk);
 
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe_o_if(clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe_i_if(clk);
@@ -80,6 +82,9 @@ bls12_381_pairing_wrapper (
   .o_rdy ( in_if.rdy ),
   .i_g1_af ( in_if.dat[0 +: $bits(af_point_t)] ),
   .i_g2_af ( in_if.dat[$bits(af_point_t) +: $bits(fp2_af_point_t)] ),
+  .i_mode    ( 1'd0   ),
+  .i_key     ( 381'd0 ),
+  .o_p_jb_if ( o_p_jb_if ),
   .o_fe12_if ( out_if ),
   .o_mul_fe_if ( mul_fe_o_if ),
   .i_mul_fe_if ( mul_fe_i_if ),
@@ -139,6 +144,8 @@ begin
     for (int j = 0; j < 3; j++)
       for (int k = 0; k < 2; k++)
         f_out[i][j][k] = get_dat[(i*6+j*2+k)*384 +: $bits(FE_TYPE)];
+
+  
 
   $display("Expected:");
   print_fe12(f_exp);
