@@ -1,17 +1,21 @@
 The work in this repo is the result of a Zcash foundation grant to develop open-source FPGA code that can be used to accelerate various aspects of the network.
 **An Architecture document is [here](zcash_fpga_design_doc_v1.1.x.pdf)**.
 
-While mainly developed for Equihash and the secp256k1 and bls12-381 curves, the code used in this repo can also be applied with minimum modification to other curves.
+While mainly developed for Equihash and the secp256k1 and bls12-381 curves, the code (ip_cores) used in this repo can also be applied to other curves by
+changing parameters / minimum modification to equations.
 
-** Currently still a work in progress
+# Getting started
+
+The architecture document has instructions for building an AWS image or simulating the top level design. The easiest way is to add all .sv and .xci files to a new Vivado project,
+and then set the top level _tb.sv file to the module you want to test.
 
 # Repo folder structure
 
 Each top level folder is explained below. Inside each folder is source code written in systemverilog, and most blocks have a standalone self-checking testbench.
 
-## aws
+## AWS
 
-This contains the top / project files for building on a AWS (Amazon FPGA VU9P w/ 64GB DDR4).
+This contains the top / project files for building on a AWS F1 instance (Amazon FPGA VU9P w/ 64GB DDR4).
 
 * This contains the zcash_fpga library (aws/cl_zcash/software/runtime/zcash_fpga.hpp) that can be used to interface with the FPGA over PCIe.
 * Instructions on how to build are in the architecture document.
@@ -22,7 +26,7 @@ This contains the top / project files for building on the Bittware VVH board (VU
 
 ## ip_cores
 
-These contain shared IP cores used by the projects in this repo. These include many functions, such as:
+These contain shared IP cores that are used by the projects in this repo. These include many functions, such as:
 
 * Hashing
   - Blake2b - single pipe implementation of blake2b and a pipline-unrolled version for high performance (single clock hash @ 200MHz after initial 52 clock delay).

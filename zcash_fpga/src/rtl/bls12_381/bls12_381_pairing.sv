@@ -116,9 +116,6 @@ logic point_mul_mode, found_one;
 FE_TYPE key;
 
 always_comb begin
-  dbl_f12_o_if.rdy = pair_state == POINT_MULT_DBL || (f_val && (~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4))); // As this is a sparse f12 using full f12_mul
-  add_f12_o_if.rdy = pair_state == POINT_MULT_ADD || (f_val && (~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) && ((out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4))); // As this is a sparse f12 using full f12_mul
-
   final_exp_fe12_o_if.dat = f[0][0][0];
   final_exp_fe12_o_if.err = 0;
   final_exp_fe12_o_if.ctl = 0;
@@ -153,6 +150,9 @@ always_ff @ (posedge i_clk) begin
     stage_done <= 0;
     
     o_p_jb_if.reset_source();
+    
+    dbl_f12_o_if.rdy <= 0;
+    add_f12_o_if.rdy <= 0;
 
   end else begin
 
@@ -166,6 +166,9 @@ always_ff @ (posedge i_clk) begin
       f <= {mul_fe12_i_if[0].dat, f[1], f[0][2:1], f[0][0][1]};
       f_val <= mul_fe12_i_if[0].eop;
     end
+    
+    dbl_f12_o_if.rdy <= 0;
+    add_f12_o_if.rdy <= 0;
 
     case(pair_state)
       IDLE: begin
@@ -229,36 +232,41 @@ always_ff @ (posedge i_clk) begin
             end
           end
           1: begin // Multiply by double result
-            if(~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) begin
+            if(~dbl_f12_o_if.rdy && (~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy))) begin
               if ((dbl_f12_o_if.val && f_val) || (out_cnt/2 == 5)) begin
                 mul_fe12_o_if[0].sop <= out_cnt == 0;
                 mul_fe12_o_if[0].eop <= out_cnt == 11;
-                mul_fe12_o_if[0].val <= 1;
+                mul_fe12_o_if[0].val <= dbl_f12_o_if.val || (out_cnt/2 == 2) || (out_cnt/2 == 3) || (out_cnt/2 == 5);
+                dbl_f12_o_if.rdy <= (out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4);
                 case (out_cnt/2) inside
                   0,1,4: mul_fe12_o_if[0].dat <= {dbl_f12_o_if.dat, f[0][0][0]};
                   default: mul_fe12_o_if[0].dat <= {381'd0, f[0][0][0]};
                 endcase
+                
                 out_cnt <= out_cnt + 1;
                 f <= {mul_fe12_i_if[0].dat, f[1], f[0][2:1], f[0][0][1]};
-                mul_fe12_o_if[0].ctl <= miller_mult_cnt;
-                mul_fe12_o_if[0].ctl[SQ_BIT] <= 0;
                 if (out_cnt == 11) begin
                   f_val <= 0;
                   out_cnt <= 0;
                   miller_mult_cnt <= ATE_X[ate_loop_cnt] == 0 ? 3 : 2;
-                end
+                end                  
+                 
+                mul_fe12_o_if[0].ctl <= miller_mult_cnt;
+                mul_fe12_o_if[0].ctl[SQ_BIT] <= 0;
+                
               end
             end
           end
           2: begin  // Multiply by add result
-            if(~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy)) begin
+            if(~add_f12_o_if.rdy && (~mul_fe12_o_if[0].val || (mul_fe12_o_if[0].val && mul_fe12_o_if[0].rdy))) begin
               if ((add_f12_o_if.val && f_val) || (out_cnt/2 == 5)) begin
                 g2_r_jb_i <= add_g2_o;
                 mul_fe12_o_if[0].ctl <= miller_mult_cnt;
                 mul_fe12_o_if[0].ctl[SQ_BIT] <= 0;
                 mul_fe12_o_if[0].sop <= out_cnt == 0;
                 mul_fe12_o_if[0].eop <= out_cnt == 11;
-                mul_fe12_o_if[0].val <= 1;
+                mul_fe12_o_if[0].val <= add_f12_o_if.val || (out_cnt/2 == 2) || (out_cnt/2 == 3) || (out_cnt/2 == 5);
+                add_f12_o_if.rdy <= (out_cnt/2 == 0) || (out_cnt/2 == 1) || (out_cnt/2 == 4);
                 out_cnt <= out_cnt + 1;
                 case (out_cnt/2) inside
                   0,1,4: mul_fe12_o_if[0].dat <= {add_f12_o_if.dat, f[0][0][0]};
@@ -302,6 +310,7 @@ always_ff @ (posedge i_clk) begin
         end
       end
       POINT_MULT_DBL: begin
+        dbl_f12_o_if.rdy <= 1;
         if(found_one == 0) begin
           key <= key << 1;
           ate_loop_cnt <= ate_loop_cnt - 1;
@@ -327,6 +336,7 @@ always_ff @ (posedge i_clk) begin
         end
       end
       POINT_MULT_ADD: begin
+        add_f12_o_if.rdy <= 1;
         if (~wait_add) begin
           wait_add <= 1;
           add_i_val <= 1;
