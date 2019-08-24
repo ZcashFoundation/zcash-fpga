@@ -88,11 +88,10 @@ class zcash_fpga {
       MUL_ELEMENT     = 0x12,
       INV_ELEMENT     = 0x13,
 
-      POINT_MULT      = 0x24,
-      FP_FPOINT_MULT  = 0x25,
-      FP2_FPOINT_MULT = 0x26,
-
-      ATE_PAIRING     = 0x28
+      POINT_MULT      = 0x20,
+      MILLER_LOOP     = 0x21,
+      FINAL_EXP       = 0x22,
+      ATE_PAIRING     = 0x23
     } bls12_381_code_t;
 
     // Instruction format

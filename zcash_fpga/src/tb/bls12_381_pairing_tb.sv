@@ -46,13 +46,18 @@ initial begin
   forever #(CLK_PERIOD/2) clk = ~clk;
 end
 
-if_axi_stream #(.DAT_BYTS(($bits(af_point_t) + $bits(fp2_af_point_t)+7)/8), .CTL_BITS(CTL_BITS)) in_if(clk);
+logic [1:0] mode;
 if_axi_stream #(.DAT_BYTS(($bits(FE_TYPE)+7)/8), .CTL_BITS(CTL_BITS)) out_if(clk);
 
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe_o_if(clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe_i_if(clk);
 
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   o_p_jb_if(clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe12_o_if(clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe12_i_if(clk);
+
+if_axi_stream #(.DAT_BYTS(($bits(FE_TYPE)+7)/8), .CTL_BITS(CTL_BITS))   o_p_jb_if(clk);
+
+if_axi_stream #(.DAT_BYTS(($bits(FE_TYPE)+7)/8), .CTL_BITS(CTL_BITS)) pair_af_if(clk);
 
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe_o_if(clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) inv_fe_i_if(clk);
@@ -78,20 +83,19 @@ bls12_381_pairing_wrapper #(
 bls12_381_pairing_wrapper (
   .i_clk ( clk ),
   .i_rst ( rst ),
-  .i_val ( in_if.val ),
-  .o_rdy ( in_if.rdy ),
-  .i_g1_af ( in_if.dat[0 +: $bits(af_point_t)] ),
-  .i_g2_af ( in_if.dat[$bits(af_point_t) +: $bits(fp2_af_point_t)] ),
-  .i_mode    ( 1'd0   ),
+  .i_pair_af_if ( pair_af_if ),
+  .i_mode    ( mode  ),
   .i_key     ( 381'd0 ),
   .o_p_jb_if ( o_p_jb_if ),
   .o_fe12_if ( out_if ),
   .o_mul_fe_if ( mul_fe_o_if ),
   .i_mul_fe_if ( mul_fe_i_if ),
+  .o_mul_fe12_if ( mul_fe12_i_if ),
+  .i_mul_fe12_if ( mul_fe12_o_if ),  
   .o_inv_fe2_if ( inv_fe2_i_if  ),
   .i_inv_fe2_if ( inv_fe2_o_if  ),
   .o_inv_fe_if  ( inv_fe_i_if   ),
-  .i_inv_fe_if  ( inv_fe_o_if   )  
+  .i_inv_fe_if  ( inv_fe_o_if   )
 );
 
 // This just tests our software model vs a known good result
@@ -126,16 +130,30 @@ endtask
 task test1(input af_point_t G1_p, fp2_af_point_t G2_p);
 begin
   integer signed get_len;
-  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] dat_in0, dat_in1, get_dat;
   integer start_time, finish_time;
   FE12_TYPE  f_out, f_exp;
   $display("Running test1 ...");
+  
+  dat_in0 = 0;
+  dat_in0[0*384 +: $bits(FE_TYPE)] = G1_p.x;
+  dat_in0[1*384 +: $bits(FE_TYPE)] = G1_p.y;
+  
+  dat_in1 = 0;
+  dat_in1[0*384 +: $bits(FE_TYPE)] = G2_p.x[0];
+  dat_in1[1*384 +: $bits(FE_TYPE)] = G2_p.x[1];
+  dat_in1[2*384 +: $bits(FE_TYPE)] = G2_p.y[0];
+  dat_in1[3*384 +: $bits(FE_TYPE)] = G2_p.y[1];
+  mode = 0;
 
   ate_pairing(G1_p, G2_p, f_exp);
 
   start_time = $time;
   fork
-    in_if.put_stream({G2_p, G1_p}, (($bits(af_point_t) + $bits(fp2_af_point_t))+7)/8);
+    begin
+      pair_af_if.put_stream(dat_in0, (($bits(af_point_t))+7)/8);
+      pair_af_if.put_stream(dat_in1, (($bits(fp2_af_point_t))+7)/8);
+    end
     out_if.get_stream(get_dat, get_len);
   join
   finish_time = $time;
@@ -145,7 +163,7 @@ begin
       for (int k = 0; k < 2; k++)
         f_out[i][j][k] = get_dat[(i*6+j*2+k)*384 +: $bits(FE_TYPE)];
 
-  
+
 
   $display("Expected:");
   print_fe12(f_exp);
@@ -165,32 +183,46 @@ endtask;
 task test_linear();
 begin
   integer signed get_len;
-  logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] dat_in0, dat_in1, get_dat;
   integer start_time, finish_time, n;
   FE12_TYPE  f_out, f_exp0, f_exp1;
   af_point_t G1_a, G1_a_n;
   fp2_af_point_t G1_j, G2_a_n;
   fp2_af_point_t G2_a;
   fp2_jb_point_t G2_j;
-  
+
   $display("Running test_linear ...");
-  
+
   G1_a = {Gy, Gx};
   G2_a = {G2y, G2x};
   G1_j = {381'd1, Gy, Gx};
-  G2_j = {381'd1, G2y, G2x};  
+  G2_j = {381'd1, G2y, G2x};
   n = 2;
   G1_a_n = to_affine(point_mult(n, G1_j));
   G2_a_n = fp2_to_affine(fp2_point_mult(n, G2_j));
-  
+
   ate_pairing(G1_a, G2_a_n, f_exp0);
   ate_pairing(G1_a_n, G2_a, f_exp1);
-  
+
   assert(f_exp0 == f_exp1) else $fatal(1, "Error in test_linear with sw model");
+
+  dat_in0 = 0;
+  dat_in0[0*384 +: $bits(FE_TYPE)] = G1_a_n.x;
+  dat_in0[1*384 +: $bits(FE_TYPE)] = G1_a_n.y;
+  
+  dat_in1 = 0;
+  dat_in1[0*384 +: $bits(FE_TYPE)] = G2_a.x[0];
+  dat_in1[1*384 +: $bits(FE_TYPE)] = G2_a.x[1];
+  dat_in1[2*384 +: $bits(FE_TYPE)] = G2_a.y[0];
+  dat_in1[3*384 +: $bits(FE_TYPE)] = G2_a.y[1];
+  mode = 0;
   
   start_time = $time;
   fork
-    in_if.put_stream({G2_a, G1_a_n}, (($bits(af_point_t) + $bits(fp2_af_point_t))+7)/8);
+    begin
+      pair_af_if.put_stream(dat_in0, (($bits(af_point_t))+7)/8);
+      pair_af_if.put_stream(dat_in1, (($bits(fp2_af_point_t))+7)/8);
+    end
     out_if.get_stream(get_dat, get_len);
   join
   finish_time = $time;
@@ -215,19 +247,80 @@ begin
 end
 endtask;
 
+task test_miller_only();
+begin
+  integer signed get_len;
+  logic [common_pkg::MAX_SIM_BYTS*8-1:0] dat_in0, dat_in1, get_dat;
+  integer start_time, finish_time, n;
+  FE12_TYPE  f_out, f_exp0;
+  af_point_t G1_a;
+  fp2_af_point_t G2_a;
+
+  $display("Running test_miller_only ...");
+
+  G1_a = {Gy, Gx};
+  G2_a = {G2y, G2x};
+  miller_loop(G1_a, G2_a, f_exp0);
+
+  dat_in0 = 0;
+  dat_in0[0*384 +: $bits(FE_TYPE)] = G1_a.x;
+  dat_in0[1*384 +: $bits(FE_TYPE)] = G1_a.y;
+  
+  dat_in1 = 0;
+  dat_in1[0*384 +: $bits(FE_TYPE)] = G2_a.x[0];
+  dat_in1[1*384 +: $bits(FE_TYPE)] = G2_a.x[1];
+  dat_in1[2*384 +: $bits(FE_TYPE)] = G2_a.y[0];
+  dat_in1[3*384 +: $bits(FE_TYPE)] = G2_a.y[1];
+  mode = 2;
+  
+  start_time = $time;
+  fork
+    begin
+      pair_af_if.put_stream(dat_in0, (($bits(af_point_t))+7)/8);
+      pair_af_if.put_stream(dat_in1, (($bits(fp2_af_point_t))+7)/8);
+    end
+    o_p_jb_if.get_stream(get_dat, get_len);
+  join
+  finish_time = $time;
+
+  for (int i = 0; i < 2; i++)
+    for (int j = 0; j < 3; j++)
+      for (int k = 0; k < 2; k++)
+        f_out[i][j][k] = get_dat[(i*6+j*2+k)*384 +: $bits(FE_TYPE)];
+
+  $display("Expected:");
+  print_fe12(f_exp0);
+  $display("Was:");
+  print_fe12(f_out);
+
+  $display("test_miller_only finished in %d clocks", (finish_time-start_time)/(CLK_PERIOD));
+
+  if (f_exp0 != f_out) begin
+    $fatal(1, "%m %t ERROR: output was wrong", $time);
+  end
+
+  $display("test_miller_only PASSED");
+end
+endtask;
+
 initial begin
-  in_if.reset_source();
+  mul_fe12_o_if.reset_source();
+  mul_fe12_i_if.rdy = 0;
+  o_p_jb_if.rdy = 0;
+  pair_af_if.reset_source();
   inv_fe2_o_if.reset_source();
   inv_fe_o_if.reset_source();
   inv_fe2_i_if.rdy = 0;
   inv_fe_i_if.rdy = 0;
   out_if.rdy = 0;
+  mode = 0;
   #100ns;
 
-  test0(); // Test SW model
+  test0();       // Test SW model
   test1(G1, G2); // Pairing of generators
   test_linear(); // test linear properties e(n*G1,G2) == e(G1, n*G2), ...
-  
+  test_miller_only();
+
   #1us $finish();
 end
 

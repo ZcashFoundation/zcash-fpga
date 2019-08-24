@@ -32,23 +32,22 @@ module bls12_381_pairing_wrapper
 )(
   input i_clk, i_rst,
   // Inputs
-  input               i_val,
-  output logic        o_rdy,
-  input G1_FP_AF_TYPE i_g1_af,    // G1 input point
-  input G2_FP_AF_TYPE i_g2_af,    // G2 input point
-  input                i_mode,    // 0 == ate pairing, 1 == only point multiplication
-  input FE_TYPE        i_key,     // Input key when in mode == 1
-  if_axi_stream.source o_fe12_if, // Result fe12 of ate pairing (or point mult)
-  if_axi_stream.source o_p_jb_if, // Result of point multiplication
+  if_axi_stream.sink   i_pair_af_if, // G1 and G2 input point - or Fe12 element if we are only performing the final exponentiation
+  input [1:0]          i_mode,       // 0 == ate pairing, 1 == only point multiplication, 2 == only miller loop, 3 == only final exponentiation
+  input FE_TYPE        i_key,        // Input key when in mode == 1
+  if_axi_stream.source o_fe12_if,    // Result fe12 of ate pairing / final exponentiation (if mode was 0/3)
+  if_axi_stream.source o_p_jb_if,    // Result of point multiplication / miller loop  (if mode was 1/2)
   // Interface to FE_TYPE multiplier (mod P)
   if_axi_stream.source o_mul_fe_if,
   if_axi_stream.sink   i_mul_fe_if,
+  // Interface to FE12_TYPE multiplier (mod P) (Implemented internally)
+  if_axi_stream.source o_mul_fe12_if,
+  if_axi_stream.sink   i_mul_fe12_if,
   // We provide interfaces to the inversion module
   if_axi_stream.source o_inv_fe2_if,
   if_axi_stream.sink   i_inv_fe2_if,
   if_axi_stream.source o_inv_fe_if,
   if_axi_stream.sink   i_inv_fe_if
-
 );
 
 if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe_o_if  [3:0] (i_clk);
@@ -68,8 +67,8 @@ if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe6_i_if  
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mnr_fe6_o_if  [2:0] (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mnr_fe6_i_if  [2:0] (i_clk);
 
-if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe12_o_if [2:0] (i_clk);
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe12_i_if [2:0] (i_clk);
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe12_o_if [3:0] (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe12_i_if [3:0] (i_clk);
 
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   pow_fe12_o_if       (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   pow_fe12_i_if       (i_clk);
@@ -79,6 +78,14 @@ if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   fmap_fe12_i_if
 
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   inv_fe12_o_if       (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   inv_fe12_i_if       (i_clk);
+
+always_comb begin
+  i_mul_fe12_if.rdy = mul_fe12_o_if[2].rdy;
+  mul_fe12_o_if[2].copy_if_comb(i_mul_fe12_if.dat, i_mul_fe12_if.val, i_mul_fe12_if.sop, i_mul_fe12_if.eop, i_mul_fe12_if.err, i_mul_fe12_if.mod, i_mul_fe12_if.ctl);
+
+  mul_fe12_i_if[2].rdy = o_mul_fe12_if.rdy;
+  o_mul_fe12_if.copy_if_comb(mul_fe12_i_if[2].dat, mul_fe12_i_if[2].val, mul_fe12_i_if[2].sop, mul_fe12_i_if[2].eop, mul_fe12_i_if[2].err, mul_fe12_i_if[2].mod, mul_fe12_i_if[2].ctl);
+end
 
 bls12_381_pairing #(
   .FE_TYPE     ( FE_TYPE   ),
@@ -93,10 +100,7 @@ bls12_381_pairing #(
 bls12_381_pairing (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_val ( i_val ),
-  .o_rdy ( o_rdy ),
-  .i_g1_af ( i_g1_af ),
-  .i_g2_af ( i_g2_af ),
+  .i_pair_af_if ( i_pair_af_if ),
   .i_mode  ( i_mode  ),
   .i_key   ( i_key   ),
   .o_fe12_if      ( o_fe12_if        ),
@@ -262,8 +266,8 @@ ec_fe12_mul_s (
   .i_sub_fe_if    ( sub_fe_i_if[3]   ),
   .o_mnr_fe6_if   ( mnr_fe6_o_if[0]  ),
   .i_mnr_fe6_if   ( mnr_fe6_i_if[0]  ),
-  .o_mul_fe12_if  ( mul_fe12_i_if[2] ),
-  .i_mul_fe12_if  ( mul_fe12_o_if[2] )
+  .o_mul_fe12_if  ( mul_fe12_i_if[3] ),
+  .i_mul_fe12_if  ( mul_fe12_o_if[3] )
 );
 
 adder_pipe # (
@@ -378,7 +382,7 @@ resource_share_fe6_mul (
 );
 
 resource_share # (
-  .NUM_IN       ( 2                ),
+  .NUM_IN       ( 3                ),
   .DAT_BITS     ( 2*$bits(FE_TYPE) ),
   .CTL_BITS     ( CTL_BITS         ),
   .OVR_WRT_BIT  ( OVR_WRT_BIT + 42 ), // 2 bits
@@ -388,10 +392,10 @@ resource_share # (
 resource_share_fe12_mul (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_axi ( mul_fe12_o_if[1:0] ),
-  .o_res ( mul_fe12_o_if[2]   ),
-  .i_res ( mul_fe12_i_if[2]   ),
-  .o_axi ( mul_fe12_i_if[1:0] )
+  .i_axi ( mul_fe12_o_if[2:0] ),
+  .o_res ( mul_fe12_o_if[3]   ),
+  .i_res ( mul_fe12_i_if[3]   ),
+  .o_axi ( mul_fe12_i_if[2:0] )
 );
 
 resource_share # (

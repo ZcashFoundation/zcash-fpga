@@ -165,11 +165,10 @@ package bls12_381_pkg;
     MUL_ELEMENT     = 8'h12,
     INV_ELEMENT     = 8'h13,
 
-    POINT_MULT      = 8'h24,
-    FP_FPOINT_MULT  = 8'h25,
-    FP2_FPOINT_MULT = 8'h26,
-
-    ATE_PAIRING     = 8'h28
+    POINT_MULT      = 8'h20,
+    MILLER_LOOP     = 8'h21,
+    FINAL_EXP       = 8'h22,
+    ATE_PAIRING     = 8'h23
   } code_t;
 
   // Instruction format
@@ -663,7 +662,6 @@ package bls12_381_pkg;
   endtask
 
   task automatic ate_pairing(input af_point_t P, input fp2_af_point_t Q, ref fe12_t f);
-    fp2_jb_point_t R; // This is only used for point multiplication
     miller_loop(P, Q, f);
     final_exponent(f);
   endtask;

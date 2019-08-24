@@ -1,6 +1,6 @@
 /*
   This is the top level for the bls12-381 pairing engine.
-  It performs both the miller loop and final exponentiation required for ate pairing (G2 x G1).
+  It performs both the miller loop and final exponentiation required for optimal ate pairing w = e(Q, P), where Q is in G2, P is in G1.
   Inputs are points in G1 and G2 (affine coordinates)
   Output is a Fp12 element.
 
@@ -40,14 +40,11 @@ module bls12_381_pairing
 )(
   input i_clk, i_rst,
   // Inputs
-  input                i_val,
-  input                i_mode,  // 0 == ate pairing, 1 == only point multiplication
+  input [1:0]          i_mode,  // 0 == ate pairing, 1 == only point multiplication, 2 == only miller loop, 3 == only final exponentiation
   input FE_TYPE        i_key,   // Input key when in mode == 1
-  output logic         o_rdy,
-  input G1_FP_AF_TYPE  i_g1_af,
-  input G2_FP_AF_TYPE  i_g2_af,
-  if_axi_stream.source o_fe12_if,
-  if_axi_stream.source o_p_jb_if,     // Output point if we did a point multiplication
+  if_axi_stream.sink   i_pair_af_if,  // Input for G1 and G2 points, Input fe_12 for final exponentiation when mode == 3
+  if_axi_stream.source o_fe12_if,     // Result fe12 of ate pairing / final exponentiation (if mode was 0/3)
+  if_axi_stream.source o_p_jb_if,     // Result of point multiplication / miller loop  (if mode was 1/2)
   // Interface to FE_TYPE multiplier (mod P)
   if_axi_stream.source o_mul_fe_if,
   if_axi_stream.sink   i_mul_fe_if,
@@ -94,7 +91,7 @@ if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) final_exp_fe12_o
 logic dbl_i_val, dbl_o_rdy;
 logic add_i_val, add_o_rdy;
 
-logic wait_dbl, wait_add, stage_done;
+logic wait_dbl, wait_add;
 
 G1_FP_AF_TYPE g1_af_i;
 G2_FP_JB_TYPE g2_r_jb_i, add_g2_o, dbl_g2_o;
@@ -106,12 +103,13 @@ if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   dbl_f12_o_if (
 logic [$clog2($bits(FE_TYPE))-1:0] ate_loop_cnt;
 logic [1:0] miller_mult_cnt;
 
-enum {IDLE, POINT_MULT_DBL, POINT_MULT_ADD, POINT_MULT_DONE, MILLER_LOOP, FINAL_EXP} pair_state;
+enum {IDLE, INPUT_LOAD0, INPUT_LOAD1, POINT_MULT_DBL, POINT_MULT_ADD, POINT_MULT_DONE, MILLER_LOOP, MILLER_ONLY_DONE, FINAL_EXP} pair_state;
 
 FE12_TYPE f;
 logic f_val;
 logic [3:0] out_cnt;
-logic point_mul_mode, found_one;
+logic found_one;
+logic [1:0] mode;
 
 FE_TYPE key;
 
@@ -129,12 +127,12 @@ always_ff @ (posedge i_clk) begin
     final_exp_fe12_o_if.eop <= 0;
     g1_af_i <= 0;
     g2_r_jb_i <= 0;
+    g2_af_i <= 0;
     mul_fe12_i_if[0].rdy <= 0;
     mul_fe12_o_if[0].reset_source();
     pair_state <= IDLE;
     add_i_val <= 0;
     dbl_i_val <= 0;
-    o_rdy <= 0;
     wait_dbl <= 0;
     wait_add <= 0;
     miller_mult_cnt <= 0;
@@ -143,16 +141,17 @@ always_ff @ (posedge i_clk) begin
     f <= FE12_one;
     f_val <= 0;
     out_cnt <= 0;
-    point_mul_mode <= 0;
+    mode <= 0;
 
     key <= 0;
     found_one <= 0;
-    stage_done <= 0;
-    
+
     o_p_jb_if.reset_source();
-    
+
     dbl_f12_o_if.rdy <= 0;
     add_f12_o_if.rdy <= 0;
+
+    i_pair_af_if.rdy <= 0;
 
   end else begin
 
@@ -166,13 +165,13 @@ always_ff @ (posedge i_clk) begin
       f <= {mul_fe12_i_if[0].dat, f[1], f[0][2:1], f[0][0][1]};
       f_val <= mul_fe12_i_if[0].eop;
     end
-    
+
     dbl_f12_o_if.rdy <= 0;
     add_f12_o_if.rdy <= 0;
 
     case(pair_state)
       IDLE: begin
-        ate_loop_cnt <= i_mode == 0 ? ATE_X_START-1 : $bits(FE_TYPE)-1;
+        ate_loop_cnt <= i_mode == 0 || i_mode == 2 ? ATE_X_START-1 : $bits(FE_TYPE)-1;
         f <= FE12_one;
         add_i_val <= 0;
         dbl_i_val <= 0;
@@ -180,31 +179,52 @@ always_ff @ (posedge i_clk) begin
         wait_add <= 0;
         out_cnt <= 0;
         f_val <= 0;
-        o_rdy <= 1;
         miller_mult_cnt <= 0;
         found_one <= 0;
-        stage_done <= 0;
-        if (i_val && o_rdy) begin
-          pair_state <= i_mode == 0 ? MILLER_LOOP : POINT_MULT_DBL;
+        i_pair_af_if.rdy <= 0;
+
+        g2_r_jb_i.x <= 0;
+        g2_r_jb_i.y <= 0;
+        g2_r_jb_i.z <= 1;
+
+        if (i_pair_af_if.val) begin
+          pair_state <= INPUT_LOAD0;
           key <= i_key;
-          point_mul_mode <= i_mode;
-          o_rdy <= 0;
-
-          g1_af_i <= i_g1_af;
-          g2_af_i <= i_g2_af;
-
-          g2_r_jb_i.x <= i_g2_af.x;
-          g2_r_jb_i.y <= i_g2_af.y;
-          g2_r_jb_i.z <= 1;
+          mode <= i_mode;
+          i_pair_af_if.rdy <= 1;
+        end
+      end
+      INPUT_LOAD0: begin
+        if (i_pair_af_if.eop && i_pair_af_if.val && i_pair_af_if.rdy) i_pair_af_if.rdy <= 0;
+        if (i_pair_af_if.val && i_pair_af_if.rdy) begin
+          if (mode == 1) begin
+            g2_af_i <= {i_pair_af_if.dat[0 +: $bits(FE_TYPE)], g2_af_i.y, g2_af_i.x[1]};
+            {g2_r_jb_i.y, g2_r_jb_i.x} <= {i_pair_af_if.dat[0 +: $bits(FE_TYPE)], g2_r_jb_i.y, g2_r_jb_i.x[1]};
+            if (i_pair_af_if.eop) pair_state <= POINT_MULT_DBL;
+          end else
+          if (mode == 3) begin
+            f <= {i_pair_af_if.dat[0 +: $bits(FE_TYPE)], f[1], f[0][2:1], f[0][0][1]};
+            if (i_pair_af_if.eop) pair_state <= FINAL_EXP;
+          end else begin
+            g1_af_i <= {i_pair_af_if.dat[0 +: $bits(FE_TYPE)], g1_af_i.y};
+            if (i_pair_af_if.eop) pair_state <= INPUT_LOAD1;
+            i_pair_af_if.rdy <= 1;
+          end
+        end
+      end
+      INPUT_LOAD1: begin
+        if (i_pair_af_if.eop && i_pair_af_if.val && i_pair_af_if.rdy) i_pair_af_if.rdy <= 0;
+        if (i_pair_af_if.val && i_pair_af_if.rdy) begin
+          g2_af_i <= {i_pair_af_if.dat[0 +: $bits(FE_TYPE)], g2_af_i.y, g2_af_i.x[1]};
+          {g2_r_jb_i.y, g2_r_jb_i.x} <= {i_pair_af_if.dat[0 +: $bits(FE_TYPE)], g2_r_jb_i.y, g2_r_jb_i.x[1]};
+          if (i_pair_af_if.eop) pair_state <= MILLER_LOOP;
         end
       end
       MILLER_LOOP: begin
-
         if (~wait_dbl) begin
           dbl_i_val <= 1;
           wait_dbl <= 1;
         end
-
         if (wait_dbl && dbl_f12_o_if.val && dbl_f12_o_if.sop && dbl_f12_o_if.rdy) begin
           g2_r_jb_i <= dbl_g2_o;
           if (~wait_add && ATE_X[ate_loop_cnt] == 1) begin
@@ -242,18 +262,18 @@ always_ff @ (posedge i_clk) begin
                   0,1,4: mul_fe12_o_if[0].dat <= {dbl_f12_o_if.dat, f[0][0][0]};
                   default: mul_fe12_o_if[0].dat <= {381'd0, f[0][0][0]};
                 endcase
-                
+
                 out_cnt <= out_cnt + 1;
                 f <= {mul_fe12_i_if[0].dat, f[1], f[0][2:1], f[0][0][1]};
                 if (out_cnt == 11) begin
                   f_val <= 0;
                   out_cnt <= 0;
                   miller_mult_cnt <= ATE_X[ate_loop_cnt] == 0 ? 3 : 2;
-                end                  
-                 
+                end
+
                 mul_fe12_o_if[0].ctl <= miller_mult_cnt;
                 mul_fe12_o_if[0].ctl[SQ_BIT] <= 0;
-                
+
               end
             end
           end
@@ -290,7 +310,7 @@ always_ff @ (posedge i_clk) begin
               miller_mult_cnt <= 0;
               ate_loop_cnt <= ate_loop_cnt - 1;
               if (ate_loop_cnt == 0) begin
-                pair_state <= FINAL_EXP;
+                pair_state <= mode == 0 ? FINAL_EXP : MILLER_ONLY_DONE;
               end
             end
           end
@@ -352,7 +372,22 @@ always_ff @ (posedge i_clk) begin
             key <= key << 1;
             pair_state <= POINT_MULT_DBL;
           end
-        end      
+        end
+      end
+      MILLER_ONLY_DONE: begin
+        if (~o_p_jb_if.val || (o_p_jb_if.val && o_p_jb_if.rdy)) begin
+          o_p_jb_if.val <= 1;
+          o_p_jb_if.sop <= out_cnt == 0;
+          o_p_jb_if.eop <= out_cnt == 11;
+          o_p_jb_if.dat <= f[0][0][0];
+          f <= {mul_fe12_i_if[0].dat, f[1], f[0][2:1], f[0][0][1]};
+          out_cnt <= out_cnt + 1;
+          if (o_p_jb_if.val && o_p_jb_if.rdy && o_p_jb_if.eop) begin
+            pair_state <= IDLE;
+            out_cnt <= 0;
+            o_p_jb_if.val <= 0;
+          end
+        end
       end
       POINT_MULT_DONE: begin
         if (~o_p_jb_if.val || (o_p_jb_if.val && o_p_jb_if.rdy)) begin
@@ -360,7 +395,7 @@ always_ff @ (posedge i_clk) begin
           o_p_jb_if.sop <= out_cnt == 0;
           o_p_jb_if.eop <= out_cnt == 5;
           o_p_jb_if.dat <= g2_r_jb_i;
-          
+
           out_cnt <= out_cnt + 1;
           g2_r_jb_i <= g2_r_jb_i >> $bits(FE_TYPE);
           if (o_p_jb_if.val && o_p_jb_if.rdy && o_p_jb_if.eop) begin
@@ -386,7 +421,7 @@ bls12_381_pairing_miller_dbl (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
   .i_val            ( dbl_i_val      ),
-  .i_point_mul_mode ( point_mul_mode ),
+  .i_point_mul_mode ( mode == 1      ),
   .o_rdy            ( dbl_o_rdy      ),
   .i_g1_af          ( g1_af_i        ),
   .i_g2_jb          ( g2_r_jb_i      ),
@@ -413,8 +448,8 @@ bls12_381_pairing_miller_add #(
 bls12_381_pairing_miller_add (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_val            ( add_i_val     ),
-  .i_point_mul_mode ( point_mul_mode ),
+  .i_val            ( add_i_val      ),
+  .i_point_mul_mode ( mode == 1      ),
   .o_rdy            ( add_o_rdy      ),
   .i_g1_af          ( g1_af_i        ),
   .i_g2_jb          ( dbl_g2_o       ),

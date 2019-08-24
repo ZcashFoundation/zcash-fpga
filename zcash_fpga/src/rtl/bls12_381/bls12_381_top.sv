@@ -66,7 +66,7 @@ if_axi_stream #(.DAT_BYTS(3)) idx_in_if(i_clk);
 if_axi_stream #(.DAT_BYTS(3)) idx_out_if(i_clk);
 
 // Point multiplication
-logic pair_mode;
+logic [1:0] pair_mode;
 fe_t  pair_key;
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mult_pt_if (i_clk);
 
@@ -89,11 +89,12 @@ if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   inv_fe_i_if   
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   inv_fe2_o_if     (i_clk);
 if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   inv_fe2_i_if     (i_clk);
 
-logic pair_i_val, pair_o_rdy;
-if_axi_stream #(.DAT_BITS($bits(FE_TYPE))) pair_o_res_if (i_clk); ;
-bls12_381_pkg::af_point_t pair_i_g1;
-bls12_381_pkg::fp2_af_point_t pair_i_g2;
+if_axi_stream #(.DAT_BITS(2*$bits(FE_TYPE)), .CTL_BITS(CTL_BITS)) mul_fe12_o_if     (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe12_i_if     (i_clk);
 
+
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE))) pair_i_af_if  (i_clk);
+if_axi_stream #(.DAT_BITS($bits(FE_TYPE))) pair_o_res_if (i_clk);
 
 logic [31:0] new_inst_pt;
 logic        new_inst_pt_val, new_inst_pt_val_l;
@@ -146,13 +147,14 @@ always_ff @ (posedge i_clk) begin
     add_out_if.rdy <= 0;
     sub_out_if.rdy <= 0;
 
-    pair_i_val <= 0;
-    pair_i_g1 <= 0;
-    pair_i_g2 <= 0;
+    pair_i_af_if.reset_source();
 
     pair_mode <= 0;
     pair_key <= 0;
     mult_pt_if.rdy <= 0;
+
+    mul_fe12_o_if.reset_source();
+    mul_fe12_i_if.rdy <= 0;
 
   end else begin
 
@@ -179,9 +181,11 @@ always_ff @ (posedge i_clk) begin
     if (add_in_if.rdy) add_in_if.val <= 0;
     if (sub_in_if.rdy) sub_in_if.val <= 0;
     if (mul_in_if[1].rdy) mul_in_if[1].val <= 0;
-    if (pair_o_rdy) pair_i_val <= 0;
+    if (pair_i_af_if.rdy) pair_i_af_if.val <= 0;
+    if (mul_fe12_o_if.rdy) mul_fe12_o_if.val <= 0;
 
     mult_pt_if.rdy <= 1;
+    mul_fe12_i_if.rdy <= 1;
 
     if (idx_in_if.val && idx_in_if.rdy) idx_in_if.val <= 0;
     if (interrupt_in_if.val && interrupt_in_if.rdy) interrupt_in_if.val <= 0;
@@ -234,18 +238,19 @@ always_ff @ (posedge i_clk) begin
         if (cnt == 0) last_inst_cnt <= 0;
         task_point_mult();
       end
-      // We don't use precaculation for fixed point but could be used as optimizations
-      FP_FPOINT_MULT: begin
-        if (cnt == 0) last_inst_cnt <= 0;
-        task_fp_fpoint_mult();
-      end
-      FP2_FPOINT_MULT: begin
-        if (cnt == 0) last_inst_cnt <= 0;
-        task_fp2_fpoint_mult();
-      end
       ATE_PAIRING: begin
         if (cnt == 0) last_inst_cnt <= 0;
+        pair_mode <= 0;
         task_pairing();
+      end
+      MILLER_LOOP: begin
+        if (cnt == 0) last_inst_cnt <= 0;
+        pair_mode <= 2;
+        task_pairing();
+      end
+      FINAL_EXP: begin
+        if (cnt == 0) last_inst_cnt <= 0;
+        task_final_exp();
       end
       default: get_next_inst();
     endcase
@@ -302,20 +307,19 @@ bls12_381_pairing_wrapper #(
 bls12_381_pairing_wrapper (
   .i_clk ( i_clk ),
   .i_rst ( i_rst ),
-  .i_val ( pair_i_val ),
-  .o_rdy ( pair_o_rdy ),
-  .i_g1_af ( pair_i_g1 ),
-  .i_g2_af ( pair_i_g2 ),
+  .i_pair_af_if ( pair_i_af_if ),
   .i_mode  ( pair_mode ),
   .i_key   ( pair_key  ),
-  .o_fe12_if    ( pair_o_res_if ),
-  .o_p_jb_if    ( mult_pt_if    ),
-  .o_mul_fe_if  ( mul_in_if[0]  ),
-  .i_mul_fe_if  ( mul_out_if[0] ),
-  .o_inv_fe2_if ( inv_fe2_i_if  ),
-  .i_inv_fe2_if ( inv_fe2_o_if  ),
-  .o_inv_fe_if  ( inv_fe_i_if   ),
-  .i_inv_fe_if  ( inv_fe_o_if   )
+  .o_fe12_if     ( pair_o_res_if ),
+  .o_p_jb_if     ( mult_pt_if    ),
+  .o_mul_fe_if   ( mul_in_if[0]  ),
+  .i_mul_fe_if   ( mul_out_if[0] ),
+  .i_mul_fe12_if ( mul_fe12_o_if ),
+  .o_mul_fe12_if ( mul_fe12_i_if ),
+  .o_inv_fe2_if  ( inv_fe2_i_if  ),
+  .i_inv_fe2_if  ( inv_fe2_o_if  ),
+  .o_inv_fe_if   ( inv_fe_i_if   ),
+  .i_inv_fe_if   ( inv_fe_o_if   )
 );
 
 resource_share # (
@@ -532,6 +536,10 @@ task task_mul_element();
         data_ram_sys_if.a <=  curr_inst.b;
         data_ram_read[0] <= 1;
         cnt <= 2;
+        if (curr_data.pt == FE12) begin
+          cnt <= 8;
+          data_ram_sys_if.a <=  curr_inst.a;
+        end
       end
     end
     2: begin
@@ -552,7 +560,7 @@ task task_mul_element();
         new_data.dat <= mul_out_if[1].dat;
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
-        cnt <= 8;
+        cnt <= 34;
       end
     end
     3: begin
@@ -617,10 +625,51 @@ task task_mul_element();
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
         data_ram_sys_if.a <=  curr_inst.c + 1;
-        cnt <= 8;
+        cnt <= 34;
       end
     end
-    8: begin
+    // FE12 multiplication
+    8,9,10,11,12,13,14,15,16,17,18,19,
+    20,21,22,23,24,25,26,27,28,29,30,31: begin
+      mul_fe12_i_if.rdy <= 0;
+      
+
+      if (|data_ram_read[READ_CYCLE:1]== 0 && (~mul_fe12_o_if.val || (mul_fe12_o_if.val && mul_fe12_o_if.rdy))) begin
+        if (data_ram_read[0]) begin
+          data_ram_read[0] <= 1;
+          data_ram_sys_if.a <= curr_inst.b + ((cnt-8)/2);
+        end else begin
+          data_ram_read[0] <= 1;
+          data_ram_sys_if.a <= curr_inst.a + ((cnt-8)/2);
+        end
+      end
+
+      if (data_ram_read[READ_CYCLE]) begin
+       cnt <= cnt + 1;
+        if (cnt % 2 == 1) begin
+          mul_fe12_o_if.sop <= cnt == 9;
+          mul_fe12_o_if.eop <= cnt == 31;
+          mul_fe12_o_if.val <= 1;
+          mul_fe12_o_if.dat[$bits(fe_t) +: $bits(fe_t)] <= curr_data.dat;
+        end else begin
+          mul_fe12_o_if.dat[0 +: $bits(fe_t)] <= curr_data.dat;
+        end
+      end
+    end
+    32: begin
+      mul_fe12_i_if.rdy <= 1;
+      if (mul_fe12_i_if.val && mul_fe12_i_if.rdy) begin
+        if (mul_fe12_i_if.sop)
+          data_ram_sys_if.a <= curr_inst.c;
+        else
+          data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+        data_ram_sys_if.we <= 1;
+        new_data.dat <= mul_fe12_i_if.dat;
+        new_data.pt <= pt_l;
+        if (mul_fe12_i_if.eop) cnt <= cnt + 1;
+      end
+    end
+    33: begin
       get_next_inst();
     end
   endcase
@@ -803,20 +852,19 @@ task task_point_mult();
       end
     end
     1,2,3,4: begin
-      if (data_ram_read[READ_CYCLE]) begin
+      if (|data_ram_read == 0 && (~pair_i_af_if.val || (pair_i_af_if.val && pair_i_af_if.rdy))) begin
         data_ram_read[0] <= 1;
         data_ram_sys_if.a <= data_ram_sys_if.a + 1;
         if (curr_data.pt == FP_AF && cnt % 2 == 0) data_ram_sys_if.a <= data_ram_sys_if.a;
-        case(cnt)
-          1: pair_i_g2.x[0] <= curr_data.dat;
-          2: pair_i_g2.x[1] <= curr_data.pt == FP_AF ? 0 : curr_data.dat;
-          3: pair_i_g2.y[0] <= curr_data.dat;
-          4: pair_i_g2.y[1] <= curr_data.pt == FP_AF ? 0 : curr_data.dat;
-        endcase
+      end
+      if (data_ram_read[READ_CYCLE]) begin
+        pair_i_af_if.val <= 1;
+        pair_i_af_if.sop <= cnt == 1;
+        pair_i_af_if.eop <= cnt == 4;
+        pair_i_af_if.dat <= (curr_data.pt == FP_AF && cnt % 2 == 0) ? 0 : curr_data.dat;
         cnt <= cnt + 1;
         if (cnt == 1) pt_l <= curr_data.pt;
         if (cnt == 4) begin
-          pair_i_val <= 1;
           data_ram_sys_if.a <= curr_inst.c;
         end
       end
@@ -843,82 +891,7 @@ task task_point_mult();
   endcase
 endtask
 
-task task_fp_fpoint_mult();
-  pair_mode <= 1;
-  case(cnt) inside
-    0: begin
-      data_ram_sys_if.a <= curr_inst.a;
-      data_ram_read[0] <= 1;
-      cnt <= cnt + 1;
-    end
-    1: begin
-      if (data_ram_read[READ_CYCLE]) begin
-        data_ram_sys_if.a <= curr_inst.b;
-        pair_key <= curr_data.dat;
-        pair_i_g2 <= bls12_381_pkg::g_af_point_fp2;
-        pair_i_val <= 1;
-        cnt <= cnt + 1;
-      end
-    end
-    // Wait for result
-    2,3,4,5,6,7: begin
-      mult_pt_if.rdy <= 1;
-      if (mult_pt_if.val) begin
-         new_data.pt <= FP_JB;
-         new_data.dat <= mult_pt_if.dat;
-         data_ram_sys_if.we <= 1;
-         if (cnt > 2) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
-         if (cnt % 2 == 1) begin // Odd elements will be 0
-           data_ram_sys_if.a <= data_ram_sys_if.a;
-           data_ram_sys_if.we <= 0;
-         end
-         cnt <= cnt + 1;
-      end
-    end
-    8: begin
-      pair_mode <= 0;
-      get_next_inst();
-    end
-  endcase
-endtask
-
-task task_fp2_fpoint_mult();
-  pair_mode <= 1;
-  case(cnt) inside
-    0: begin
-      data_ram_sys_if.a <= curr_inst.a;
-      data_ram_read[0] <= 1;
-      cnt <= cnt + 1;
-    end
-    1: begin
-      if (data_ram_read[READ_CYCLE]) begin
-        data_ram_sys_if.a <= curr_inst.b;
-        pair_key <= curr_data.dat;
-        pair_i_g2 <= bls12_381_pkg::g2_af_point_fp2;
-        pair_i_val <= 1;
-        cnt <= cnt + 1;
-      end
-    end
-    // Wait for result
-    2,3,4,5,6,7: begin
-      mult_pt_if.rdy <= 1;
-      if (mult_pt_if.val) begin
-         new_data.pt <= FP2_JB;
-         new_data.dat <= mult_pt_if.dat;
-         data_ram_sys_if.we <= 1;
-         if (cnt > 2) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
-         cnt <= cnt + 1;
-      end
-    end
-    8: begin
-      pair_mode <= 0;
-      get_next_inst();
-    end
-  endcase
-endtask
-
 task task_pairing();
-  pair_mode <= 0;
   case(cnt) inside
     0: begin
       data_ram_sys_if.a <= curr_inst.a;
@@ -930,10 +903,10 @@ task task_pairing();
       if (data_ram_read[READ_CYCLE]) begin
         data_ram_sys_if.a <= data_ram_sys_if.a + 1;
         data_ram_read[0] <= 1;
-        case(cnt)
-          1: pair_i_g1.x <= curr_data.dat;
-          2: pair_i_g1.y <= curr_data.dat;
-        endcase
+        pair_i_af_if.dat <= curr_data.dat;
+        pair_i_af_if.val <= 1;
+        pair_i_af_if.sop <= cnt == 1;
+        pair_i_af_if.eop <= cnt == 2;
         cnt <= cnt + 1;
         if (cnt == 2) begin
           data_ram_sys_if.a <= curr_inst.b;
@@ -945,34 +918,78 @@ task task_pairing();
       if (data_ram_read[READ_CYCLE]) begin
         data_ram_sys_if.a <= data_ram_sys_if.a + 1;
         data_ram_read[0] <= 1;
-        case(cnt)
-          3: pair_i_g2.x[0] <= curr_data.dat;
-          4: pair_i_g2.x[1] <= curr_data.dat;
-          5: pair_i_g2.y[0] <= curr_data.dat;
-          6: pair_i_g2.y[1] <= curr_data.dat;
-        endcase
+        pair_i_af_if.dat <= curr_data.dat;
+        pair_i_af_if.val <= 1;
+        pair_i_af_if.sop <= cnt == 3;
+        pair_i_af_if.eop <= cnt == 6;
         cnt <= cnt + 1;
         if (cnt == 6) begin
           data_ram_sys_if.a <= curr_inst.c;
-          pair_i_val <= 1;
           pair_o_res_if.rdy <= 1;
+          mult_pt_if.rdy <= 1;
         end
       end
     end
     // Wait for result
-    7,8,9,10,11,12,13,14,15,16,17,18: begin
-      if (pair_o_res_if.val) begin
+    7: begin
+      if (pair_o_res_if.val || mult_pt_if.val) begin
+         new_data.pt <= FE12;
+         new_data.dat <= pair_o_res_if.val ? pair_o_res_if.dat : mult_pt_if.dat;
+         data_ram_sys_if.we <= 1;
+         if ((pair_o_res_if.val && ~pair_o_res_if.sop) ||
+              (mult_pt_if.val && ~mult_pt_if.sop)) 
+           data_ram_sys_if.a <= data_ram_sys_if.a + 1;         
+         if (pair_o_res_if.eop || mult_pt_if.eop) begin
+           mult_pt_if.rdy <= 0;
+           pair_o_res_if.rdy <= 0;
+           cnt <= cnt + 1;
+         end
+      end
+    end
+    8: begin
+      get_next_inst();
+    end
+  endcase
+endtask
+
+task task_final_exp();
+  pair_mode <= 3;
+  case(cnt) inside
+    0: begin
+      data_ram_sys_if.a <= curr_inst.a;
+      data_ram_read[0] <= 1;
+      cnt <= cnt + 1;
+    end
+    // Load FE12
+    1,2,3,4,5,6,7,8,9,10,11,12: begin
+      if (data_ram_read[READ_CYCLE]) begin
+        data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+        data_ram_read[0] <= 1;
+        pair_i_af_if.dat <= curr_data.dat;
+        pair_i_af_if.val <= 1;
+        pair_i_af_if.sop <= cnt == 1;
+        pair_i_af_if.eop <= cnt == 12;
+        cnt <= cnt + 1;
+        if (cnt == 12) begin
+          data_ram_sys_if.a <= curr_inst.b;
+        end
+      end
+    end
+    // Wait for result
+    13: begin
+      pair_o_res_if.rdy <= 1;
+      if (pair_o_res_if.val && pair_o_res_if.rdy) begin
          new_data.pt <= FE12;
          new_data.dat <= pair_o_res_if.dat;
          data_ram_sys_if.we <= 1;
-         if (cnt > 7) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
-         cnt <= cnt + 1;
-         if (cnt == 18) begin
+         if (~pair_o_res_if.sop) data_ram_sys_if.a <= data_ram_sys_if.a + 1;
+         if (pair_o_res_if.eop) begin
+           cnt <= cnt + 1;
            pair_o_res_if.rdy <= 0;
          end
       end
     end
-    19: begin
+    14: begin
       get_next_inst();
     end
   endcase

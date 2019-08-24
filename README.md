@@ -67,5 +67,5 @@ It optionally contains the following top-level engines (you can include in a bui
   - General arithmetic over bls12-381 curve
   - Dual Point multiplication in Fp and Fp^2 (G1 and G2)
   - Frobenius map operations
-  - The ate pairing
+  - The optimal ate pairing
     - Miller loop and final exponentiation stage
