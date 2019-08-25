@@ -47,15 +47,15 @@ class zcash_fpga {
       RESET_FPGA            = 0x00000000,
       FPGA_STATUS           = 0x00000001,
       VERIFY_EQUIHASH       = 0x00000100,
-      VERIFY_SECP256K1_SIG  = 0x00000200,
+      VERIFY_SECP256K1_SIG  = 0x00000101,
 
       // Replies from the FPGA
       RESET_FPGA_RPL            = 0x80000000,
       FPGA_STATUS_RPL           = 0x80000001,
       FPGA_IGNORE_RPL           = 0x80000002,
       VERIFY_EQUIHASH_RPL       = 0x80000100,
-      VERIFY_SECP256K1_SIG_RPL  = 0x80000200,
-      BLS12_381_INTERRUPT_RPL   = 0x80000300
+      VERIFY_SECP256K1_SIG_RPL  = 0x80000101,
+      BLS12_381_INTERRUPT_RPL   = 0x80000200
     } command_t;
 
     typedef enum : uint8_t {
@@ -141,6 +141,31 @@ class zcash_fpga {
       uint8_t      padding[3];
     } bls12_381_interrupt_rpl_t;
 
+   typedef enum : uint8_t {
+      TIMEOUT_FAIL     = 0,
+      FAILED_SIG_VER   = 1,
+      X_INFINITY_POINT = 2,
+      OUT_OF_RANGE_S   = 3,
+      OUT_OF_RANGE_R   = 4
+    } secp256k1_ver_t;
+
+    typedef struct __attribute__((__packed__)) {
+      header_t hdr;
+      uint64_t index;
+      uint64_t s[4];
+      uint64_t r[4];
+      uint64_t hash[4];
+      uint64_t Qx[4];
+      uint64_t Qy[4];
+    } verify_secp256k1_sig_t;
+
+    typedef struct __attribute__((__packed__)) {
+      header_t        hdr;
+      uint64_t        index;
+      secp256k1_ver_t bm;
+      uint16_t        cycle_cnt;
+    } verify_secp256k1_sig_rpl_t;
+
   private:
     static const uint16_t s_pci_vendor_id = 0x1D0F; /* Amazon PCI Vendor ID */
     static const uint16_t s_pci_device_id = 0xF000; /* PCI Device ID preassigned by Amazon for F1 applications */
@@ -194,6 +219,8 @@ class zcash_fpga {
      */
     int read_stream(uint8_t* data, unsigned int size);
     int write_stream(uint8_t* data, unsigned int len);
+    
+    command_cap_e m_command_cap;
 
   private:
     /*

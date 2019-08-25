@@ -98,6 +98,7 @@ int zcash_fpga::init_fpga(int slot_id) {
   rc = get_status(status_rpl);
   fail_on(rc, out, "ERROR: Unable to get FPGA status!");
 
+  m_command_cap = *(command_cap_e*)&status_rpl.cmd_cap;
 
   printf("INFO: FPGA version: 0x%x, built on 0x%lx\n", status_rpl.version, status_rpl.build_date);
   printf("INFO: FPGA capability register: 0x%lx [ENB_VERIFY_EQUIHASH_200_9: %d, ENB_VERIFY_EQUIHASH_144_5 %d, ENB_VERIFY_SECP256K1_SIG %d, ENB_BLS12_381 %d]\n",
@@ -262,6 +263,7 @@ int zcash_fpga::write_stream(uint8_t* data, unsigned int len) {
 
 
   printf("INFO: write_stream::Wrote %d bytes of data\n", len);
+  usleep(1); 
 
   // Check transmit complete bit and reset it
   rc = fpga_pci_peek(m_pci_bar_handle_bar0, AXI_FIFO_OFFSET, &rdata);

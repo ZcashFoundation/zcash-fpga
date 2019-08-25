@@ -81,6 +81,7 @@ int main(int argc, char **argv) {
     unsigned int timeout = 0;
     unsigned int read_len = 0;
     uint8_t reply[640];
+    bool failed = 0;
     // Process command line args
     {
         int i;
@@ -107,8 +108,63 @@ int main(int argc, char **argv) {
 
     zcash_fpga& zfpga = zcash_fpga::get_instance();
 
-    zfpga.bls12_381_reset_memory(true, true);
-    zfpga.bls12_381_set_curr_inst_slot(0);
+    // Test the secp256k1 core
+    if ((zfpga.m_command_cap & zcash_fpga::ENB_VERIFY_SECP256K1_SIG) != 0) {
+        printf("INFO: Testing secp256k1 core...\n");
+         
+        zcash_fpga::verify_secp256k1_sig_t verify_secp256k1_sig;
+        memset(&verify_secp256k1_sig, 0, sizeof(zcash_fpga::verify_secp256k1_sig_t));
+        verify_secp256k1_sig.hdr.cmd = zcash_fpga::VERIFY_SECP256K1_SIG;
+        verify_secp256k1_sig.hdr.len = sizeof(zcash_fpga::verify_secp256k1_sig_t);
+        verify_secp256k1_sig.index = 0xa;
+        string_to_hex("4c7dbc46486ad9569442d69b558db99a2612c4f003e6631b593942f531e67fd4", (unsigned char *)verify_secp256k1_sig.hash);
+        string_to_hex("01375af664ef2b74079687956fd9042e4e547d57c4438f1fc439cbfcb4c9ba8b", (unsigned char *)verify_secp256k1_sig.r);
+        string_to_hex("de0f72e442f7b5e8e7d53274bf8f97f0674f4f63af582554dbecbb4aa9d5cbcb", (unsigned char *)verify_secp256k1_sig.s);
+        string_to_hex("808a2c66c5b90fa1477d7820fc57a8b7574cdcb8bd829bdfcf98aa9c41fde3b4", (unsigned char *)verify_secp256k1_sig.Qx);
+        string_to_hex("eed249ffde6e46d784cb53b4df8c9662313c1ce8012da56cb061f12e55a32249", (unsigned char *)verify_secp256k1_sig.Qy);
+
+        rc = zfpga.write_stream((uint8_t*)&verify_secp256k1_sig, sizeof(zcash_fpga::verify_secp256k1_sig_t));
+        fail_on(rc, out, "ERROR: Unable to send verify_secp256k1_sig to FPGA!");
+
+        timeout = 0;
+        read_len = 0;
+        memset(reply, 0, 512);
+        while ((read_len = zfpga.read_stream(reply, 256)) == 0) {
+          usleep(1);
+          timeout++;
+          if (timeout > 1000) {
+            printf("ERROR: No reply received, timeout\n");
+            failed = true;
+            break;
+          }
+        }
+
+        zcash_fpga::verify_secp256k1_sig_rpl_t verify_secp256k1_sig_rpl;
+        verify_secp256k1_sig_rpl = *(zcash_fpga::verify_secp256k1_sig_rpl_t*)reply;
+
+        printf("INFO: verify_secp256k1_sig_rpl.hdr.cmd = 0x%x\n", verify_secp256k1_sig_rpl.hdr.cmd);
+        printf("INFO: verify_secp256k1_sig_rpl.bm = 0x%x\n", verify_secp256k1_sig_rpl.bm);
+        printf("INFO: verify_secp256k1_sig_rpl.index = 0x%lx\n", verify_secp256k1_sig_rpl.index);
+        printf("INFO: verify_secp256k1_sig_rpl.cycle_cnt = 0x%x\n", verify_secp256k1_sig_rpl.cycle_cnt);
+
+        if (verify_secp256k1_sig_rpl.hdr.cmd != zcash_fpga::VERIFY_SECP256K1_SIG_RPL) {
+            printf("ERROR: Header type was wrong!\n");
+            failed = true;
+        }
+        if (verify_secp256k1_sig_rpl.bm != 0) {
+            printf("ERROR: Signature verification failed!\n");                                                                                                                                       failed = true;
+        }
+
+        if (verify_secp256k1_sig_rpl.index != 0xa) {
+                         printf("ERROR: Index was wrong!\n");                                                                                                                                       failed = true;                                                                                                                                                   }
+
+    }
+
+    if ((zfpga.m_command_cap & zcash_fpga::ENB_BLS12_381) != 0) {
+        printf("INFO: Testing bls12_381 coprocessor...\n");
+
+      zfpga.bls12_381_reset_memory(true, true);
+      zfpga.bls12_381_set_curr_inst_slot(0);
 
     // Test Fp2 point multiplication
     zcash_fpga::bls12_381_data_t data;
@@ -116,7 +172,7 @@ int main(int argc, char **argv) {
 
     // Store generator points in FPGA
     size_t g1_slot = 64;
-    size_t g2_slot = 68;
+    size_t g2_slot = 66;
 
     data.point_type = zcash_fpga::FP2_AF;
     memset(&data, 0x0, sizeof(zcash_fpga::bls12_381_data_t));
@@ -132,13 +188,13 @@ int main(int argc, char **argv) {
 
     data.point_type = zcash_fpga::FP2_AF;
     memset(&data, 0x0, sizeof(zcash_fpga::bls12_381_data_t));
-    string_to_hex("ce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801", (unsigned char *)data.dat);
+    string_to_hex("0ce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801", (unsigned char *)data.dat);
     rc = zfpga.bls12_381_set_data_slot(g2_slot + 2, data);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     data.point_type = zcash_fpga::FP2_AF;
     memset(&data, 0x0, sizeof(zcash_fpga::bls12_381_data_t));
-    string_to_hex("606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be", (unsigned char *)data.dat);
+    string_to_hex("0606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be", (unsigned char *)data.dat);
     rc = zfpga.bls12_381_set_data_slot(g2_slot + 3, data);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
@@ -192,7 +248,7 @@ int main(int argc, char **argv) {
 
     inst.code = zcash_fpga::MUL_ELEMENT;
     inst.a = 1;
-    inst.b = 12;
+    inst.b = 13;
     inst.c = 1;
     rc = zfpga.bls12_381_set_inst_slot(3, inst);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
@@ -205,7 +261,7 @@ int main(int argc, char **argv) {
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     // Start the test
-    rc = zcash.bls12_381_set_curr_inst_slot(1);
+    rc = zfpga.bls12_381_set_curr_inst_slot(1);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     // Wait for interrupts
@@ -219,26 +275,26 @@ int main(int argc, char **argv) {
       timeout++;
       if (timeout > 1000) {
         printf("ERROR: No reply received, timeout\n");
+        failed = true;
         break;
       }
     }
 
-    printf("Received data: 0x");
-    for (int i = read_len-1; i>=0; i--) printf("%x", reply[i]);
-    printf("\n");
 
     zcash_fpga::bls12_381_interrupt_rpl_t bls12_381_interrupt_rpl;
-
     // Check it matches the expected values
-    bls12_381_interrupt_rpl = &(zcash_fpga::bls12_381_interrupt_rpl_t*)&reply;
+    bls12_381_interrupt_rpl = *(zcash_fpga::bls12_381_interrupt_rpl_t*)reply;
     if (bls12_381_interrupt_rpl.data_type != zcash_fpga::SCALAR) {
       printf("ERROR: Interrupt data type was wrong, expected SCALAR, was [%d]\n", bls12_381_interrupt_rpl.data_type);
+      failed = true;
     }
     if (bls12_381_interrupt_rpl.index != 123) {
       printf("ERROR: Interrupt index was wrong, expected 123, was [%d]\n", bls12_381_interrupt_rpl.index);
+      failed = true;
     }
     if (reply[sizeof(zcash_fpga::bls12_381_interrupt_rpl_t)] != 10) {
       printf("ERROR: Interrupt data was wrong, expected 10, was [%d]\n", reply[sizeof(zcash_fpga::bls12_381_interrupt_rpl_t)]);
+      failed = true;
     }
 
     // Try read second reply - should be point value - 12 slots = 576 bytes
@@ -250,21 +306,20 @@ int main(int argc, char **argv) {
       timeout++;
       if (timeout > 1000) {
         printf("ERROR: No reply received, timeout\n");
+        failed = true;
         break;
       }
     }
 
-    printf("Received data: 0x");
-    for (int i = read_len-1; i>=0; i--) printf("%x", reply[i]);
-    printf("\n");
-
     // Check it matches the expected values
-    bls12_381_interrupt_rpl = &(zcash_fpga::bls12_381_interrupt_rpl_t*)&reply;
+    bls12_381_interrupt_rpl = *(zcash_fpga::bls12_381_interrupt_rpl_t*)reply;
     if (bls12_381_interrupt_rpl.data_type != zcash_fpga::FE12) {
       printf("ERROR: Interrupt data type was wrong, expected FE12, was [%d]\n", bls12_381_interrupt_rpl.data_type);
+      failed = true;
     }
     if (bls12_381_interrupt_rpl.index != 456) {
       printf("ERROR: Interrupt index was wrong, expected 456, was [%d]\n", bls12_381_interrupt_rpl.index);
+      failed = true;
     }
 
     // Check it matches the value expected from our software model
@@ -283,8 +338,9 @@ int main(int argc, char **argv) {
     string_to_hex("017f1c95cf79b22b459599ea57e613e00cb75e35de1f837814a93b443c54241015ac9761f8fb20a44512ff5cfc04ac7f", (unsigned char *)&exp_res[10*48]);
     string_to_hex("079ab7b345eb23c944c957a36a6b74c37537163d4cbf73bad9751de1dd9c68ef72cb21447e259880f72a871c3eda1b0c", (unsigned char *)&exp_res[11*48]);
 
-    if (memcmp((void*)reply[sizeof(zcash_fpga::bls12_381_interrupt_rpl_t)], (void*)exp_res, 576) != 0) {
-      printf("ERROR: Interrupt data was wrong (check data slot 1-13)!");
+    if (memcmp((void*)&(reply[sizeof(zcash_fpga::bls12_381_interrupt_rpl_t)]), (void*)exp_res, 12*48) != 0) {
+      printf("ERROR: Interrupt data was wrong (check data slot 1-13)!\n");
+      failed = true;
     }
 
 
@@ -292,14 +348,20 @@ int main(int argc, char **argv) {
     rc = zfpga.bls12_381_get_curr_inst_slot(slot_id);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
-    printf("Data slot is now %d\n", slot_id);
+    printf("INFO: Data slot is now %d\n", slot_id);
 
     // Print out data slots
-    for(int i = 0; i < 14; i++) {
+    for(int i = 0; i < 13; i++) {
       zfpga.bls12_381_get_data_slot(i, data);
       printf("slot %d, pt: %d, data:0x", i, data.point_type);
       for(int j = 47; j >= 0; j--) printf("%02x", data.dat[j]);
       printf("\n");
+    }
+}
+    if (!failed) {
+      printf("INFO: All tests passed!\n");
+    } else {
+      printf("ERROR: Tests did not pass!\n");
     }
 
     return rc;
