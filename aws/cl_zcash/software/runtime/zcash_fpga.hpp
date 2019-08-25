@@ -219,7 +219,10 @@ class zcash_fpga {
      */
     int read_stream(uint8_t* data, unsigned int size);
     int write_stream(uint8_t* data, unsigned int len);
-    
+
+    /*
+     * This can be read to check command capability register on the FPGA
+     */
     command_cap_e m_command_cap;
 
   private:
