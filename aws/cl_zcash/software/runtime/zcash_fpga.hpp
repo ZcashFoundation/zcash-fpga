@@ -134,6 +134,13 @@ class zcash_fpga {
       fpga_state_t fpga_state;
     } fpga_status_rpl_t;
 
+    typedef struct __attribute__((__packed__)) {
+      header_t     hdr;
+      uint32_t     index;
+      point_type_t data_type;
+      uint8_t      padding[3];
+    } bls12_381_interrupt_rpl_t;
+
   private:
     static const uint16_t s_pci_vendor_id = 0x1D0F; /* Amazon PCI Vendor ID */
     static const uint16_t s_pci_device_id = 0xF000; /* PCI Device ID preassigned by Amazon for F1 applications */
