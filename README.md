@@ -1,17 +1,17 @@
 The work in this repo is the result of a Zcash foundation grant to develop open-source FPGA code that can be used to accelerate various aspects of the network.
-**An Architecture document is [here](zcash_fpga_design_doc_v1.1.x.pdf)**.
+**An Architecture document is [here](zcash_fpga_design_doc_v1.3.pdf)**.
 
-While mainly developed for Equihash and the secp256k1 and bls12-381 curves, the code (ip_cores) used in this repo can also be applied to other curves by
+While mainly developed for Equihash verification and elliptic curve operations on the secp256k1 and bls12-381 curves, the code (ip_cores) used in this repo can also be applied to other curves by
 changing parameters / minimum modification to equations.
 
 # Getting started
 
 The architecture document has instructions for building an AWS image or simulating the top level design. The easiest way is to add all .sv and .xci files to a new Vivado project,
-and then set the top level _tb.sv file to the module you want to test.
+and then set the top level _tb.sv file to the module you want to test. Everything has been synthesized and tested in both simulation and on FPGA (AWS and Bittware) with both Vivado 2018.3 and 2019.1.
 
 # Repo folder structure
 
-Each top level folder is explained below. Inside each folder is source code written in systemverilog, and most blocks have a standalone self-checking testbench.
+Each top level folder is explained below. Inside each folder is source code written in SystemVerilog, and most blocks have a stand-alone self-checking testbench.
 
 ## AWS
 
@@ -47,11 +47,9 @@ These contain shared IP cores that are used by the projects in this repo. These 
   - Fully parameterized so that they can be used for large bit-width arithmetic
 * Extended Euclidean algorithm for calculating multiplicative inverses
 * Resource arbitrators
-* General purpose elliptical curve point and element modules
+* General purpose elliptical curve (Weierstrass) point and element modules
   - Point multiplication, doubling, adding up to Fp^12 (towered over Fp^6 and Fp^2)
-  - Element inversion
-  - Multiplication by non-residue for use in towering
-  - Exponentiation of Fp^12 elements
+  - Operations in both affine and jacobian coordinates
 
 ## zcash_fpga
 
@@ -63,9 +61,13 @@ It optionally contains the following top-level engines (you can include in a bui
 * Transparent Signature Verification Engine (secp256k1 ECDSA core)
   - Uses efficient endomorphism to reduce key bit size
   - Signature verification calculates multiple EC point operations in parallel, using a resource-shared single fully pipelined karabutsa multiplier and quick modulo reduction technique
-* BLS12-381 Coprocessor (zk-SNARK accelerator)
-  - General arithmetic over bls12-381 curve
+* BLS12-381 coprocessor (zk-SNARK accelerator)
+  - Custom instruction set with 2kB instruction memory
+  - 12kB Data slot URAM at curve native bit width of 381b
+  - General arithmetic up to Fp^12 (Towering Fp -> Fp^2 -> Fp^6 -> Fp^12) over bls12-381 curve
   - Dual Point multiplication in Fp and Fp^2 (G1 and G2)
-  - Frobenius map operations
+  - Fp^12 Frobenius map operations
+  - Fp^12 inversion
+  - Fp^12 exponentiation
   - The optimal ate pairing
-    - Miller loop and final exponentiation stage
+    - Miller loop and final exponentiation stage, with separate instructions for multi-pairing use
