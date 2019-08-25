@@ -25,6 +25,7 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <string.h>
+#include <string>
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -60,6 +61,15 @@ uint32_t byte_swap(uint32_t value) {
         swapped_value |= ((value >> (b * 8)) & 0xff) << (8 * (3-b));
     }
     return swapped_value;
+}
+
+bool string_to_hex(const std::string &inStr, unsigned char *outStr) {
+    size_t len = inStr.length();
+    for (ssize_t i = len-2; i >= 0; i -= 2) {
+        sscanf(inStr.c_str() + i, "%2hhx", outStr);
+        ++outStr;
+    }
+    return true;
 }
 
 
@@ -104,6 +114,46 @@ int main(int argc, char **argv) {
     zcash_fpga::bls12_381_data_t data;
     zcash_fpga::bls12_381_inst_t inst;
 
+    // Store generator points in FPGA
+    size_t g1_slot = 64;
+    size_t g2_slot = 68; 
+    
+    data.point_type = zcash_fpga::FP2_AF;
+    memset(&data, 0x0, sizeof(zcash_fpga::bls12_381_data_t));
+    string_to_hex("024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8", (unsigned char *)data.dat);
+    rc = zfpga.bls12_381_set_data_slot(g2_slot, data);
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+    data.point_type = zcash_fpga::FP2_AF;
+    memset(&data, 0x0, sizeof(zcash_fpga::bls12_381_data_t));
+    string_to_hex("13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e", (unsigned char *)data.dat);
+    rc = zfpga.bls12_381_set_data_slot(g2_slot + 1, data);
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+    data.point_type = zcash_fpga::FP2_AF;
+    memset(&data, 0x0, sizeof(zcash_fpga::bls12_381_data_t));
+    string_to_hex("ce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801", (unsigned char *)data.dat);
+    rc = zfpga.bls12_381_set_data_slot(g2_slot + 2, data);
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+    data.point_type = zcash_fpga::FP2_AF;
+    memset(&data, 0x0, sizeof(zcash_fpga::bls12_381_data_t));
+    string_to_hex("606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be", (unsigned char *)data.dat);
+    rc = zfpga.bls12_381_set_data_slot(g2_slot + 3, data);
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+    data.point_type = zcash_fpga::FP_AF;
+    memset(&data, 0x0, sizeof(zcash_fpga::bls12_381_data_t));
+    string_to_hex("17F1D3A73197D7942695638C4FA9AC0FC3688C4F9774B905A14E3A3F171BAC586C55E83FF97A1AEFFB3AF00ADB22C6BB", (unsigned char *)data.dat);
+    rc = zfpga.bls12_381_set_data_slot(g1_slot, data);
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+    data.point_type = zcash_fpga::FP_AF;
+    memset(&data, 0x0, sizeof(zcash_fpga::bls12_381_data_t));
+    string_to_hex("08B3F481E3AAA0F1A09E30ED741D8AE4FCF5E095D5D00AF600DB18CB2C04B3EDD03CC744A2888AE40CAA232946C5E7E1", (unsigned char *)data.dat);
+    rc = zfpga.bls12_381_set_data_slot(g1_slot + 1, data);                                                                                                                                          fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+
     data.point_type = zcash_fpga::SCALAR;
     memset(&data, 0x0, sizeof(zcash_fpga::bls12_381_data_t));
     data.dat[0] = 10;
@@ -123,10 +173,23 @@ int main(int argc, char **argv) {
     rc = zfpga.bls12_381_set_inst_slot(2, inst);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
-    inst.code = zcash_fpga::FP2_FPOINT_MULT;
+    inst.code = zcash_fpga::POINT_MULT;
     inst.a = 0;
-    inst.b = 1;
-    rc = zfpga.bls12_381_set_inst_slot(0, inst);   // This will start the coprocessor
+    inst.b = g1_slot;
+    inst.c = 1;
+    rc = zfpga.bls12_381_set_inst_slot(1, inst);
+    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+    // Multi pairing
+    inst.code = zcash_fpga::MILLER_LOOP;
+    inst.a = 1;
+    inst.b = g2_slot;
+    inst.c = 1;
+    rc = zfpga.bls12_381_set_inst_slot(2, inst);                                                                                                                                                    fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
+
+
+    // Start the test
+    rc = zcash.bls12_381_set_curr_inst_slot(1);
     fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
 
     // Wait for interrupts
