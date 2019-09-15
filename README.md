@@ -1,5 +1,5 @@
 The work in this repo is the result of a Zcash foundation grant to develop open-source FPGA code that can be used to accelerate various aspects of the network.
-**An Architecture document is [here](zcash_fpga_design_doc_v1.3.pdf)**.
+**An Architecture document is [here](zcash_fpga_design_doc_v1.4.pdf)**.
 
 While mainly developed for Equihash verification and elliptic curve operations on the secp256k1 and bls12-381 curves, the code (ip_cores) used in this repo can also be applied to other curves by
 changing parameters / minimum modification to equations.
@@ -44,9 +44,9 @@ These contain shared IP cores that are used by the projects in this repo. These 
 * Barret reduction for modulo reduction when the modulus does not allow fast reduction
   - Both a fully pipelined high performance version and a slower but smaller resource utilization version
 * Fully parallel multiplier with carry save adder tree and RAM for modular reduction
-  - Fully pipelined, 3x performance over Karatsuba + Barret, but uses FPGA RAM  
+  - Fully pipelined, 3x performance over Karatsuba + Barret, but uses FPGA RAM
 * Multiplier using carry tree to accumulate products with BRAM for modular reduction
-  - 3x performance over Karatsuba + Barret approach
+  - 3x performance over Karatsuba + Barret approach, but takes more LUTs / RAM
 * Addition and subtraction modules
   - Fully parameterized so that they can be used for large bit-width arithmetic
 * Extended Euclidean algorithm for calculating multiplicative inverses
