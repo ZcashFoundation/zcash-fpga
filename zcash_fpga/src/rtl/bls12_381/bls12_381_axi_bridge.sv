@@ -32,7 +32,7 @@ module bls12_381_axi_bridge (
   output logic        o_new_inst_pt_val,
   output logic        o_reset_inst_ram,
   output logic        o_reset_data_ram,
-  
+
   // Interface to memory used in multiplier
   output logic [31:0] o_ram_d,
   output logic        o_ram_we,
@@ -67,7 +67,7 @@ always_ff @ (posedge i_clk) begin
     o_new_inst_pt <= 0;
     o_reset_inst_ram <= 0;
     o_reset_data_ram <= 0;
-    
+
     o_ram_d <= 0;
     o_ram_we <= 0;
     o_ram_se <= 0;
@@ -87,6 +87,9 @@ always_ff @ (posedge i_clk) begin
     data_ram_if.en <= 1;
     data_ram_if.re <= 1;
     data_ram_if.we <= 0;
+
+    o_ram_we <= 0;
+    o_ram_se <= 0;
 
     axi_lite_if.arready <= data_ram_read == 0 && inst_ram_read == 0 &&
                            wr_active == 0 && i_reset_done == 1;
@@ -164,7 +167,7 @@ always_ff @ (posedge i_clk) begin
           32'h1c: begin
             o_ram_we <= axi_lite_if.wdata[0];
             o_ram_se <= axi_lite_if.wdata[1];
-          end          
+          end
         endcase
       end else
       if (wr_addr < DATA_AXIL_START) begin
