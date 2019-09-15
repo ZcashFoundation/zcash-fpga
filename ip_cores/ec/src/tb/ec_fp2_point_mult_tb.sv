@@ -197,16 +197,24 @@ resource_share_add (
   .o_axi ( add_out_if[1:0] )
 );
 
-ec_fp_mult_mod #(
-  .P             ( P   ),
-  .KARATSUBA_LVL ( 3   ),
-  .CTL_BITS      ( 16  )
+accum_mult_mod #(
+  .DAT_BITS ( $bits(FE_TYPE) ),
+  .MODULUS  ( P ),
+  .CTL_BITS ( 16 ),
+  .A_DSP_W  ( 26 ),
+  .B_DSP_W  ( 17 ),
+  .GRID_BIT ( 64 ),
+  .RAM_A_W  ( 8  ),
+  .RAM_D_W  ( 32 )
 )
-ec_fp_mult_mod (
-  .i_clk( clk         ),
-  .i_rst( rst         ),
+accum_mult_mod (
+  .i_clk ( clk ),
+  .i_rst ( rst ),
   .i_mul ( mult_in_if[2] ),
-  .o_mul ( mult_out_if[2] )
+  .o_mul ( mult_out_if[2] ),
+  .i_ram_d ( '0 ),
+  .i_ram_we ( '0 ),
+  .i_ram_se ( '0 )
 );
 
 adder_pipe # (
@@ -263,8 +271,6 @@ begin
   $display("test PASSED in %d clocks", (finish_time-start_time)/CLK_PERIOD);
 end
 endtask;
-
-logic [380:0] in_k;
 
 initial begin
   out_if.rdy = 0;

@@ -49,7 +49,7 @@ localparam NUM_OVR_WRT_BIT = 5;
 FE2_TYPE a_a, b_b, c_c, t;
 FE6_TYPE out, in_a, in_b;
 
-logic [22:0] eq_val, eq_wait;
+logic [22:0] eq_val, eq_wait, eq_sent;
 logic mul_cnt, add_cnt, sub_cnt, mnr_cnt;
 logic mul_en, add_en, sub_en, mnr_en;
 logic [4:0] nxt_fe2_mul, nxt_fe2_mnr, nxt_fe_add, nxt_fe_sub;
@@ -71,6 +71,7 @@ always_ff @ (posedge i_clk) begin
     i_mnr_fe2_if.rdy <= 0;
     eq_val <= 0;
     eq_wait <= 0;
+    eq_sent <= 0;
     rdy_l <= 0;
     a_a <= 0;
     b_b <= 0;
@@ -94,6 +95,7 @@ always_ff @ (posedge i_clk) begin
     if (o_sub_fe_if.rdy) o_sub_fe_if.val <= 0;
     if (o_add_fe_if.rdy) o_add_fe_if.val <= 0;
     if (o_mnr_fe2_if.rdy) o_mnr_fe2_if.val <= 0;
+    
 
     if (~sub_en) get_next_sub();
     if (~add_en) get_next_add();
@@ -116,6 +118,7 @@ always_ff @ (posedge i_clk) begin
       if(out_cnt == 5) begin
         eq_val <= 0;
         eq_wait <= 0;
+        eq_sent <= 0;
         rdy_l <= 0;
         a_a <= 0;
         b_b <= 0;
@@ -253,6 +256,7 @@ task fe2_subtraction(input int unsigned ctl, input FE2_TYPE a, b);
     eq_wait[ctl] <= 1;
     if (sub_cnt == 1) begin
       get_next_sub();
+      eq_sent[ctl] <= 1;
     end
     sub_cnt <= sub_cnt + 1;
   end
@@ -270,6 +274,7 @@ task fe2_addition(input int unsigned ctl, input FE2_TYPE a, b);
     eq_wait[ctl] <= 1;
     if (add_cnt == 1) begin
       get_next_add();
+      eq_sent[ctl] <= 1;
     end
     add_cnt <= add_cnt + 1;
   end
@@ -287,6 +292,7 @@ task fe2_multiply(input int unsigned ctl, input FE2_TYPE a, b);
     eq_wait[ctl] <= 1;
     if (mul_cnt == 1) begin
       get_next_fe2_mul();
+      eq_sent[ctl] <= 1;
     end
     mul_cnt <= mul_cnt + 1;
   end
@@ -303,6 +309,7 @@ task fe2_mnr(input int unsigned ctl, input FE2_TYPE a);
     eq_wait[ctl] <= 1;
     if (mnr_cnt == 1) begin
       get_next_fe2_mnr();
+      eq_sent[ctl] <= 1;
     end
     mnr_cnt <= mnr_cnt + 1;
   end
@@ -334,13 +341,13 @@ task get_next_add();
     nxt_fe_add <= 4;
   else if(~eq_wait[8] && rdy_l)
     nxt_fe_add <= 8;
-  else if(~eq_wait[9] && eq_wait[5] && rdy_l)
+  else if(~eq_wait[9] && eq_sent[5] && rdy_l)
     nxt_fe_add <= 9;
   else if (~eq_wait[12] && eq_val[11] && eq_val[1])
     nxt_fe_add <= 12;
   else if(~eq_wait[13] && rdy_l)
     nxt_fe_add <= 13;
-  else if(~eq_wait[14] && eq_wait[10] && rdy_l)
+  else if(~eq_wait[14] && eq_sent[10] && rdy_l)
     nxt_fe_add <= 14;
   else if(~eq_wait[19] && eq_val[18] && eq_val[0])
     nxt_fe_add <= 19;
@@ -372,7 +379,7 @@ task get_next_fe2_mnr();
   mnr_en <= 1;
   if(~eq_wait[18] && eq_val[7])
     nxt_fe2_mnr <= 18;
-  else if(~eq_wait[21] && eq_wait[20])
+  else if(~eq_wait[21] && eq_sent[20])
     nxt_fe2_mnr <= 21;
   else
     mnr_en <= 0;

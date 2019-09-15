@@ -54,6 +54,12 @@ ${ZCASH_DIR}/ip_cores/util/src/rtl/barret_mod_pipe.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/adder_pipe.sv
 ${ZCASH_DIR}/ip_cores/util/src/rtl/subtracter_pipe.sv
 
+${ZCASH_DIR}/ip_cores/accum_mult_mod/src/rtl/accum_mult_mod.sv
+${ZCASH_DIR}/ip_cores/accum_mult_mod/src/rtl/carry_save_adder_tree_level.sv
+${ZCASH_DIR}/ip_cores/accum_mult_mod/src/rtl/carry_save_adder.sv
+${ZCASH_DIR}/ip_cores/accum_mult_mod/src/rtl/compressor_tree_3_to_2.sv
+${ZCASH_DIR}/ip_cores/accum_mult_mod/src/rtl/full_adder.sv
+
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp_mult_mod.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_arithmetic.sv
 ${ZCASH_DIR}/ip_cores/ec/src/rtl/ec_fp2_point_add.sv

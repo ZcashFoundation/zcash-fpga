@@ -14,6 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+
 `timescale 1ps/1ps
 
 module ec_fp_point_mult_tb ();
@@ -35,8 +36,6 @@ parameter P            = bls12_381_pkg::P;
 
 if_axi_stream #(.DAT_BYTS(($bits(FP_TYPE)+7)/8), .CTL_BITS(KEY_BITS)) in_if(clk);
 if_axi_stream #(.DAT_BYTS(($bits(FP_TYPE)+7)/8)) out_if(clk);
-
-
 
 if_axi_stream #(.DAT_BITS(2*$bits(FP_TYPE))) add_i_if(clk);
 if_axi_stream #(.DAT_BITS($bits(FP_TYPE))) add_o_if(clk);
@@ -187,20 +186,30 @@ resource_share_add (
   .o_axi ( add_out_if[1:0] )
 );
 
-ec_fp_mult_mod #(
-  .P             ( P   ),
-  .KARATSUBA_LVL ( 3   ),
-  .CTL_BITS      ( 16  )
+
+accum_mult_mod #(
+  .DAT_BITS ( $bits(FE_TYPE) ),
+  .MODULUS  ( P ),
+  .CTL_BITS ( 16 ),
+  .A_DSP_W  ( 26 ),
+  .B_DSP_W  ( 17 ),
+  .GRID_BIT ( 64 ),
+  .RAM_A_W  ( 8  ),
+  .RAM_D_W  ( 32 )
 )
-ec_fp_mult_mod (
-  .i_clk( clk         ),
-  .i_rst( rst         ),
+accum_mult_mod (
+  .i_clk ( clk ),
+  .i_rst ( rst ),
   .i_mul ( mult_in_if[2] ),
-  .o_mul ( mult_out_if[2] )
+  .o_mul ( mult_out_if[2] ),
+  .i_ram_d ( '0 ),
+  .i_ram_we ( '0 ),
+  .i_ram_se ( '0 )
 );
 
 adder_pipe # (
   .P        ( P   ),
+  .BITS     ( $bits(FE_TYPE) ),
   .CTL_BITS ( 16  ),
   .LEVEL    ( 2   )
 )
@@ -213,6 +222,7 @@ adder_pipe (
 
 subtractor_pipe # (
   .P        ( P   ),
+  .BITS     ( $bits(FE_TYPE) ),
   .CTL_BITS ( 16  ),
   .LEVEL    ( 2   )
 )
@@ -230,7 +240,7 @@ begin
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] get_dat;
   integer start_time, finish_time;
   FP_TYPE  p_out, p_exp;
-  $display("Running test with k= %d", k);
+  $display("Running test with k= %0d", k);
   p_exp = `MULT_FUNC(k, `G_POINT);
   start_time = $time;
   fork
@@ -262,6 +272,7 @@ initial begin
   #(40*CLK_PERIOD);
 
    in_k = P-1;
+   test(381'h2);
    test(381'haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa);
    test(in_k);
    

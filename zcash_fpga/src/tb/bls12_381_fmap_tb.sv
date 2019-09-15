@@ -15,6 +15,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 `timescale 1ps/1ps
+`define BL12_381_NEWMULT
+`define SIMULATION
 
 module bls12_381_fmap_tb ();
 

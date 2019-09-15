@@ -15,6 +15,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 `timescale 1ps/1ps
+`define SIMULATION
+`define BL12_381_NEWMULT
 
 module ec_fe12_pow_s_tb ();
 
@@ -70,17 +72,23 @@ if_axi_stream #(.DAT_BITS($bits(FE_TYPE)), .CTL_BITS(CTL_BITS))   mul_fe12_i_if 
 if_axi_stream #(.DAT_BYTS(($bits(FE_TYPE)+7)/8), .CTL_BITS(POW_BITS)) pow_fe12_o_if (clk);
 if_axi_stream #(.DAT_BYTS(($bits(FE_TYPE)+7)/8), .CTL_BITS(POW_BITS)) pow_fe12_i_if (clk);
 
-
-ec_fp_mult_mod #(
-  .P             ( P        ),
-  .KARATSUBA_LVL ( 3        ),
-  .CTL_BITS      ( CTL_BITS )
+accum_mult_mod #(
+  .DAT_BITS ( $bits(FE_TYPE)),
+  .CTL_BITS ( CTL_BITS ),
+  .A_DSP_W  ( 26 ),
+  .B_DSP_W  ( 17 ),
+  .GRID_BIT ( 64 ),
+  .RAM_A_W  ( 8  ),
+  .RAM_D_W  ( 32 )
 )
-ec_fp_mult_mod (
-  .i_clk( clk         ),
-  .i_rst( rst         ),
+accum_mult_mod (
+  .i_clk ( clk ),
+  .i_rst ( rst ),
   .i_mul ( mul_fe_o_if ),
-  .o_mul ( mul_fe_i_if )
+  .o_mul ( mul_fe_i_if ),
+  .i_ram_d (),
+  .i_ram_we (),
+  .i_ram_se ()
 );
 
 adder_pipe # (

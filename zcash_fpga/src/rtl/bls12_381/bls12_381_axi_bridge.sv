@@ -31,7 +31,12 @@ module bls12_381_axi_bridge (
   output logic [31:0] o_new_inst_pt,
   output logic        o_new_inst_pt_val,
   output logic        o_reset_inst_ram,
-  output logic        o_reset_data_ram
+  output logic        o_reset_data_ram,
+  
+  // Interface to memory used in multiplier
+  output logic [31:0] o_ram_d,
+  output logic        o_ram_we,
+  output logic        o_ram_se
 );
 
 import bls12_381_pkg::*;
@@ -47,7 +52,6 @@ logic [31:0] last_inst_cnt;
 always_ff @ (posedge i_clk) begin
   curr_inst_pt <= i_curr_inst_pt;
   last_inst_cnt <= i_last_inst_cnt;
-
 end
 
 always_ff @ (posedge i_clk) begin
@@ -63,6 +67,10 @@ always_ff @ (posedge i_clk) begin
     o_new_inst_pt <= 0;
     o_reset_inst_ram <= 0;
     o_reset_data_ram <= 0;
+    
+    o_ram_d <= 0;
+    o_ram_we <= 0;
+    o_ram_se <= 0;
   end else begin
 
     o_reset_inst_ram <= 0;
@@ -150,6 +158,13 @@ always_ff @ (posedge i_clk) begin
             o_reset_inst_ram <= axi_lite_if.wdata[0]; // This will reset the instruction ram
             o_reset_data_ram <= axi_lite_if.wdata[1]; // This will reset the data ram
           end
+          32'h18: begin
+            o_ram_d <= axi_lite_if.wdata;
+          end
+          32'h1c: begin
+            o_ram_we <= axi_lite_if.wdata[0];
+            o_ram_se <= axi_lite_if.wdata[1];
+          end          
         endcase
       end else
       if (wr_addr < DATA_AXIL_START) begin

@@ -21,11 +21,11 @@ package bls12_381_pkg;
   localparam DAT_BITS = 381;
   localparam MUL_BITS = 384;
   localparam [DAT_BITS-1:0] P = 381'h1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
+  
+  typedef logic [380:0] fe_t;
 
-  typedef logic [DAT_BITS-1:0] fe_t;
-
-  fe_t Gx = 381'h17F1D3A73197D7942695638C4FA9AC0FC3688C4F9774B905A14E3A3F171BAC586C55E83FF97A1AEFFB3AF00ADB22C6BB;
-  fe_t Gy = 381'h08B3F481E3AAA0F1A09E30ED741D8AE4FCF5E095D5D00AF600DB18CB2C04B3EDD03CC744A2888AE40CAA232946C5E7E1;
+  fe_t Gx = 'h17F1D3A73197D7942695638C4FA9AC0FC3688C4F9774B905A14E3A3F171BAC586C55E83FF97A1AEFFB3AF00ADB22C6BB;
+  fe_t Gy = 'h08B3F481E3AAA0F1A09E30ED741D8AE4FCF5E095D5D00AF600DB18CB2C04B3EDD03CC744A2888AE40CAA232946C5E7E1;
 
   localparam [63:0] ATE_X = 64'hd201000000010000;
   localparam ATE_X_START = 63;
@@ -280,7 +280,7 @@ package bls12_381_pkg;
      fe2_mul[1] = fe_add(fe_mul(a[0], b[1]), fe_mul(a[1], b[0]));
    endfunction
 
-      // Function to double point in Jacobian coordinates (for comparison in testbench)
+   // Function to double point in Jacobian coordinates (for comparison in testbench)
    // Here a is 0, and we also mod the result
    function jb_point_t dbl_jb_point(input jb_point_t p);
      fe_t I_X, I_Y, I_Z, A, B, C, D, X, Y, Z;
@@ -291,6 +291,7 @@ package bls12_381_pkg;
      I_Y = p.y;
      I_Z = p.z;
      A = fe_mul(I_Y, I_Y);
+
      B = fe_mul(fe_mul(4, I_X), A);
      C = fe_mul(fe_mul(8, A), A);
      D = fe_mul(fe_mul(3, I_X), I_X);
@@ -379,7 +380,7 @@ package bls12_381_pkg;
        if (c[0]) begin
          result = add_jb_point(result, addend);
        end
-       addend = dbl_jb_point(addend);
+       addend = dbl_jb_point(addend);  
        c = c >> 1;
      end
      return result;
@@ -530,7 +531,8 @@ package bls12_381_pkg;
      a_a = fe2_mul(a[0], b[0]);  // 0. a_a = fe2_mul(a[0], b[0])
      b_b = fe2_mul(a[1], b[1]);  // 1. b_b = fe2_mul(a[1], b[1])
      c_c = fe2_mul(a[2], b[2]);  // 2. c_c = fe2_mul(a[2], b[2])
-
+     
+  
      fe6_mul[0] = fe2_add(a[1], a[2]); // 3. fe6_mul[0] = fe2_add(a[1], a[2])
      t = fe2_add(b[1], b[2]);         // 4. t =  fe2_add(b[1], b[2])
 
@@ -540,7 +542,6 @@ package bls12_381_pkg;
 
      fe6_mul[2] = fe2_add(b[0], b[2]);  // 8. fe6_mul[2] = fe2_add(b[0], b[2])
      t = fe2_add(a[0], a[2]);           // 9. t = fe2_add(a[0], a[2])    [wait 5]
-
      fe6_mul[2] = fe2_mul(fe6_mul[2], t);  // 10. fe6_mul[2] = fe2_mul(fe6_mul[2], t)   [8, 9]
      fe6_mul[2] = fe2_sub(fe6_mul[2], a_a); // 11. fe6_mul[2] = fe2_sub(fe6_mul[2], a_a)  [10, 0]
      fe6_mul[2] = fe2_add(fe6_mul[2], b_b);  // 12. fe6_mul[2] = fe2_add(fe6_mul[2], b_b) [11, 1]
@@ -600,12 +601,14 @@ package bls12_381_pkg;
 
      fe12_sqr[0] = fe6_add(fe12_sqr[0], a[0]);
      fe12_sqr[0] = fe6_mul(fe12_sqr[0], c0c1);
+     
 
      fe12_sqr[0] = fe6_sub(fe12_sqr[0], ab);
      fe12_sqr[1] = fe6_add(ab, ab);
 
      ab = fe6_mul_by_nonresidue(ab);
      fe12_sqr[0] = fe6_sub(fe12_sqr[0], ab);
+     
    endfunction
 
 
@@ -681,15 +684,14 @@ package bls12_381_pkg;
      t3 = fe2_add(R.x, t1); // 6. [4]
      t3 = fe2_mul(t3, t3); // 7. [6]
      t3 = fe2_sub(t3, t0); // 8. [7, 1]
-
      t3 = fe2_sub(t3, t2); // 9. [8, 5]
-
      t3 = fe2_add(t3, t3); // 10. [9]
-
      t6 = fe2_add(R.x, t4); // 11. [3]
      t5 = fe2_mul(t4, t4); // 12. [3]
 
      R.x = fe2_sub(t5, t3); // 13. [12, 10]
+
+    
      R.x = fe2_sub(R.x, t3); // 14. [13]
 
      R.z = fe2_add(R.z, R.y); // 15. [R.val, wait 0]
@@ -730,7 +732,7 @@ package bls12_381_pkg;
    // This performs both the line evaluation and the addition
    task automatic miller_add_step(ref fp2_jb_point_t R, input fp2_af_point_t Q, input af_point_t P, ref fe12_t f);
      fe2_t zsquared, ysquared, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10;
-
+     
      zsquared = fe2_mul(R.z, R.z); // 0. [R.val]
      ysquared = fe2_mul(Q.y, Q.y); // 1. [Q.val]
 
@@ -797,7 +799,7 @@ package bls12_381_pkg;
      t1[1]  = fe_mul(t1[1], P.x); // 42. [38]
 
      f = {{FE2_zero, t10, FE2_zero}, {FE2_zero, t1, t9}};
-
+     
    endtask
 
    function fe2_t fe2_fmap(input fe2_t a, input int pow);

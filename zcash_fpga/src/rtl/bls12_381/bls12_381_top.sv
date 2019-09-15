@@ -49,6 +49,9 @@ logic [7:0] interrupt_hdr_byt;
 logic [READ_CYCLE:0] inst_ram_read, data_ram_read;
 logic reset_inst_ram, reset_data_ram;
 
+logic [31:0] mult_ram_d;
+logic mult_ram_we, mult_ram_se;
+
 // Instruction RAM
 if_ram #(.RAM_WIDTH(bls12_381_pkg::INST_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::INST_RAM_DEPTH)) inst_ram_sys_if(.i_clk(i_clk), .i_rst(i_rst || reset_inst_ram));
 if_ram #(.RAM_WIDTH(bls12_381_pkg::INST_RAM_WIDTH), .RAM_DEPTH(bls12_381_pkg::INST_RAM_DEPTH)) inst_ram_usr_if(.i_clk(i_clk), .i_rst(i_rst || reset_inst_ram));
@@ -270,7 +273,10 @@ bls12_381_axi_bridge bls12_381_axi_bridge (
   .o_new_inst_pt      ( new_inst_pt     ),
   .o_new_inst_pt_val  ( new_inst_pt_val ),
   .o_reset_inst_ram   ( reset_inst_ram  ),
-  .o_reset_data_ram   ( reset_data_ram  )
+  .o_reset_data_ram   ( reset_data_ram  ),
+  .o_ram_d            ( mult_ram_d      ),
+  .o_ram_we           ( mult_ram_we     ),
+  .o_ram_se           ( mult_ram_se     )
 );
 
 always_comb begin
@@ -339,16 +345,24 @@ resource_share_mul (
   .o_axi ( mul_out_if[1:0] )
 );
 
-ec_fp_mult_mod #(
-  .P             ( P        ),
-  .KARATSUBA_LVL ( 3        ),
-  .CTL_BITS      ( CTL_BITS )
+accum_mult_mod #(
+  .DAT_BITS ( $bits(FE_TYPE) ),
+  .MODULUS  ( P ),
+  .CTL_BITS ( CTL_BITS ),
+  .A_DSP_W  ( 26 ),
+  .B_DSP_W  ( 17 ),
+  .GRID_BIT ( 64 ),
+  .RAM_A_W  ( 8  ),
+  .RAM_D_W  ( 32 )
 )
-ec_fp_mult_mod (
-  .i_clk( i_clk ),
-  .i_rst( i_rst ),
+accum_mult_mod (
+  .i_clk ( i_clk ),
+  .i_rst ( i_rst ),
   .i_mul ( mul_in_if[2]  ),
-  .o_mul ( mul_out_if[2] )
+  .o_mul ( mul_out_if[2] ),
+  .i_ram_d  ( mult_ram_d ),
+  .i_ram_we ( mult_ram_we ),
+  .i_ram_se ( mult_ram_se )
 );
 
 adder_pipe # (
@@ -560,7 +574,7 @@ task task_mul_element();
         new_data.dat <= mul_out_if[1].dat;
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
-        cnt <= 34;
+        cnt <= 33;
       end
     end
     3: begin
@@ -625,7 +639,7 @@ task task_mul_element();
         new_data.pt <= pt_l;
         data_ram_sys_if.we <= 1;
         data_ram_sys_if.a <=  curr_inst.c + 1;
-        cnt <= 34;
+        cnt <= 33;
       end
     end
     // FE12 multiplication
@@ -633,7 +647,6 @@ task task_mul_element();
     20,21,22,23,24,25,26,27,28,29,30,31: begin
       mul_fe12_i_if.rdy <= 0;
       
-
       if (|data_ram_read[READ_CYCLE:1]== 0 && (~mul_fe12_o_if.val || (mul_fe12_o_if.val && mul_fe12_o_if.rdy))) begin
         if (data_ram_read[0]) begin
           data_ram_read[0] <= 1;

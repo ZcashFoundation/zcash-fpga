@@ -39,10 +39,14 @@ These contain shared IP cores that are used by the projects in this repo. These 
 * Hash map implementation
   - Fully parameterized for bit widths and uses CRC as the hashing function
 * Blocks for parsing/processing streams
-* Karabutsa multiplier
+* Karatsuba multiplier
   - Fully parameterized for number of levels
 * Barret reduction for modulo reduction when the modulus does not allow fast reduction
   - Both a fully pipelined high performance version and a slower but smaller resource utilization version
+* Fully parallel multiplier with carry save adder tree and RAM for modular reduction
+  - Fully pipelined, 3x performance over Karatsuba + Barret, but uses FPGA RAM  
+* Multiplier using carry tree to accumulate products with BRAM for modular reduction
+  - 3x performance over Karatsuba + Barret approach
 * Addition and subtraction modules
   - Fully parameterized so that they can be used for large bit-width arithmetic
 * Extended Euclidean algorithm for calculating multiplicative inverses
@@ -60,7 +64,7 @@ It optionally contains the following top-level engines (you can include in a bui
   - Verifies the equihash solution and difficulty filters
 * Transparent Signature Verification Engine (secp256k1 ECDSA core)
   - Uses efficient endomorphism to reduce key bit size
-  - Signature verification calculates multiple EC point operations in parallel, using a resource-shared single fully pipelined karabutsa multiplier and quick modulo reduction technique
+  - Signature verification calculates multiple EC point operations in parallel, using a resource-shared single fully pipelined karatsuba multiplier and quick modulo reduction technique
 * BLS12-381 coprocessor (zk-SNARK accelerator)
   - Custom instruction set with 2kB instruction memory
   - 12kB Data slot URAM at curve native bit width of 381b

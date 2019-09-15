@@ -174,20 +174,28 @@ fe6_mul_by_nonresidue_i (
   .i_mnr_fe2_if ( mnr_fe2_o_if[1] )
 );
 
-ec_fp_mult_mod #(
-  .P             ( P        ),
-  .KARATSUBA_LVL ( 3        ),
-  .CTL_BITS      ( CTL_BITS )
+accum_mult_mod #(
+  .DAT_BITS ( $bits(FE_TYPE) ),
+  .MODULUS  ( P ),
+  .CTL_BITS ( CTL_BITS ),
+  .A_DSP_W  ( 26 ),
+  .B_DSP_W  ( 17 ),
+  .GRID_BIT ( 64 ),
+  .RAM_A_W  ( 8  ),
+  .RAM_D_W  ( 32 )
 )
-ec_fp_mult_mod (
-  .i_clk( clk         ),
-  .i_rst( rst         ),
+accum_mult_mod (
+  .i_clk ( clk ),
+  .i_rst ( rst ),
   .i_mul ( mul_fe_in_if  ),
-  .o_mul ( mul_fe_out_if )
+  .o_mul ( mul_fe_out_if ),
+  .i_ram_d ( '0 ),
+  .i_ram_we ( '0 ),
+  .i_ram_se ( '0 )
 );
 
 adder_pipe # (
-  .BITS     ( bls12_381_pkg::DAT_BITS ),
+  .BITS     ( $bits(FE_TYPE) ),
   .P        ( P        ),
   .CTL_BITS ( CTL_BITS ),
   .LEVEL    ( 2        )
@@ -200,7 +208,7 @@ adder_pipe (
 );
 
 subtractor_pipe # (
-  .BITS     ( bls12_381_pkg::DAT_BITS ),
+  .BITS     ( $bits(FE_TYPE) ),
   .P        ( P        ),
   .CTL_BITS ( CTL_BITS ),
   .LEVEL    ( 2        )
