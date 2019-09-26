@@ -61,8 +61,8 @@ initial begin
 
 
   // Run our test cases
-  test_status_message();
-  test_block_secp256k1();
+//  test_status_message();
+ // test_block_secp256k1();
   test_bls12_381();
 
   $display("INFO: All tests passed");
@@ -240,8 +240,11 @@ task test_bls12_381();
   bls12_381_pkg::inst_t inst;
   bls12_381_interrupt_rpl_t interrupt_rpl;
   fp2_jb_point_t out_p, exp_p;
+  data_t data;
+  fe12_t  f_out, f_exp;
+  af_point_t G1_p;
+  fp2_af_point_t G2_p;
   logic [380:0] in_k = 381'h33;
-  exp_p =  fp2_point_mult(in_k, g2_point);
 
   slot_data.dat = random_vector(384/8) % bls12_381_pkg::P;
   slot_data.pt = FE;
@@ -263,60 +266,78 @@ task test_bls12_381();
   inst = '{code:MUL_ELEMENT, a:16'd0, b:16'd11, c:16'd2};
   dat = inst;
   for(int i = 0; i < 8; i = i + 4)
-    write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 3*8 + i), .data(dat[i*8 +: 32]));
+    write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 4*8 + i), .data(dat[i*8 +: 32]));
 
   // Check we can read it back
   dat = 0;
   for(int i = 0; i < 8; i = i + 4) begin
-    read_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 3*8 + i), .rdata(rdata));
+    read_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 4*8 + i), .rdata(rdata));
     dat[i*8 +: 32] = rdata;
   end
   $display("INFO: Read: 0x%x", dat[8*8-1:0]);
   $display("INFO: Wrote: 0x%x", inst);
   assert(dat[8*8-1:0] == inst) else $fatal(1, "ERROR: Writing to slot and reading gave wrong results!");
 
-  slot_data = '{dat:in_k, pt:SCALAR};
-  for(int i = 0; i < 48; i = i + 4)
-    write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 3*64 + i), .data(slot_data[i*8 +: 32]));
+  G1_p = {bls12_381_pkg::Gy, bls12_381_pkg::Gx};
+  G2_p = {bls12_381_pkg::G2y, bls12_381_pkg::G2x};
 
-  inst = '{code:POINT_MULT, a:16'd3, b:16'd0, c:16'd0};
-  for(int i = 0; i < 8; i = i + 4)
-    write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 1*8 + i), .data(inst[i*8 +: 32]));
+  ate_pairing(G1_p, G2_p, f_exp);
 
-  inst = '{code:SEND_INTERRUPT, a:16'd0, b:16'habcd, c:16'd0};
+  // G1
+  data = '{dat:G1_p.x, pt:FP_AF};
+  for(int i = 0; i < 48; i = i + 4) write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + i), .data(data[i*8 +: 32]));
+  data = '{dat:G1_p.y, pt:FP_AF};
+  for(int i = 0; i < 48; i = i + 4) write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 64 + i), .data(data[i*8 +: 32]));
+
+  // G2
+  data = '{dat:G2_p.x[0], pt:FP2_AF};
+  for(int i = 0; i < 48; i = i + 4) write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 64*2 + i), .data(data[i*8 +: 32]));
+  data = '{dat:G2_p.x[1], pt:FP2_AF};
+  for(int i = 0; i < 48; i = i + 4) write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 64*3 + i), .data(data[i*8 +: 32]));
+  data = '{dat:G2_p.y[0], pt:FP2_AF};
+  for(int i = 0; i < 48; i = i + 4) write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 64*4 + i), .data(data[i*8 +: 32]));
+  data = '{dat:G2_p.y[1], pt:FP2_AF};
+  for(int i = 0; i < 48; i = i + 4) write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 64*5 + i), .data(data[i*8 +: 32])); 
+
+
+  inst = '{code:SEND_INTERRUPT, a:16'd6, b:16'hbeef, c:16'd0};
   for(int i = 0; i < 8; i = i + 4)
     write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 2*8 + i), .data(inst[i*8 +: 32]));
 
-  // Write to current slot to start
-  inst = '{code:ADD_ELEMENT, a:16'd3, b:16'h0, c:16'd3};
+  inst = '{code:ATE_PAIRING, a:16'd0, b:16'd2, c:16'd6};
   for(int i = 0; i < 8; i = i + 4)
-    write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 0*8 + i), .data(inst[i*8 +: 32]));
+   write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::INST_AXIL_START + 1*8 + i), .data(inst[i*8 +: 32]));
+
+  // Start operation
+  write_ocl_reg(.addr(`ZCASH_OFFSET + 'h10), .data(1));
 
   fork
     begin
       stream_len = 0;
       while(stream_len == 0) read_stream(.data(stream_data), .len(stream_len));
       interrupt_rpl = stream_data;
-
       assert(interrupt_rpl.hdr.cmd == BLS12_381_INTERRUPT_RPL) else $fatal(1, "ERROR: Received non-interrupt message");
-      assert(interrupt_rpl.index == 16'habcd) else $fatal(1, "ERROR: Received wrong index value in message");
-      assert(interrupt_rpl.data_type == FP2_JB) else $fatal(1, "ERROR: Received wrong data type value in message");
+      assert(interrupt_rpl.index == 16'hbeef) else $fatal(1, "ERROR: Received wrong index value in message");
+      assert(interrupt_rpl.data_type == FE12) else $fatal(1, "ERROR: Received wrong data type value in message");
 
       stream_data = stream_data >> $bits(bls12_381_interrupt_rpl_t);
 
-      for (int i = 0; i < 6; i++)
-        out_p[i*381 +: 381] = stream_data[i*(48*8) +: 381];
+      for (int i = 0; i < 2; i++)
+        for (int j = 0; j < 3; j++)
+          for (int k = 0; k < 2; k++)
+            f_out[i][j][k] = stream_data[(i*6+j*2+k)*(48*8) +: 381];
 
-      if (fp2_to_affine(out_p) == fp2_to_affine(exp_p)) begin
-        $display("INFO: Output point matched expected:");
-        print_fp2_jb_point(out_p);
+      if (f_out == f_exp) begin
+        $display("INFO: Output matched expected:");
+        print_fe12(f_out);
       end else begin
-        $display("ERROR: Output point did NOT match expected:");
-        print_fp2_jb_point(out_p);
+        $display("ERROR: Output did NOT match expected:");
+        print_fe12(f_out);
         $display("Expected:");
-        print_fp2_jb_point(exp_p);
+        print_fe12(f_exp);
         failed = 1;
       end
+
     end
     begin
       repeat(100000) @(posedge tb.card.fpga.clk_main_a0);
