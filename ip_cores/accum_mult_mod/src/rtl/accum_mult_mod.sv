@@ -53,7 +53,7 @@ logic [2*DAT_BITS:0] res0_c, res0_r, res0_rr;
 logic [DAT_BITS:0]   res1_c, res1_m_c, res1_m_c_;
 
 // Most of the code is generated
-`include "accum_mult_mod_generated.sv"
+`include "accum_mult_mod_generated.inc"
 
 logic [PIPE-1:0] val, sop, eop;
 logic [PIPE-1:0][CTL_BITS-1:0] ctl;

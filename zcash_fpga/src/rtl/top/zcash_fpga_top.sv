@@ -224,7 +224,10 @@ secp256k1_top secp256k1_top (
   .if_cmd_tx  ( secp256k1_in_if_s_r  )
 );
 
-bls12_381_top bls12_381_top (
+bls12_381_top #(
+  .USE_KARATSUBA ( BLS12_381_USE_KARATSUBA )
+)
+bls12_381_top (
   .i_clk ( i_clk_if ),
   .i_rst ( i_rst_if || ENB_BLS12_381 == 0 ),
   .tx_if ( tx_int_if[1] ),

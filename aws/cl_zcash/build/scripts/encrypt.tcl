@@ -44,6 +44,17 @@ foreach ele $splitCont {
   }
 }
 
+# Copy BRAM init files if they exist
+foreach f [glob -directory "${ZCASH_DIR}/ip_cores/accum_mult_mod/data/" -nocomplain *] {
+  file copy -force $f $TARGET_DIR
+}
+
+# Copy generated file if it exists
+set filep "${ZCASH_DIR}/ip_cores/accum_mult_mod/src/rtl/accum_mult_mod_generated.inc"
+if { [file exists $filep] } {
+  file copy -force $filep $TARGET_DIR
+}
+
 ## Change file names and paths below to reflect your CL area.  DO NOT include AWS RTL files.
 file copy -force $CL_DIR/design/cl_zcash_defines.vh                   $TARGET_DIR
 file copy -force $CL_DIR/design/cl_id_defines.vh                      $TARGET_DIR

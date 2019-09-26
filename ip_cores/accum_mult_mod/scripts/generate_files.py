@@ -300,7 +300,7 @@ end
 
 
 
-f = open('../src/rtl/accum_mult_mod_generated.sv', 'w')
+f = open('../src/rtl/accum_mult_mod_generated.inc', 'w')
 f.write(get_accum_gen())
 f.close()
 

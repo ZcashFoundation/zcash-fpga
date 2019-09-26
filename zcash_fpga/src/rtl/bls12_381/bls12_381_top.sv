@@ -21,6 +21,7 @@
 module bls12_381_top
   import bls12_381_pkg::*;
 #(
+  parameter USE_KARATSUBA = "YES"
 )(
   input i_clk, i_rst,
   // Only tx interface is used to send messages to SW on a SEND-INTERRUPT instruction
@@ -345,25 +346,41 @@ resource_share_mul (
   .o_axi ( mul_out_if[1:0] )
 );
 
-accum_mult_mod #(
-  .DAT_BITS ( $bits(FE_TYPE) ),
-  .MODULUS  ( P ),
-  .CTL_BITS ( CTL_BITS ),
-  .A_DSP_W  ( 26 ),
-  .B_DSP_W  ( 17 ),
-  .GRID_BIT ( 64 ),
-  .RAM_A_W  ( 8  ),
-  .RAM_D_W  ( 32 )
-)
-accum_mult_mod (
-  .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
-  .i_mul ( mul_in_if[2]  ),
-  .o_mul ( mul_out_if[2] ),
-  .i_ram_d  ( mult_ram_d ),
-  .i_ram_we ( mult_ram_we ),
-  .i_ram_se ( mult_ram_se )
-);
+generate
+  if (USE_KARATSUBA == "YES") begin: GEN_KARATSUBA
+    ec_fp_mult_mod #(
+      .P             ( P        ),
+      .KARATSUBA_LVL ( 3        ),
+      .CTL_BITS      ( CTL_BITS )
+    )
+    ec_fp_mult_mod (
+      .i_clk( i_clk ),
+      .i_rst( i_rst ),
+      .i_mul ( mul_in_if[2]  ),
+      .o_mul ( mul_out_if[2] )
+    );
+  end else begin
+    accum_mult_mod #(
+      .DAT_BITS ( $bits(FE_TYPE) ),
+      .MODULUS  ( P ),
+      .CTL_BITS ( CTL_BITS ),
+      .A_DSP_W  ( 26 ),
+      .B_DSP_W  ( 17 ),
+      .GRID_BIT ( 64 ),
+      .RAM_A_W  ( 8  ),
+      .RAM_D_W  ( 32 )
+    )
+    accum_mult_mod (
+      .i_clk ( i_clk ),
+      .i_rst ( i_rst ),
+      .i_mul ( mul_in_if[2]  ),
+      .o_mul ( mul_out_if[2] ),
+      .i_ram_d  ( mult_ram_d ),
+      .i_ram_we ( mult_ram_we ),
+      .i_ram_se ( mult_ram_se )
+    );
+  end
+endgenerate
 
 adder_pipe # (
   .P        ( P        ),
@@ -646,7 +663,7 @@ task task_mul_element();
     8,9,10,11,12,13,14,15,16,17,18,19,
     20,21,22,23,24,25,26,27,28,29,30,31: begin
       mul_fe12_i_if.rdy <= 0;
-      
+
       if (|data_ram_read[READ_CYCLE:1]== 0 && (~mul_fe12_o_if.val || (mul_fe12_o_if.val && mul_fe12_o_if.rdy))) begin
         if (data_ram_read[0]) begin
           data_ram_read[0] <= 1;
@@ -950,8 +967,8 @@ task task_pairing();
          new_data.dat <= pair_o_res_if.val ? pair_o_res_if.dat : mult_pt_if.dat;
          data_ram_sys_if.we <= 1;
          if ((pair_o_res_if.val && ~pair_o_res_if.sop) ||
-              (mult_pt_if.val && ~mult_pt_if.sop)) 
-           data_ram_sys_if.a <= data_ram_sys_if.a + 1;         
+              (mult_pt_if.val && ~mult_pt_if.sop))
+           data_ram_sys_if.a <= data_ram_sys_if.a + 1;
          if (pair_o_res_if.eop || mult_pt_if.eop) begin
            mult_pt_if.rdy <= 0;
            pair_o_res_if.rdy <= 0;
