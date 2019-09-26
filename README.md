@@ -1,5 +1,5 @@
 The work in this repo is the result of a Zcash foundation grant to develop open-source FPGA code that can be used to accelerate various aspects of the network.
-**An Architecture document is [here](zcash_fpga_design_doc_v1.4.pdf)**.
+**An Architecture document is [here](zcash_fpga_design_doc_v1.4.1.pdf)**.
 
 While mainly developed for Equihash verification and elliptic curve operations on the secp256k1 and bls12-381 curves, the code (ip_cores) used in this repo can also be applied to other curves by
 changing parameters / minimum modification to equations.
