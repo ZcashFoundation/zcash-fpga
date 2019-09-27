@@ -61,8 +61,8 @@ initial begin
 
 
   // Run our test cases
-//  test_status_message();
- // test_block_secp256k1();
+  test_status_message();
+  test_block_secp256k1();
   test_bls12_381();
 
   $display("INFO: All tests passed");
