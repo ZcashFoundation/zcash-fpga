@@ -31,7 +31,9 @@ B_DSP_W = 17
 GRID_BIT = 64
 RAM_A_W = 10
 
-URAM_PERCENT = 50
+RAM_AXI_D = 32
+
+URAM_PERCENT = 0
 USE_INIT = 1
 
 RES_W = A_DSP_W+B_DSP_W
@@ -276,18 +278,23 @@ always_ff @ (posedge i_clk) begin
     ram_we <= {ram_we, i_ram_we};
     ram_d  <= {ram_d, i_ram_d};
     ram_se <= {ram_se, i_ram_se};
+    for (int i = 1; i <= RAM_PIPE; i++)
+      addr[i] <= addr[i-1];
     if (ram_we[RAM_PIPE]) begin
-      addr <= addr + 1;'''
+      addr[0] <= addr[0] + 1;'''
   for idx, i in enumerate(ram_addr_bits):
     ram_write_s+= '''
-      mod_ram_{}_ram[addr] <= mod_ram_{}_d;'''.format(idx, idx)
+      mod_ram_{}_ram[addr[RAM_PIPE]] <= mod_ram_{}_d;'''.format(idx, idx)
   ram_write_s += '''
     end
 '''
   ram_write_s += '''
     if (ram_se[RAM_PIPE]) begin'''
   for idx, i in enumerate(ram_addr_bits):
-    previous_ram = "ram_d[RAM_PIPE]" if idx == 0 else "mod_ram_{}_d[{}:({}%RAM_D_W)]".format(idx-1, MODULUS.bit_length()-1, MODULUS.bit_length())
+    if idx == 0:
+      previous_ram = "ram_d[RAM_PIPE]"
+    else:
+      previous_ram = "mod_ram_{}_d[{}:{}]".format(idx-1, MODULUS.bit_length()-1, MODULUS.bit_length()-RAM_AXI_D)
     ram_write_s += '''
       mod_ram_{}_d <= {{mod_ram_{}_d, {}}};'''.format(idx, idx, previous_ram)
 

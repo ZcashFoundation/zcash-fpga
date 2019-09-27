@@ -297,7 +297,7 @@ task test_bls12_381();
   data = '{dat:G2_p.y[0], pt:FP2_AF};
   for(int i = 0; i < 48; i = i + 4) write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 64*4 + i), .data(data[i*8 +: 32]));
   data = '{dat:G2_p.y[1], pt:FP2_AF};
-  for(int i = 0; i < 48; i = i + 4) write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 64*5 + i), .data(data[i*8 +: 32])); 
+  for(int i = 0; i < 48; i = i + 4) write_ocl_reg(.addr(`ZCASH_OFFSET + bls12_381_pkg::DATA_AXIL_START + 64*5 + i), .data(data[i*8 +: 32]));
 
 
   inst = '{code:SEND_INTERRUPT, a:16'd6, b:16'hbeef, c:16'd0};
@@ -340,7 +340,7 @@ task test_bls12_381();
 
     end
     begin
-      repeat(100000) @(posedge tb.card.fpga.clk_main_a0);
+      repeat(10000000) @(posedge tb.card.fpga.clk_main_a0);
       $fatal(1, "ERROR: No reply received from test_bls12_381");
     end
   join_any

@@ -43,7 +43,7 @@ logic [USE_AXI4 == "YES" ? 63 : 3:0] rx_aws_if_keep, tx_aws_if_keep;
 
 
 always_comb begin
-  rx_zcash_if_keep = rx_zcash_if.get_keep_from_mod();
+  rx_zcash_if_keep = 8'hFF;
   tx_zcash_if.set_mod_from_keep( tx_zcash_if_keep );
 end
 
