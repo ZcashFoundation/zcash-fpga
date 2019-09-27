@@ -27,7 +27,7 @@ package zcash_fpga_pkg;
 
   import bls12_381_pkg::point_type_t;
 
-  parameter FPGA_VERSION = 32'h01_04_01;  //v1.4.1
+  parameter FPGA_VERSION = 32'h01_04_02;  //v1.4.2
 
   // What features are enabled in this build
   parameter bit ENB_VERIFY_SECP256K1_SIG = 1;
@@ -40,7 +40,7 @@ package zcash_fpga_pkg;
                                     (ENB_VERIFY_EQUIHASH && equihash_pkg::N == 144 && equihash_pkg::K == 5),       // N = 144, K = 5 for VERIFY_EQUIHASH command
                                     (ENB_VERIFY_EQUIHASH && equihash_pkg::N == 200 && equihash_pkg::K == 9)};      // N = 200, K = 9 for VERIFY_EQUIHASH command
 
-  localparam BLS12_381_USE_KARATSUBA = "NO"; // ["YES" | "NO"], defines to use Karatsuba multiplier ("YES"), otherwise accum_mod with RAM reduction
+  localparam BLS12_381_USE_KARATSUBA = "YES"; // ["YES" | "NO"], defines to use Karatsuba multiplier ("YES"), otherwise accum_mod with RAM reduction
 
   // These are all the command types the FPGA supports
   // Reply messages from the FPGA to host all have the last
