@@ -83,8 +83,6 @@ def get_accum_gen():
         end_padding = max(start+max_bits-end-start_padding, 0)
         coef_l.append('{{{{{}{{1\'d0}}}},mul_grid[{}][{}][{}+:{}],{{{}{{1\'d0}}}}}}'.format(end_padding, j[0], j[1], start-offset, bitwidth, start_padding))
 
-
-
     coef.append(coef_l)
 
   # Create compressor trees and output
@@ -144,6 +142,8 @@ always_ff @ (posedge i_clk) if (o_mul.rdy) accum_grid_o[{}] <= accum_o_c_{} + ac
 
       # Generate the init file lines - need to take into account earlier address bits
       max_bits_value = max_bits + ram_bit_low
+      if (max_bits_value < RAM_A_W):
+        max_bits_value = RAM_A_W
       #print("max_bits {} ram_bit_low {}".format( max_bits, ram_bit_low))
       for i in range(1 << max_bits_value):
         # The value of a bit here will depend on the GRID and posisition of bit

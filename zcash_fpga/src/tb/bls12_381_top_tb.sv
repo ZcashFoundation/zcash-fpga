@@ -818,7 +818,7 @@ task init_ram();
       max_rams = i;
       break;
     end
-    $fclose(fd); 
+    $fclose(fd);
   end
 
   if (max_rams == 99)
@@ -833,15 +833,17 @@ task init_ram();
     for (int i = 0; i < max_rams; i++) begin
       fd = $fopen ($sformatf("mod_ram_%0d.mem", i), "r");
       curr_line = 0;
-      eod = $feof(fd);
-      while((curr_line <= nxt_line) && (eod == 0)) begin
+
+      while((curr_line <= nxt_line)) begin
+        eod = $feof(fd);
+        if (eod) break;
         $fscanf(fd,"%h\n", dat);
         curr_line++;
       end
       dat_flat[i*381 +: 381] = dat;
-      $fclose(fd); 
+      $fclose(fd);
     end
-    
+
     // Now shift in data
     for (int j = ((max_rams*381+31)/32); j >= 0; j--) begin
       axi_lite_if.poke(.addr(32'h18), .data(dat_flat[j*32 +: 32]));
