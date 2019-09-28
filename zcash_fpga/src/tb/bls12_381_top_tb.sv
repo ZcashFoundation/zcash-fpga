@@ -844,14 +844,15 @@ task init_ram();
       $fclose(fd);
     end
 
-    // Now shift in data
-    for (int j = ((max_rams*381+31)/32); j >= 0; j--) begin
-      axi_lite_if.poke(.addr(32'h18), .data(dat_flat[j*32 +: 32]));
-      axi_lite_if.poke(.addr(32'h1c), .data(32'h02));
+    if (eod == 0) begin
+      // Now shift in data
+      for (int j = ((max_rams*381+31)/32); j >= 0; j--) begin
+        axi_lite_if.poke(.addr(32'h18), .data(dat_flat[j*32 +: 32]));
+        axi_lite_if.poke(.addr(32'h1c), .data(32'h02));
+      end
+      axi_lite_if.poke(.addr(32'h1c), .data(32'h01));
+      nxt_line++;
     end
-
-    axi_lite_if.poke(.addr(32'h1c), .data(32'h01));
-    nxt_line++;
 
   end
 
