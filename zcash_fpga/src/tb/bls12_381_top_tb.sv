@@ -22,6 +22,9 @@ import common_pkg::*;
 import bls12_381_pkg::*;
 import zcash_fpga_pkg::bls12_381_interrupt_rpl_t;
 import zcash_fpga_pkg::BLS12_381_INTERRUPT_RPL;
+import zcash_fpga_pkg::BLS12_381_USE_KARATSUBA;
+
+localparam LOAD_RAM = "NO"; // This loads the accum_mult_mod RAM, not needed as we use init files
 
 localparam CLK_PERIOD = 100;
 
@@ -42,7 +45,10 @@ if_axi_stream #(.DAT_BYTS(8)) out_if(clk);
 if_axi_lite #(.A_BITS(32)) axi_lite_if(clk);
 
 
-bls12_381_top bls12_381_top (
+bls12_381_top # (
+  .USE_KARATSUBA(BLS12_381_USE_KARATSUBA)
+)
+bls12_381_top (
   .i_clk ( clk ),
   .i_rst ( rst ),
   // Only tx interface is used to send messages to SW on a SEND-INTERRUPT instruction
@@ -693,16 +699,14 @@ begin
   miller_loop(G1_p, G2_p, f_exp1);
   f_exp0 = fe12_mul(f_exp0, f_exp1);
   final_exponent(f_exp0);
-  
+
   $display("Running test_multi_pairing...");
 
   // See what current instruction pointer is
   axi_lite_if.peek(.addr(32'h10), .data(rdata));
-  
+
   // First load generator points into memory
-  // G1 = ((1 << DATA_RAM_DEPTH) -1 -6)
-  // G1 = ((1 << DATA_RAM_DEPTH) -1 -4)
-  
+
   // G1
   data = '{dat:G1_p.x, pt:FP_AF};
   axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + ((1 << DATA_RAM_DEPTH) -1 -6)*64), .len(48));
@@ -719,28 +723,28 @@ begin
   axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + ((1 << DATA_RAM_DEPTH) -1 -2)*64), .len(48));
   data = '{dat:G2_p.y[1], pt:FP2_AF};
   axi_lite_if.put_data_multiple(.data(data), .addr(DATA_AXIL_START + ((1 << DATA_RAM_DEPTH) -1 -1)*64), .len(48));
-    
-  // Program instruction memory  
-    
+
+  // Program instruction memory
+
   // Do two miller loops
   inst = '{code:MILLER_LOOP, a:((1 << DATA_RAM_DEPTH) -1 -6), b:((1 << DATA_RAM_DEPTH) -1 -4), c:16'd0};
   axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata+1)*8), .len(8));
   inst = '{code:MILLER_LOOP, a:((1 << DATA_RAM_DEPTH) -1 -6), b:((1 << DATA_RAM_DEPTH) -1 -4), c:16'd12};
-  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata+2)*8), .len(8));  
-  
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata+2)*8), .len(8));
+
   // Multiply result
   inst = '{code:MUL_ELEMENT , a:16'd0, b:16'd12, c:16'd0};
-  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata+3)*8), .len(8)); 
-  
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata+3)*8), .len(8));
+
   // Do final exp.
   inst = '{code:FINAL_EXP , a:16'd0, b:16'd0, c:16'd0};
-  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata+4)*8), .len(8));   
-  
+  axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata+4)*8), .len(8));
+
   inst = '{code:SEND_INTERRUPT, a:16'd0, b:16'h4321, c:16'd0};
   axi_lite_if.put_data_multiple(.data(inst), .addr(INST_AXIL_START + (rdata+5)*8), .len(8));
-  
+
   axi_lite_if.poke(.addr(32'h10), .data(rdata+1));
-  
+
   fork
     begin
       out_if.get_stream(get_dat, get_len, 0);
@@ -798,10 +802,71 @@ begin
 end
 endtask;
 
+task init_ram();
+  int fd;
+  int max_rams;
+  int eod;
+  int nxt_line, curr_line;
+  logic [380:0] dat;
+  logic [381*100-1:0] dat_flat;
+
+  // First find how many rams we have - assume less than 100
+  for (int i = 0; i < 100; i++) begin
+    fd = $fopen ($sformatf("mod_ram_%0d.mem", i), "r");
+    if (fd == 0) begin
+      $display("INFO: Finished reading file at cnt %0d", i);
+      max_rams = i;
+      break;
+    end
+    $fclose(fd);
+  end
+
+  if (max_rams == 99)
+    $display("WARNING: Reached max limit of RAMs, possibly will not simulate correctly");
+
+  eod = 0;
+  nxt_line = 0;
+  dat_flat = 0;
+
+  while(eod == 0) begin
+    dat_flat = 0;
+    for (int i = 0; i < max_rams; i++) begin
+      fd = $fopen ($sformatf("mod_ram_%0d.mem", i), "r");
+      curr_line = 0;
+
+      while((curr_line <= nxt_line)) begin
+        eod = $feof(fd);
+        if (eod) break;
+        $fscanf(fd,"%h\n", dat);
+        curr_line++;
+      end
+      dat_flat[i*381 +: 381] = dat;
+      $fclose(fd);
+    end
+
+    if (eod == 0) begin
+      // Now shift in data
+      for (int j = ((max_rams*381+31)/32); j >= 0; j--) begin
+        axi_lite_if.poke(.addr(32'h18), .data(dat_flat[j*32 +: 32]));
+        axi_lite_if.poke(.addr(32'h1c), .data(32'h02));
+      end
+      axi_lite_if.poke(.addr(32'h1c), .data(32'h01));
+      nxt_line++;
+    end
+
+  end
+
+  $display("INFO: Finished writing all RAMS", dat);
+
+endtask
+
 initial begin
   axi_lite_if.reset_source();
   out_if.rdy = 0;
   #100ns;
+
+  if (BLS12_381_USE_KARATSUBA== "NO" && LOAD_RAM == "YES")
+    init_ram();
 
   test_inv_element();
   test_mul_add_sub_element();

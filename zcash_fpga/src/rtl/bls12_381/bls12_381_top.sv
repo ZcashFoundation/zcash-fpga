@@ -367,7 +367,7 @@ generate
       .A_DSP_W  ( 26 ),
       .B_DSP_W  ( 17 ),
       .GRID_BIT ( 64 ),
-      .RAM_A_W  ( 8  ),
+      .RAM_A_W  ( 10 ),
       .RAM_D_W  ( 32 )
     )
     accum_mult_mod (

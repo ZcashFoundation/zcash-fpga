@@ -31,7 +31,9 @@ B_DSP_W = 17
 GRID_BIT = 64
 RAM_A_W = 10
 
-URAM_PERCENT = 50
+RAM_AXI_D = 32
+
+URAM_PERCENT = 0
 USE_INIT = 1
 
 RES_W = A_DSP_W+B_DSP_W
@@ -80,8 +82,6 @@ def get_accum_gen():
         start_padding = max(start - i*GRID_BIT, 0)
         end_padding = max(start+max_bits-end-start_padding, 0)
         coef_l.append('{{{{{}{{1\'d0}}}},mul_grid[{}][{}][{}+:{}],{{{}{{1\'d0}}}}}}'.format(end_padding, j[0], j[1], start-offset, bitwidth, start_padding))
-
-
 
     coef.append(coef_l)
 
@@ -142,6 +142,8 @@ always_ff @ (posedge i_clk) if (o_mul.rdy) accum_grid_o[{}] <= accum_o_c_{} + ac
 
       # Generate the init file lines - need to take into account earlier address bits
       max_bits_value = max_bits + ram_bit_low
+      if (max_bits_value < RAM_A_W):
+        max_bits_value = RAM_A_W
       #print("max_bits {} ram_bit_low {}".format( max_bits, ram_bit_low))
       for i in range(1 << max_bits_value):
         # The value of a bit here will depend on the GRID and posisition of bit
@@ -276,18 +278,23 @@ always_ff @ (posedge i_clk) begin
     ram_we <= {ram_we, i_ram_we};
     ram_d  <= {ram_d, i_ram_d};
     ram_se <= {ram_se, i_ram_se};
+    for (int i = 1; i <= RAM_PIPE; i++)
+      addr[i] <= addr[i-1];
     if (ram_we[RAM_PIPE]) begin
-      addr <= addr + 1;'''
+      addr[0] <= addr[0] + 1;'''
   for idx, i in enumerate(ram_addr_bits):
     ram_write_s+= '''
-      mod_ram_{}_ram[addr] <= mod_ram_{}_d;'''.format(idx, idx)
+      mod_ram_{}_ram[addr[RAM_PIPE]] <= mod_ram_{}_d;'''.format(idx, idx)
   ram_write_s += '''
     end
 '''
   ram_write_s += '''
     if (ram_se[RAM_PIPE]) begin'''
   for idx, i in enumerate(ram_addr_bits):
-    previous_ram = "ram_d[RAM_PIPE]" if idx == 0 else "mod_ram_{}_d[{}:({}%RAM_D_W)]".format(idx-1, MODULUS.bit_length()-1, MODULUS.bit_length())
+    if idx == 0:
+      previous_ram = "ram_d[RAM_PIPE]"
+    else:
+      previous_ram = "mod_ram_{}_d[{}:{}]".format(idx-1, MODULUS.bit_length()-1, MODULUS.bit_length()-RAM_AXI_D)
     ram_write_s += '''
       mod_ram_{}_d <= {{mod_ram_{}_d, {}}};'''.format(idx, idx, previous_ram)
 
