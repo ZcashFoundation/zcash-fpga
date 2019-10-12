@@ -43,7 +43,7 @@ const struct logger *logger = &logger_stdout;
 /*
  * check if the corresponding AFI for hello_world is loaded
  */
-int check_afi_ready(int slot_id);
+//int check_afi_ready(int slot_id); //I think this is not necessary as it is already override..
 
 
 void usage(char* program_name) {
