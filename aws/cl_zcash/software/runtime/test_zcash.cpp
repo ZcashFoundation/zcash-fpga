@@ -50,8 +50,7 @@ void usage(char* program_name) {
     printf("usage: %s [--slot <slot-id>][<poke-value>]\n", program_name);
 }
 
-uint32_t byte_swap(uint32_t value);
-
+// uint32_t byte_swap(uint32_t value);
 
 uint32_t byte_swap(uint32_t value) {
     uint32_t swapped_value = 0;
@@ -139,7 +138,6 @@ int main(int argc, char **argv) {
 
       zcash_fpga::verify_secp256k1_sig_rpl_t verify_secp256k1_sig_rpl;
       verify_secp256k1_sig_rpl = *(zcash_fpga::verify_secp256k1_sig_rpl_t*)reply;
-
       printf("INFO: verify_secp256k1_sig_rpl.hdr.cmd = 0x%x\n", verify_secp256k1_sig_rpl.hdr.cmd);
       printf("INFO: verify_secp256k1_sig_rpl.bm = 0x%x\n", verify_secp256k1_sig_rpl.bm);
       printf("INFO: verify_secp256k1_sig_rpl.index = 0x%lx\n", verify_secp256k1_sig_rpl.index);
@@ -229,8 +227,6 @@ int main(int argc, char **argv) {
       inst.b = 456;
       rc = zfpga.bls12_381_set_inst_slot(6, inst);
       fail_on(rc, out, "ERROR: Unable to write to FPGA!\n");
-
-
       // Multi pairing of e(G1, G2) . e(G1, G2)
       inst.code = zcash_fpga::MILLER_LOOP;
       inst.a = g1_slot;
@@ -310,8 +306,7 @@ int main(int argc, char **argv) {
           break;
         }
       }
-
-      // Check it matches the expected values
+     // Check it matches the expected values
       bls12_381_interrupt_rpl = *(zcash_fpga::bls12_381_interrupt_rpl_t*)reply;
       if (bls12_381_interrupt_rpl.data_type != zcash_fpga::FE12) {
         printf("ERROR: Interrupt data type was wrong, expected FE12, was [%d]\n", bls12_381_interrupt_rpl.data_type);
@@ -368,4 +363,3 @@ int main(int argc, char **argv) {
 out:
     return 1;
 }
-
