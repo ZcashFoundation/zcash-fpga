@@ -5,7 +5,9 @@ We also gave a presentation at the Taipei Ethereum Meetup [here](https://www.you
 [Here](Blockchain_Acceleration_Using_FPGAs_Elliptic_curves_zkSNARKs_and_VDFs_presentation.pdf) is a copy of the presentation slides.
 
 While mainly developed for Equihash verification and elliptic curve operations on the secp256k1 and bls12-381 curves, the code (ip_cores) used in this repo can also be applied to other curves by
-changing parameters / minimum modification to equations.
+changing parameters / minimum modification to equations. Currently a FPGA accelerator for Ethereum 2.0 SNARKs is being developed [here](https://github.com/bsdevlin/fpga_snark_prover) (underlying core modules are all reused as a submodule
+ from this Zcash repo).
+
 
 # Getting started
 
