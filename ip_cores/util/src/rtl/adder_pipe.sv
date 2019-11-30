@@ -18,7 +18,7 @@
  */
 
 module adder_pipe # (
-  parameter  P = bls12_381_pkg::P,
+  parameter  P,
   parameter  BITS = $clog2(P),
   parameter  CTL_BITS = 8,
   parameter  LEVEL = 1     // If LEVEL == 1 this is just an add with registered output
