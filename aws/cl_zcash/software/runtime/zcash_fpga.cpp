@@ -147,6 +147,10 @@ int zcash_fpga::init_fpga(int slot_id) {
 int zcash_fpga::check_afi_ready(int slot_id) {
   struct fpga_mgmt_image_info info = {0};
   int rc;
+  
+  /* initialize the fpga_mgmt library */
+  rc = fpga_mgmt_init();
+  fail_on(rc, out, "Unable to initialize the fpga_mgmt library");
 
   /* get local image description, contains status, vendor id, and device id. */
   rc = fpga_mgmt_describe_local_image(slot_id, &info,0);
