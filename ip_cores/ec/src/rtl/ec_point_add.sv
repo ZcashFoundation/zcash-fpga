@@ -308,18 +308,11 @@ always_ff @ (posedge i_clk) begin
         if (o_val && i_rdy) begin
           state <= IDLE;
           o_val <= 0;
+          o_err <= 0;
           o_rdy <= 1;
         end
       end
     endcase
-
-    if (o_err) begin
-      o_val <= 1;
-      if (o_val && i_rdy) begin
-        o_err <= 0;
-        state <= IDLE;
-      end
-    end
 
   end
 end
