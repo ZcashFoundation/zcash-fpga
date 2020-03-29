@@ -20,7 +20,11 @@
 module ec_point_dbl
 #(
   parameter type FP_TYPE,
-  parameter type FE_TYPE
+  parameter type FE_TYPE,
+  // If we use Montgomery form we need to override these
+  parameter FE_TYPE CONST_3 = 3,
+  parameter FE_TYPE CONST_4 = 4,
+  parameter FE_TYPE CONST_8 = 8
 )(
   input i_clk, i_rst,
   // Input point
@@ -97,6 +101,7 @@ always_ff @ (posedge i_clk) begin
     if (o_mul_if.rdy) o_mul_if.val <= 0;
     if (o_add_if.rdy) o_add_if.val <= 0;
     if (o_sub_if.rdy) o_sub_if.val <= 0;
+    if (i_rdy) o_val <= 0;
 
     case(state)
       {IDLE}: begin
@@ -184,7 +189,7 @@ always_ff @ (posedge i_clk) begin
           multiply(5, i_p_l.x, i_p_l.x);
         end else
         if (eq_val[5] && ~eq_wait[6]) begin //6.    D = 3*D mod p [eq5]
-          multiply(6, 3, D);
+          multiply(6, CONST_3, D);
         end else
         if (eq_val[6] && ~eq_wait[7]) begin //7.   (o_p.x) = D^2 mod p[eq6]
           multiply(7, D, D);
@@ -196,10 +201,10 @@ always_ff @ (posedge i_clk) begin
           multiply(14, i_p_l.z, o_p.z);
         end else
         if (eq_val[1] && ~eq_wait[2]) begin //2.    B = 4*B mod p [eq1]
-          multiply(2, B, 4);
+          multiply(2, B, CONST_4);
         end else
         if (eq_val[3] && ~eq_wait[4]) begin //4.    C = C*8 mod p [eq3]
-          multiply(4, C, 8);
+          multiply(4, C, CONST_8);
         end
 
         // Subtractions

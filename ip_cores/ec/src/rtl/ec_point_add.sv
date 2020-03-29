@@ -124,6 +124,7 @@ always_ff @ (posedge i_clk) begin
     if (o_mul_if.rdy) o_mul_if.val <= 0;
     if (o_add_if.rdy) o_add_if.val <= 0;
     if (o_sub_if.rdy) o_sub_if.val <= 0;
+    if (i_rdy) o_val <= 0;
 
     case(state)
       {IDLE}: begin
