@@ -124,6 +124,10 @@ always_ff @ (posedge i_clk) begin
     if (o_mul_if.rdy) o_mul_if.val <= 0;
     if (o_add_if.rdy) o_add_if.val <= 0;
     if (o_sub_if.rdy) o_sub_if.val <= 0;
+    if (i_rdy) begin
+      o_val <= 0;
+      o_err <= 0;
+    end
 
     case(state)
       {IDLE}: begin
@@ -160,6 +164,7 @@ always_ff @ (posedge i_clk) begin
             if ((i_p1.x == i_p2.x) && (i_p1.y == i_p2.y)) begin
               state <= FINISHED;
               o_err <= 1;
+              o_p <= i_p1; // Return original point
               o_val <= 1;
             end
           end
@@ -312,7 +317,7 @@ always_ff @ (posedge i_clk) begin
       end
     endcase
 
-    if (o_err) begin
+    if (o_err && ~o_val) begin
       o_val <= 1;
       if (o_val && i_rdy) begin
         o_err <= 0;
