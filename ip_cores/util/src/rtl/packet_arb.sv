@@ -27,7 +27,7 @@ module packet_arb # (
   parameter OVR_WRT_BIT = CTL_BITS - $clog2(NUM_IN), // What bits in ctl are overwritten with channel id
   parameter PIPELINE = 1,
   parameter PRIORITY_IN = 0,
-  parameter OVERRIDE_CTL = 0 // Optional parameter to control overriding the ctl
+  parameter OVERRIDE_CTL = 1 // Optional parameter to control overriding the ctl
 ) (
   input i_clk, i_rst,
 
