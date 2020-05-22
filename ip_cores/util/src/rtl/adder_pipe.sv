@@ -18,7 +18,7 @@
  */
 
 module adder_pipe # (
-  parameter  P = bls12_381_pkg::P,
+  parameter  P,
   parameter  BITS = $clog2(P),
   parameter  CTL_BITS = 8,
   parameter  LEVEL = 1     // If LEVEL == 1 this is just an add with registered output
@@ -54,14 +54,14 @@ always_comb begin
   b[0] = 0;
   b[0] = i_add.dat[BITS +: BITS];
   sop_eop[0][0] = i_add.sop;
-  sop_eop[0][1] = i_add.eop;  
+  sop_eop[0][1] = i_add.eop;
   result0[0] = 0;
   result1[0] = 0;
   rdy[LEVEL] = o_add.rdy;
   i_add.rdy = rdy[0];
   o_add.copy_if_comb(carry_neg[LEVEL] ? result0[LEVEL] : result1[LEVEL], val[LEVEL], 1, 1, 0, 0, ctl[LEVEL]);
   o_add.sop = sop_eop[LEVEL][0];
-  o_add.eop = sop_eop[LEVEL][1];  
+  o_add.eop = sop_eop[LEVEL][1];
 end
 
 generate

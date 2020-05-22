@@ -26,7 +26,8 @@ module packet_arb # (
   parameter NUM_IN,
   parameter OVR_WRT_BIT = CTL_BITS - $clog2(NUM_IN), // What bits in ctl are overwritten with channel id
   parameter PIPELINE = 1,
-  parameter PRIORITY_IN = 0
+  parameter PRIORITY_IN = 0,
+  parameter OVERRIDE_CTL = 1 // Optional parameter to control overriding the ctl
 ) (
   input i_clk, i_rst,
 
@@ -44,66 +45,50 @@ logic [NUM_IN-1:0][DAT_BITS-1:0] dat;
 logic [NUM_IN-1:0][MOD_BITS-1:0] mod;
 logic [NUM_IN-1:0][CTL_BITS-1:0] ctl;
 
+if_axi_stream #(.DAT_BYTS(DAT_BYTS), .DAT_BITS(DAT_BITS), .CTL_BITS(CTL_BITS)) out_int_if (i_clk);
+
 generate
   genvar g;
   for (g = 0; g < NUM_IN; g++) begin: GEN
-  
-    // Optionally pipeline the input
-    if (PIPELINE == 0) begin: PIPELINE_GEN
     
-      always_comb i_axi[g].rdy = rdy[g];
-      always_comb begin
-        val[g] = i_axi[g].val;
-        eop[g] = i_axi[g].eop;
-        sop[g] = i_axi[g].sop;
-        err[g] = i_axi[g].err;
-        dat[g] = i_axi[g].dat;
-        mod[g] = i_axi[g].mod;
-        ctl[g] = i_axi[g].ctl;
+    always_comb i_axi[g].rdy = rdy[g];
+    always_comb begin
+      val[g] = i_axi[g].val;
+      eop[g] = i_axi[g].eop;
+      sop[g] = i_axi[g].sop;
+      err[g] = i_axi[g].err;
+      dat[g] = i_axi[g].dat;
+      mod[g] = i_axi[g].mod;
+      ctl[g] = i_axi[g].ctl;
+      if (OVERRIDE_CTL)
         ctl[g][OVR_WRT_BIT +: $clog2(NUM_IN)] = g;
-      end
-      
-    end else begin
-    
-      always_comb  i_axi[g].rdy = ~val[g] || (val[g] && rdy[g]);
-    
-      always_ff @ (posedge i_clk) begin
-        if (i_rst) begin
-          val[g] <= 0;
-          eop[g] <= 0;
-          sop[g] <= 0;
-          err[g] <= 0;
-          dat[g] <= 0;
-          mod[g] <= 0;
-          ctl[g] <= 0;
-        end else begin
-          if (~val[g] || (val[g] && rdy[g])) begin
-            val[g] <= i_axi[g].val;
-            eop[g] <= i_axi[g].eop;
-            sop[g] <= i_axi[g].sop;
-            err[g] <= i_axi[g].err;
-            dat[g] <= i_axi[g].dat;
-            mod[g] <= i_axi[g].mod;
-            ctl[g] <= i_axi[g].ctl;
-            ctl[g][OVR_WRT_BIT +: $clog2(NUM_IN)] <= g;
-          end
-      end
-    end   
-    
     end
+
   end
+    
+  pipeline_if  #(
+    .DAT_BITS   ( DAT_BITS ),
+    .CTL_BITS   ( CTL_BITS ),
+    .NUM_STAGES ( PIPELINE )
+  )
+  pipeline_if (
+    .i_rst ( i_rst  ),
+    .i_if  ( out_int_if ),
+    .o_if  ( o_axi      )
+  );
+    
 endgenerate
 
 always_comb begin
   rdy = 0;
-  rdy[idx] = o_axi.rdy;
-  o_axi.dat = dat[idx];
-  o_axi.mod = mod[idx];
-  o_axi.ctl = ctl[idx];
-  o_axi.val = val[idx];
-  o_axi.err = err[idx];
-  o_axi.sop = sop[idx];
-  o_axi.eop = eop[idx];
+  rdy[idx] = out_int_if.rdy;
+  out_int_if.dat = dat[idx];
+  out_int_if.mod = mod[idx];
+  out_int_if.ctl = ctl[idx];
+  out_int_if.val = val[idx];
+  out_int_if.err = err[idx];
+  out_int_if.sop = sop[idx];
+  out_int_if.eop = eop[idx];
 end
 
 // Logic to arbitrate is registered
