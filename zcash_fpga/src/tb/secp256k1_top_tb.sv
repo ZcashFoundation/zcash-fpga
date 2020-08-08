@@ -54,7 +54,7 @@ secp256k1_top secp256k1_top (
 );
 
 // Test a point
-task test(input integer k, input logic [255:0] hash, r, s, Qx, Qy);
+task test(input integer k, input logic [255:0] hash, r, s, Qx, Qy, fail_ok=0);
 begin
   integer signed get_len;
   logic [common_pkg::MAX_SIM_BYTS*8-1:0] expected,  get_dat;
@@ -87,7 +87,8 @@ begin
   fail |= (verify_secp256k1_sig_rpl.bm != 0);
   fail |= (verify_secp256k1_sig_rpl.index != k);
   fail |= (verify_secp256k1_sig_rpl.cycle_cnt == 0);
-  assert (~fail) else $fatal(1, "%m %t ERROR: test failed :\n%p", $time, verify_secp256k1_sig_rpl);
+  assert (~fail || fail_ok) else $fatal(1, "%m %t ERROR: test failed :\n%p", $time, verify_secp256k1_sig_rpl);
+  $display("Returned status: %p", verify_secp256k1_sig_rpl);
 
   $display("test #%d PASSED in %d clocks", integer'(k), (finish_time-start_time)/CLK_PERIOD);
 end
@@ -99,17 +100,37 @@ initial begin
   in_if.val = 0;
   #(40*CLK_PERIOD);
 
-  test(1, 256'h4c7dbc46486ad9569442d69b558db99a2612c4f003e6631b593942f531e67fd4,  // message hash
+    test(1, 256'h4c7dbc46486ad9569442d69b558db99a2612c4f003e6631b593942f531e67fd4,  // message hash
           256'h1375af664ef2b74079687956fd9042e4e547d57c4438f1fc439cbfcb4c9ba8b,  // r
           256'hde0f72e442f7b5e8e7d53274bf8f97f0674f4f63af582554dbecbb4aa9d5cbcb,  // s
           256'h808a2c66c5b90fa1477d7820fc57a8b7574cdcb8bd829bdfcf98aa9c41fde3b4,  //Qx
           256'heed249ffde6e46d784cb53b4df8c9662313c1ce8012da56cb061f12e55a32249); //Qy
-
-  test(2, 256'haca448f8093e33286c7d284569feae5f65ae7fa2ea5ce9c46acaad408da61e1f,  // message hash
+    
+    test(2, 256'haca448f8093e33286c7d284569feae5f65ae7fa2ea5ce9c46acaad408da61e1f,  // message hash
           256'hbce4a3be622e3f919f97b03b45e3f32ccdf3dd6bcce40657d8f9fc973ae7b29,  // r
           256'h6abcd5e40fcee8bca6b506228a2dcae67daa5d743e684c4d3fb1cb77e43b48fe,  // s
           256'hb661c143ffbbad5acfe16d427767cdc57fb2e4c019a4753ba68cd02c29e4a153,  //Qx
           256'h6e1fb00fdb9ddd39b55596bfb559bc395f220ae51e46dbe4e4df92d1a5599726); //Qy
+
+    test(3, 256'h9834876dcfb05cb167a5c24953eba58c4ac89b1adf57f28f2f9d09af107ee8f0, //Digest
+            256'hae235401e2112948be75194de0bad0002e8e76e6cdf9267ccb179643d908dc5e, //sig.r
+            256'h1f37bd6b617d03db5413cad3dc74fd091d071c2377fb74f488c56077823a2d56, //sig.s
+            256'h5db9b06cc4928dd46f675c7dde14de8c7c2a8fd8e6c132da77e4ffeb90ff51d0, //pub.Qx
+            256'h54d0967454193d20bc5733d0779ce3f6824666a3a9a66273c7f21e5f26ca0bbf); //pub.Qy
+    
+    test(4, 256'h9834876dcfb05cb167a5c24953eba58c4ac89b1adf57f28f2f9d09af107ee8f0, //Digest
+            256'ha0c388bad0d0de5b8cd74dde1b130ae24f727874e00b0a19c9a0ee336ea420cf, //sig.r
+            256'h4d549363cea5e7cf2e5a80de97057e6709b8014c9037d12aac86b9ae4fbb02bb, //sig.s
+            256'h87d4561f92925beb4afd97fb0f883bc1f7f573494087191af8bc67557b4ab0f9, //pub.Qx
+            256'h0d933ed3e39c30e27dfde32f276ef50db3eef6cbea8e913f7488b3dff15fb3ee ); //pub.Qy
+            
+    // Test that locks up FPGA
+    test(5, 256'h000ab00000000000000000000000000000000000000000000000000000000000,  //Digest
+            256'h0000000000000000000000000000000000000000000000000000000000000000,  //sig.r
+            256'h0000000000000000000000000000000000000000000000000000000000000000,  //sig.s
+            256'h00bcd00000000000000000000000000000000000000000000000000000000000,  //pub.Qx
+            256'h0000000000000000000000000000000000000000000000000000000000000000,  //pub.Qy
+            1); // Expected to return fail
 
   #1us $finish();
 end
