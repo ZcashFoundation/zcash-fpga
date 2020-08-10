@@ -13,7 +13,6 @@ localparam DAT_BYTS = 8;
 localparam DAT_BITS = DAT_BYTS*8;
 import zcash_fpga_pkg::*;
 
-
 // 256 bit inverse calculation
 if_axi_stream #(.DAT_BYTS(256/8)) bin_inv_in_if(i_clk);
 if_axi_stream #(.DAT_BYTS(256/8)) bin_inv_out_if(i_clk);
@@ -393,6 +392,7 @@ always_ff @ (posedge i_clk) begin
         timeout <= timeout;
     end
     if (secp256k1_ver.TIMEOUT_FAIL) begin
+      timeout <= 0;
       secp256k1_ver.TIMEOUT_FAIL <= 0;
       cnt <= $bits(verify_secp256k1_sig_rpl_t)/8;
       msg <= verify_secp256k1_sig_rpl(secp256k1_ver, index, timeout);
