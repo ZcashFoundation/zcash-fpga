@@ -26,7 +26,10 @@
 #include <assert.h>
 #include <string.h>
 #include <string>
-
+#include <vector>
+#include <iostream>
+#include <iomanip>
+#include <algorithm>
 #include <unistd.h>
 #include <stdlib.h>
 
@@ -35,161 +38,23 @@
 #include <utils/lcd.h>
 #include <utils/sh_dpi_tasks.h>
 
-#include "zcash_fpga.hpp"
-
 #include <openssl/ecdsa.h>
 #include <openssl/sha.h>
 #include <openssl/bn.h>
-#define NID NID_secp256k1   //using NID_secp256k1:714
 
-typedef struct __attribute__((__packed__)) {
-    uint64_t s[4];
-    uint64_t r[4];
-    uint64_t hash[4];
-    uint64_t Qx[4];
-    uint64_t Qy[4];
-} Signature_t;
+#include "./zcash_fpga.hpp"
+#include "./ossl.h"
 
 /* use the stdout logger for printing debug information  */
 
-const struct logger *logger = &logger_stdout;
+//const struct logger *logger = &logger_stdout;
 /*
  * check if the corresponding AFI for hello_world is loaded
  */
 //int check_afi_ready(int slot_id); //I think this is not necessary as it is already override..
 
-
 void usage(char* program_name) {
     printf("usage: %s [--slot <slot-id>][<poke-value>]\n", program_name);
-}
-
-// uint32_t byte_swap(uint32_t value);
-
-uint32_t byte_swap(uint32_t value) {
-    uint32_t swapped_value = 0;
-    int b;
-    for (b = 0; b < 4; b++) {
-        swapped_value |= ((value >> (b * 8)) & 0xff) << (8 * (3-b));
-    }
-    return swapped_value;
-}
-
-bool string_to_hex(const std::string &inStr, unsigned char *outStr) {
-    size_t len = inStr.length();
-    for (ssize_t i = len-2; i >= 0; i -= 2) {
-        sscanf(inStr.c_str() + i, "%2hhx", outStr);
-        ++outStr;
-    }
-    return true;
-}
-
-
-Signature_t sig_ossl (bool verb)	{	//verb=true, print more info.
-	Signature_t sig_ret;
-	memset(&sig_ret, 0, sizeof(Signature_t));
-	//std::string mesg_string = "aaa";
-	std::string mesg_string = "I am a fish";
-	std::vector<uint8_t> Digest (DIG_SIZE, 0);
-	Digest=Hash256(mesg_string);
-
-	//fill sig_ret.hash.
-	unsigned char* p_hash = (unsigned char *)sig_ret.hash;
-	int i=0;
-	for	(std::vector<unsigned char>::iterator iter = Digest.begin(); iter != Digest.end(); ++iter)
-	{	*(p_hash+i) =*iter; i++;	}	
-
-	//EC_KEY OBJ create
-	EC_KEY *ec_key = EC_KEY_new();
-	if (ec_key == NULL)  error("Error for creating ECC key object ");
-	EC_GROUP *ec_group = EC_GROUP_new_by_curve_name(NID);   //NID_secp256k1:714
-	EC_KEY_set_group(ec_key, ec_group);
-	if (!EC_KEY_generate_key(ec_key))	error("Error for creating ECC key pair");
-	
-	//get private key and pub key (Qx, Qy)
-	const EC_POINT *pub     = EC_KEY_get0_public_key (ec_key);
-	const BIGNUM *PRIV  	= EC_KEY_get0_private_key(ec_key);
-	BIGNUM *QX = BN_new();
-	BIGNUM *QY = BN_new();
-	//Gets the affine coordinates of an EC_POINT.
-	if (!(EC_POINT_get_affine_coordinates(ec_group, pub, QX, QY, NULL))) 
-		error("Error for creating ECC pub key");
-	if (verb)	{
-		printf("Pub key gen OK:\n");
-		std::cout << "QX      : ";
-		BN_print_fp(stdout, QX);
-		putc('\n', stdout);
-		std::cout << "QY      : ";
-		BN_print_fp(stdout, QY);
-		putc('\n', stdout);
-		std::cout << "Priv key: ";
-		BN_print_fp(stdout, PRIV);
-		std::cout <<"\n--------------------------------\n";
-	}	
-	//generate signature
-	ECDSA_SIG *signature;
-	unsigned char *dig_ptr=Digest.data();
-	signature = ECDSA_do_sign(dig_ptr, SHA256_DIGEST_LENGTH, ec_key);
-		if (signature == NULL)	error("ECDSA_SIG generation fail");
-
-	//verify signature
-	if (!(ECDSA_do_verify(dig_ptr, SHA256_DIGEST_LENGTH, signature, ec_key)))
-		error("Openssl generated signature verify FAILED");
-	
-	//Obtain R and S
-	const BIGNUM *PR = BN_new();
-	const BIGNUM *PS = BN_new();
-	ECDSA_SIG_get0(signature, &PR, &PS);
-
-	//convert BN to generate TV
-	char* qx    	= BN_bn2hex(QX);
-	char* qy    	= BN_bn2hex(QY);
-	char* sig_r		= BN_bn2hex(PR);
-	char* sig_s 	= BN_bn2hex(PS);
-	char* priv_key  = BN_bn2hex(PRIV);	//private key needed for debugging
-	
-	std::string sig_r_str=sig_r;
-	std::string sig_s_str=sig_s;
-	std::string qx_str=qx;
-	std::string qy_str=qy;
-
-	string_to_hex(sig_r,  (unsigned char *)sig_ret.r);
-    string_to_hex(sig_s,  (unsigned char *)sig_ret.s);
-    string_to_hex(qx_str, (unsigned char *)sig_ret.Qx);
-    string_to_hex(qy_str, (unsigned char *)sig_ret.Qy);
-	
-	if (verb)	{
-	for (int i=0; i<DIG_SIZE; i++)	printf("%02x", *(dig_ptr+i));
-	std::cout <<"  //digest\n";
-	char_array_display (sig_r,SIG_SIZE,"sig.r");
-	char_array_display (sig_s,SIG_SIZE,"sig.s");
-	char_array_display (qx,   PUB_KEY_SIZE,"QX");
-	char_array_display (qy,   PUB_KEY_SIZE,"QY");
-	printf("--------------------------------------------------\n");
-	char_array_display (priv_key,64,"PRIV");
-	}
-
-	//free memory
-	OPENSSL_free(qx);
-	OPENSSL_free(qy);
-	OPENSSL_free(sig_r);
-	OPENSSL_free(sig_s);
-
-	ECDSA_SIG_free(signature);
-	EC_GROUP_free(ec_group);
-	EC_KEY_free(ec_key);
-	
-	qx    = nullptr;
-	qy    = nullptr;
-	sig_r = nullptr;
-	sig_s = nullptr;
-	signature = nullptr;
-	ec_group  =	nullptr;
-	ec_key	  = nullptr;
-
-	BN_free(QX);
-	BN_free(QY);
-
-return sig_ret;
 }
 
 int main(int argc, char **argv) {
@@ -200,7 +65,7 @@ int main(int argc, char **argv) {
     unsigned int timeout = 0;
     unsigned int read_len = 0;
     uint8_t reply[640];
-    bool failed = 0;
+    uint32_t failed = 0;
     // Process command line args
     {
         int i;
@@ -232,6 +97,8 @@ int main(int argc, char **argv) {
       printf("INFO: Testing secp256k1 core...\n");
       const unsigned int index_int=0xa;
       for (unsigned int tv_ind=0; tv_ind<5; tv_ind++) {
+      printf("******************************************************\n");
+
       printf("INFO: TV index=%d\n", tv_ind+1);
       zcash_fpga::verify_secp256k1_sig_t verify_secp256k1_sig;
       memset(&verify_secp256k1_sig, 0, sizeof(zcash_fpga::verify_secp256k1_sig_t));
@@ -272,22 +139,16 @@ int main(int argc, char **argv) {
                 string_to_hex("0d933ed3e39c30e27dfde32f276ef50db3eef6cbea8e913f7488b3dff15fb3ee", (unsigned char *)verify_secp256k1_sig.Qy);
                 break;
                 case 4:
-                std::cout<<"Using openssl to generate a dynamic TV\n";
-                Signature_t sig_ossl=sig_ossl(true);
-                verify_secp256k1_sig.hash=sig_ossl.hash;
-                verify_secp256k1_sig.r=sig_ossl.r;
-                verify_secp256k1_sig.s=sig_ossl.s;
-                verify_secp256k1_sig.Qx=sig_ossl.Qx;
-                verify_secp256k1_sig.Qy=sig_ossl.Qy;
-                break:
-                default:
-                std::cout<<"An crazy TV for verifying robust\n";
-                printf ("this crazy test vector may knock off fpga, you may need do fpga-load-local-image again!!!\n");
+                printf ("This test vector may knock off fpga, you may need do fpga-load-local-image again!!!\n");
                 string_to_hex("000ab00000000000000000000000000000000000000000000000000000000000", (unsigned char *)verify_secp256k1_sig.hash);
                 string_to_hex("0000000000000000000000000000000000000000000000000000000000000000", (unsigned char *)verify_secp256k1_sig.r);
                 string_to_hex("0000000000000000000000000000000000000000000000000000000000000000", (unsigned char *)verify_secp256k1_sig.s);
                 string_to_hex("00bcd00000000000000000000000000000000000000000000000000000000000", (unsigned char *)verify_secp256k1_sig.Qx);
                 string_to_hex("0000000000000000000000000000000000000000000000000000000000000000", (unsigned char *)verify_secp256k1_sig.Qy);
+		break;
+		default: 
+		printf ("This test vector may knock off fpga, you may need do fpga-load-local-image again!!!\n");
+		
         }
       rc = zfpga.write_stream((uint8_t*)&verify_secp256k1_sig, sizeof(zcash_fpga::verify_secp256k1_sig_t));
       fail_on(rc, out, "ERROR: Unable to send verify_secp256k1_sig to FPGA!");
@@ -299,7 +160,7 @@ int main(int argc, char **argv) {
         usleep(1);
         timeout++;
         if (timeout > 1000) {
-          printf("ERROR: No reply received, timeout\n");
+          printf("[ERROR]: No reply received, timeout\n");
           failed = true;
           break;
         }
@@ -307,27 +168,34 @@ int main(int argc, char **argv) {
 
       zcash_fpga::verify_secp256k1_sig_rpl_t verify_secp256k1_sig_rpl;
       verify_secp256k1_sig_rpl = *(zcash_fpga::verify_secp256k1_sig_rpl_t*)reply;
-      printf("INFO: verify_secp256k1_sig_rpl.hdr.cmd = 0x%x\n", verify_secp256k1_sig_rpl.hdr.cmd);
-      printf("INFO: verify_secp256k1_sig_rpl.bm = 0x%x\n", verify_secp256k1_sig_rpl.bm);
-      printf("INFO: verify_secp256k1_sig_rpl.index = 0x%lx, expect 0x%lx\n", verify_secp256k1_sig_rpl.index,index_int+tv_ind);
-      printf("INFO: verify_secp256k1_sig_rpl.cycle_cnt = 0x%x\n", verify_secp256k1_sig_rpl.cycle_cnt);
-
+      
+      printf("[INFO]:  hdr.cmd  = 0x%x\n", verify_secp256k1_sig_rpl.hdr.cmd);
+      printf("[INFO]: .bm       = 0x%x\n", verify_secp256k1_sig_rpl.bm);
+      printf("[INFO]: .index    = 0x%lx, \t expect 0x%x\n", verify_secp256k1_sig_rpl.index,index_int+tv_ind);
+      printf("[INFO]: .cycle_cnt= 0x%x\n", verify_secp256k1_sig_rpl.cycle_cnt);
+      
       if (verify_secp256k1_sig_rpl.hdr.cmd != zcash_fpga::VERIFY_SECP256K1_SIG_RPL) {
-          printf("ERROR: Header type was wrong!\n");
-          failed = true;
+          printf("[ERROR]: Header type was wrong for test vector#%d!\n",tv_ind);
+          failed++;
+          continue;
       }
       if (verify_secp256k1_sig_rpl.bm != 0) {
-          printf("ERROR: Signature verification failed for test vector %d!\n",tv_ind+1);
-          failed = true;
+          printf("[ERROR]: Signature verification failed for test vector #%d!\n",tv_ind);
+          failed++;
+          continue;
       }
 
       if (verify_secp256k1_sig_rpl.index != index_int+tv_ind) {
-         printf("ERROR: Index was wrong!\n");
-         failed = true;
+         printf("[ERROR]: Index was wrong for test vector #%d!\n",tv_ind);
+         failed++;
+         continue;
       }
-      printf("========Test vector %d done=========\n",tv_ind+1);
       }//end of tv_ind loop
     }
+    printf("\n======================================================\n");
+    printf("Final result\n");
+    printf("Total 5 round test, failed [%d]\n", failed);
+
  out:
     return 1;
 }
