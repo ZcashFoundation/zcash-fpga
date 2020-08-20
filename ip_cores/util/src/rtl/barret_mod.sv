@@ -43,14 +43,17 @@ module barret_mod #(
 
 localparam                   MAX_IN_BITS = 2*K;
 localparam [MAX_IN_BITS:0]   U = (1 << (2*K)) / P;
-localparam [MAX_IN_BITS-1:0] P_ = P;
 logic [2:0][CTL_BITS-1:0] ctl_r;
 
 if_axi_stream #(.DAT_BITS(2*(OUT_BITS+2))) mult_in_if(i_clk);
 if_axi_stream #(.DAT_BITS(2*(OUT_BITS+2))) mult_out_if(i_clk);
 
-logic [MAX_IN_BITS:0] c1, c2, c3, c4, c2_;
+logic [MAX_IN_BITS:0] c1, c2, c3, c4, c2_, P_;
 
+always_comb begin
+  P_ = 0;
+  P_[OUT_BITS-1:0] = P; 
+end
 
 typedef enum {IDLE, S0, S1, S2, FINISHED, WAIT_MULT} state_t;
 state_t state, prev_state;
@@ -153,7 +156,6 @@ generate
     );
   end else if (MULTIPLIER == "KARATSUBA") begin
     localparam LEVEL = 2;
-    logic [LEVEL-1:0] val;
     
     karatsuba_ofman_mult # (
       .BITS  ( OUT_BITS + 8 ),
@@ -161,23 +163,23 @@ generate
     )
     karatsuba_ofman_mult (
       .i_clk  ( i_clk                 ),
+      .i_rst ( i_rst),
+      .i_val ( mult_in_if.val ),
+      .i_ctl (),
+      .i_rdy( mult_out_if.rdy ),
+      .o_rdy (mult_in_if.rdy),
+      .o_val(mult_out_if.val),
       .i_dat_a( {7'd0, mult_in_if.dat[0 +: OUT_BITS+1]}),
       .i_dat_b( {7'd0, mult_in_if.dat[OUT_BITS+1 +: OUT_BITS+1]} ),  
       .o_dat  ( mult_out_if.dat       )
     );
     
-    always_comb begin
-      mult_in_if.rdy = mult_out_if.rdy;
-      mult_out_if.val = val[LEVEL-1];
+  always_comb begin
+    o_mult_if.val = 0;
+    i_mult_if.rdy = 0;
     end
-    
-    always_ff @ (posedge i_clk) begin
-      if (i_rst) begin
-        val <= 0;
-      end else begin
-        val <= {val, mult_in_if.val};
-      end  
-    end
+
+  
   end else if (MULTIPLIER == "EXTERNAL") begin
     always_comb begin
       o_mult_if.val = mult_in_if.val;
