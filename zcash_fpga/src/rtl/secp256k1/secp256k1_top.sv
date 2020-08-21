@@ -9,6 +9,10 @@ module secp256k1_top import secp256k1_pkg::*; #(
   if_axi_stream.source if_cmd_tx
 );
 
+logic rst, rst_int, timeout_l;
+
+always_comb rst = i_rst | rst_int;
+
 localparam DAT_BYTS = 8;
 localparam DAT_BITS = DAT_BYTS*8;
 import zcash_fpga_pkg::*;
@@ -66,7 +70,7 @@ always_ff @ (posedge i_clk) begin
 end
 
 always_ff @ (posedge i_clk) begin
-  if (i_rst) begin
+  if (rst) begin
     msg <= 0;
     secp256k1_state <= IDLE;
     if_cmd_tx.reset_source();
@@ -100,6 +104,8 @@ always_ff @ (posedge i_clk) begin
     index <= 0;
 
     timeout <= 0;
+    rst_int <= 0;
+    timeout_l <= 0;
 
   end else begin
 
@@ -393,6 +399,7 @@ always_ff @ (posedge i_clk) begin
     end
     if (secp256k1_ver.TIMEOUT_FAIL) begin
       timeout <= 0;
+      timeout_l <= 1;
       secp256k1_ver.TIMEOUT_FAIL <= 0;
       cnt <= $bits(verify_secp256k1_sig_rpl_t)/8;
       msg <= verify_secp256k1_sig_rpl(secp256k1_ver, index, timeout);
@@ -408,7 +415,7 @@ bin_inv #(
 )
 bin_inv (
   .i_clk ( i_clk ),
-  .i_rst ( i_rst) ,
+  .i_rst ( rst) ,
   .i_dat ( bin_inv_in_if.dat ),
   .i_p   ( inv_p             ),
   .i_val ( bin_inv_in_if.val ),
@@ -427,7 +434,7 @@ secp256k1_mult_mod #(
 )
 secp256k1_mult_mod (
   .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
+  .i_rst ( rst ),
   .i_dat_a ( mult_in_if[3].dat[0 +: 256] ),
   .i_dat_b ( mult_in_if[3].dat[256 +: 256] ),
   .i_val ( mult_in_if[3].val ),
@@ -452,7 +459,7 @@ resource_share # (
 )
 resource_share_mult (
   .i_clk ( i_clk ),
-  .i_rst ( i_rst ),
+  .i_rst ( rst ),
   .i_axi ( mult_in_if[2:0]  ),
   .o_res ( mult_in_if[3]    ),
   .i_res ( mult_out_if[3]   ),
@@ -465,7 +472,7 @@ generate if (USE_ENDOMORPH == "NO") begin
   )
   secp256k1_point_mult0 (
     .i_clk ( i_clk ),
-    .i_rst ( i_rst ),
+    .i_rst ( rst ),
     .i_p   ( pt_mult0_in_p    ),
     .i_k   ( pt_mult0_in_k    ),
     .i_val ( pt_mult0_in_val  ),
@@ -485,7 +492,7 @@ generate if (USE_ENDOMORPH == "NO") begin
   )
   secp256k1_point_mult1 (
     .i_clk ( i_clk ),
-    .i_rst ( i_rst ),
+    .i_rst ( rst ),
     .i_p   ( pt_mult1_in_p    ),
     .i_k   ( pt_mult1_in_k    ),
     .i_val ( pt_mult1_in_val  ),
@@ -503,7 +510,7 @@ end else begin
   secp256k1_point_mult_endo
   secp256k1_point_mult_endo0 (
     .i_clk ( i_clk ),
-    .i_rst ( i_rst ),
+    .i_rst ( rst ),
     .i_p   ( pt_mult0_in_p    ),
     .i_k   ( pt_mult0_in_k    ),
     .i_val ( pt_mult0_in_val  ),
@@ -521,7 +528,7 @@ end else begin
   secp256k1_point_mult_endo
   secp256k1_point_mult_endo1 (
     .i_clk ( i_clk ),
-    .i_rst ( i_rst ),
+    .i_rst ( rst ),
     .i_p   ( pt_mult1_in_p    ),
     .i_k   ( pt_mult1_in_k    ),
     .i_val ( pt_mult1_in_val  ),
@@ -549,6 +556,8 @@ task send_message(input logic [$clog2(MAX_BYT_MSG)-1:0] msg_size);
     if (cnt == 0) begin
       if_cmd_tx.val <= 0;
       secp256k1_state <= IDLE;
+      if (timeout_l) 
+        rst_int <= 1;
     end
   end
 endtask
