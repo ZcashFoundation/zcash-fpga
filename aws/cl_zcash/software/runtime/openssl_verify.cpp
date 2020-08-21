@@ -109,12 +109,12 @@ int main(int argc, char *argv[]) {
       
       //in case the Big_little Endian convert are needed.
       
-      //unsigned char *p_dig  =(unsigned char*) &(sig.hash);
+      unsigned char *p_dig  =(unsigned char*) &(sig.hash);
       //unsigned char *p_sig_r=(unsigned char*) &(sig.r);
       //unsigned char *p_sig_s=(unsigned char*) &(sig.s);
       //unsigned char *p_pk_qx=(unsigned char*) &(sig.Qx);
       //unsigned char *p_pk_qy=(unsigned char*) &(sig.Qy);
-      //std::reverse (p_dig,   p_dig+sizeof(sig.hash));
+      std::reverse (p_dig,   p_dig+sizeof(sig.hash));
       //std::reverse (p_sig_r, p_sig_r+sizeof(sig.r));
       //std::reverse (p_sig_s, p_sig_s+sizeof(sig.s));
       //std::reverse (p_pk_qx, p_pk_qx+sizeof(sig.Qx));
