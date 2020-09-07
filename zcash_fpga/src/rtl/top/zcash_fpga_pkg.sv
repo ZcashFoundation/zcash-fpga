@@ -27,12 +27,12 @@ package zcash_fpga_pkg;
 
   import bls12_381_pkg::point_type_t;
 
-  parameter FPGA_VERSION = 32'h01_04_02;  //v1.4.2
+  parameter FPGA_VERSION = 32'h01_04_03;  //v1.4.3
 
   // What features are enabled in this build
-  parameter bit ENB_VERIFY_SECP256K1_SIG = 0;
+  parameter bit ENB_VERIFY_SECP256K1_SIG = 1;
   parameter bit ENB_VERIFY_EQUIHASH = 0;
-  parameter bit ENB_BLS12_381 = 1;
+  parameter bit ENB_BLS12_381 = 0;
 
   localparam [63:0] FPGA_CMD_CAP = {{60'd0},
                                      ENB_BLS12_381,
