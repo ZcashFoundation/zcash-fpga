@@ -70,7 +70,8 @@ read_ip [ list \
   $CL_DIR/ip/axis_dwidth_converter_48_to_8/axis_dwidth_converter_48_to_8.xci \
   $CL_DIR/ip/axi_fifo_mm_s_0/axi_fifo_mm_s_0.xci \
   $CL_DIR/ip/ila_2/ila_2.xci \
-  $CL_DIR/ip/axi_fifo_mm_s_lite/axi_fifo_mm_s_lite.xci
+  $CL_DIR/ip/axi_fifo_mm_s_lite/axi_fifo_mm_s_lite.xci \
+  $CL_DIR/ip/fifo_generator_0/fifo_generator_0.xci
 ]
 
 puts "AWS FPGA: Generating IP blocks";
@@ -85,6 +86,7 @@ set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_48
 set_property generate_synth_checkpoint false [get_files axi_fifo_mm_s_0.xci]
 set_property generate_synth_checkpoint false [get_files axi_fifo_mm_s_lite.xci]
 set_property generate_synth_checkpoint false [get_files ila_2.xci]
+set_property generate_synth_checkpoint false [get_files fifo_generator_0.xci]
 
 generate_target all [get_ips axis_dwidth_converter_64_to_8]
 generate_target all [get_ips axis_dwidth_converter_8_to_64]
@@ -94,6 +96,7 @@ generate_target all [get_ips axis_dwidth_converter_48_to_8]
 generate_target all [get_ips axi_fifo_mm_s_0]
 generate_target all [get_ips axi_fifo_mm_s_lite]
 generate_target all [get_ips ila_2]
+generate_target all [get_ips fifo_generator_0]
 
 #Read IP for axi register slices
 read_ip [ list \
