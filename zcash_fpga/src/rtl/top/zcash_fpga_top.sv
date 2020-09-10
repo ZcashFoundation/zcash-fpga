@@ -39,6 +39,7 @@ module zcash_fpga_top
 );
 
 localparam CTL_BITS = 8;
+localparam USE_XILINX_FIFO = "YES"; // If you use this make sure you generate the ip folder in aws/cl_zcash/ip
 
 // These are the resets combined with the user reset
 logic usr_rst_100, rst_100;
@@ -158,37 +159,93 @@ equihash_verif_top (
 
 // This block is the ECCDSA block for curve secp256k1
 
-cdc_fifo_if #(
-  .SIZE     ( 16 ),
-  .USE_BRAM ( 0 ),
-  .RAM_PERFORMANCE ("HIGH_PERFORMANCE")
-)
-cdc_fifo_secp256k1_rx (
-  .i_clk_a ( i_clk_if ),
-  .i_rst_a ( usr_rst || i_rst_if ),
-  .i_clk_b ( i_clk_200 ),
-  .i_rst_b ( rst_200 || ENB_VERIFY_SECP256K1_SIG == 0 ),
-  .i_a ( secp256k1_out_if ),
-  .o_full_a(),
-  .o_b ( secp256k1_out_if_s ),
-  .o_emp_b ()
-);
+if (USE_XILINX_FIFO == "YES") begin
+  
+  logic cdc_fifo_secp256k1_rx_full, cdc_fifo_secp256k1_rx_empty, cdc_fifo_secp256k1_rx_wr_rst_busy, cdc_fifo_secp256k1_rx_rd_rst_busy;
+  
+  always_comb begin
+    secp256k1_out_if.rdy = ~cdc_fifo_secp256k1_rx_full && ~cdc_fifo_secp256k1_rx_wr_rst_busy;
+    secp256k1_out_if_s.val = ~cdc_fifo_secp256k1_rx_rd_rst_busy && ~cdc_fifo_secp256k1_rx_empty;
+    secp256k1_out_if_s.ctl = 0;
+    secp256k1_out_if_s.err = 0;
+    secp256k1_out_if_s.mod = 0;  
+  end
+    
+  fifo_generator_0 cdc_fifo_secp256k1_rx (
+    .srst       (i_rst_if),
+    .wr_clk     (i_clk_if),
+    .rd_clk     (i_clk_200),
+    .din        ({secp256k1_out_if.dat, secp256k1_out_if.sop, secp256k1_out_if.eop}),
+    .wr_en      (secp256k1_out_if.val), 
+    .rd_en      (secp256k1_out_if_s.rdy && secp256k1_out_if_s.val),
+    .dout       ({secp256k1_out_if_s.dat, secp256k1_out_if_s.sop, secp256k1_out_if_s.eop}),
+    .full       (cdc_fifo_secp256k1_rx_full),
+    .empty      (cdc_fifo_secp256k1_rx_empty),
+    .wr_rst_busy(cdc_fifo_secp256k1_rx_wr_rst_busy),
+    .rd_rst_busy(cdc_fifo_secp256k1_rx_rd_rst_busy)
+  );
+  
+  logic cdc_fifo_secp256k1_tx_full, cdc_fifo_secp256k1_tx_empty, cdc_fifo_secp256k1_tx_wr_rst_busy, cdc_fifo_secp256k1_tx_rd_rst_busy;
+  
+  always_comb begin
+    secp256k1_in_if_s.rdy = ~cdc_fifo_secp256k1_tx_full && ~cdc_fifo_secp256k1_tx_wr_rst_busy;
+    secp256k1_in_if.val = ~cdc_fifo_secp256k1_tx_rd_rst_busy && ~cdc_fifo_secp256k1_tx_empty;
+    secp256k1_in_if.ctl = 0;
+    secp256k1_in_if.err = 0;
+    secp256k1_in_if.mod = 0;  
+  end
+    
+  fifo_generator_0 cdc_fifo_secp256k1_tx (
+      .srst       (i_rst_if),
+      .wr_clk     (i_clk_200),
+      .rd_clk     (i_clk_if),
+      .din        ({secp256k1_in_if_s.dat, secp256k1_in_if_s.sop, secp256k1_in_if_s.eop}),
+      .wr_en      (secp256k1_in_if_s.val), 
+      .rd_en      (secp256k1_in_if.rdy && secp256k1_in_if.val),
+      .dout       ({secp256k1_in_if.dat, secp256k1_in_if.sop, secp256k1_in_if.eop}),
+      .full       (cdc_fifo_secp256k1_tx_full),
+      .empty      (cdc_fifo_secp256k1_tx_empty),
+      .wr_rst_busy(cdc_fifo_secp256k1_tx_wr_rst_busy),
+      .rd_rst_busy(cdc_fifo_secp256k1_tx_rd_rst_busy)
+    );  
+    
+end else begin
+    
+  cdc_fifo_if #(
+    .SIZE     ( 16 ),
+    .USE_BRAM ( 0 ),
+    .RAM_PERFORMANCE ("HIGH_PERFORMANCE")
+  )
+  cdc_fifo_secp256k1_rx (
+    .i_clk_a ( i_clk_if ),
+    .i_rst_a ( usr_rst || i_rst_if ),
+    .i_clk_b ( i_clk_200 ),
+    .i_rst_b ( rst_200 || ENB_VERIFY_SECP256K1_SIG == 0 ),
+    .i_a ( secp256k1_out_if ),
+    .o_full_a(),
+    .o_b ( secp256k1_out_if_s ),
+    .o_emp_b ()
+  );
+  
+  cdc_fifo_if #(
+    .SIZE     ( 16 ),
+    .USE_BRAM ( 0 ),
+    .RAM_PERFORMANCE ("HIGH_PERFORMANCE")
+  )
+  cdc_fifo_secp256k1_tx (
+    .i_clk_a ( i_clk_200  ),
+    .i_rst_a ( rst_200 || ENB_VERIFY_SECP256K1_SIG == 0 ),
+    .i_clk_b ( i_clk_if ),
+    .i_rst_b ( usr_rst || i_rst_if  ),
+    .i_a ( secp256k1_in_if_s ),
+    .o_full_a(),
+    .o_b ( secp256k1_in_if ),
+    .o_emp_b ()
+  );  
+  
+end
 
-cdc_fifo_if #(
-  .SIZE     ( 16 ),
-  .USE_BRAM ( 0 ),
-  .RAM_PERFORMANCE ("HIGH_PERFORMANCE")
-)
-cdc_fifo_secp256k1_tx (
-  .i_clk_a ( i_clk_200  ),
-  .i_rst_a ( rst_200 || ENB_VERIFY_SECP256K1_SIG == 0 ),
-  .i_clk_b ( i_clk_if ),
-  .i_rst_b ( usr_rst || i_rst_if  ),
-  .i_a ( secp256k1_in_if_s ),
-  .o_full_a(),
-  .o_b ( secp256k1_in_if ),
-  .o_emp_b ()
-);
+
 
 // We add pipelining so this block can be on a different SLR
 if_axi_stream #(.DAT_BYTS(DAT_BYTS), .CTL_BITS(CTL_BITS)) secp256k1_out_if_s_r(i_clk_200);

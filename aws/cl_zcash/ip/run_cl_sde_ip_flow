@@ -6,6 +6,7 @@ mkdir axis_dwidth_converter_48_to_8
 mkdir axis_dwidth_converter_4_to_8
 mkdir axis_dwidth_converter_8_to_4
 mkdir ila_2
+mkdir fifo_generator_0
 
 cp axi_fifo_mm_s_0.xci axi_fifo_mm_s_0/axi_fifo_mm_s_0.xci
 cp axi_fifo_mm_s_lite.xci axi_fifo_mm_s_lite/axi_fifo_mm_s_lite.xci
@@ -15,6 +16,7 @@ cp axis_dwidth_converter_48_to_8.xci axis_dwidth_converter_48_to_8/axis_dwidth_c
 cp axis_dwidth_converter_4_to_8.xci axis_dwidth_converter_4_to_8/axis_dwidth_converter_4_to_8.xci
 cp axis_dwidth_converter_8_to_4.xci axis_dwidth_converter_8_to_4/axis_dwidth_converter_8_to_4.xci
 cp ila_2.xci ila_2/ila_2.xci
+cp fifo_generator_0.xci fifo_generator_0/fifo_generator_0.xci
 
 vivado -mode batch -source cl_sde_ip_setup.tcl
 

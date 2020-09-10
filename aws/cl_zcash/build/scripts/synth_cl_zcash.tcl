@@ -75,6 +75,8 @@ read_ip [ list \
 
 puts "AWS FPGA: Generating IP blocks";
 
+upgrade_ip [get_ips *]
+
 set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_64_to_8.xci]
 set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_8_to_64.xci]
 set_property generate_synth_checkpoint false [get_files axis_dwidth_converter_4_to_8.xci]

@@ -114,6 +114,9 @@ always_ff @ (posedge i_clk) begin
     typ0_msg <= 0;
   end else begin
     rx_typ0_if.rdy <= 1;
+    
+    if (tx_arb_in_if[0].rdy) tx_arb_in_if[0].val <= 0;
+    
     case (typ0_msg_state)
       
       TYP0_IDLE: begin      
@@ -195,7 +198,7 @@ always_comb begin
 end
 
 always_comb begin
-  i_secp256k1_if.rdy = (typ1_msg_state == TYP1_VERIFY_SECP256K1) && tx_arb_in_if[1].rdy;
+  i_secp256k1_if.rdy = (typ1_msg_state == TYP1_VERIFY_SECP256K1) && (~tx_arb_in_if[1].val || (tx_arb_in_if[1].rdy && tx_arb_in_if[1].val));
 end
 // Logic for processing msg_type == 1 messages
 always_ff @ (posedge i_clk) begin
@@ -215,6 +218,9 @@ always_ff @ (posedge i_clk) begin
     o_secp256k1_if.reset_source();
     eop_l <= 0;
   end else begin
+  
+    if (tx_arb_in_if[1].rdy) tx_arb_in_if[1].val <= 0;
+    
     case (typ1_msg_state)
       TYP1_IDLE: begin
         rx_typ1_if_rdy <= 1;
@@ -297,7 +303,12 @@ always_ff @ (posedge i_clk) begin
         end
         
         if (~tx_arb_in_if[1].val || (tx_arb_in_if[1].rdy && tx_arb_in_if[1].val)) begin
-          tx_arb_in_if[1].copy_if(i_secp256k1_if.dat, i_secp256k1_if.val, i_secp256k1_if.sop, i_secp256k1_if.eop, 0, i_secp256k1_if.mod);
+          tx_arb_in_if[1].val <= i_secp256k1_if.val;
+          tx_arb_in_if[1].dat <= i_secp256k1_if.dat;
+          tx_arb_in_if[1].mod <= i_secp256k1_if.mod;
+          tx_arb_in_if[1].sop <= i_secp256k1_if.sop;
+          tx_arb_in_if[1].eop <= i_secp256k1_if.eop;
+          tx_arb_in_if[1].err <= i_secp256k1_if.err;
         end
         
         if (tx_arb_in_if[1].val && tx_arb_in_if[1].rdy && tx_arb_in_if[1].eop) begin

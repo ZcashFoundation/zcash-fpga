@@ -7,3 +7,4 @@ rm -rf axi_fifo_mm_s_lite/
 rm -rf axis_dwidth_converter_4_to_8/
 rm -rf axis_dwidth_converter_8_to_4/
 rm -rf ila_2/
+rm -rf fifo_generator_0.xci/
